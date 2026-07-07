@@ -1,4 +1,7 @@
-﻿__pycache__/
 .venv/
-*.log
+__pycache__/
+*.pyc
 .vscode/
+Thumbs.db
+.DS_Store
+*.log
