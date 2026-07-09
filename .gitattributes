@@ -1,0 +1,16 @@
+# Normalize line endings across Windows (MSI) and macOS (Mac Studio) so text
+# files don't generate phantom diffs when the same repo is edited on
+# different platforms.
+* text=auto eol=lf
+
+# Explicit binary types (never touch line endings).
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.zip binary
+*.uf2 binary
+*.bin binary
+*.hex binary
+*.mpy binary
