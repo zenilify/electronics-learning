@@ -1,7 +1,8 @@
 # PROGRESS.md — electronics-learning
 
 Session-by-session log. **Newest entries at the top.** Claude reads this at
-the start of each session and appends a new entry at the end.
+the start of each session and adds a new entry at the top at the end of
+each session.
 
 ---
 
