@@ -6,6 +6,45 @@ each session.
 
 ---
 
+## 2026-07-18 — Mac onboarding: repo review + encoding/doc fixes (estudio)
+
+First session on the Mac Studio. Pulled the repo into PARA, did a full
+project review, and fixed the three issues the analysis surfaced.
+
+### Accomplished
+
+- Repo now cloned and working at
+  `/Volumes/HomeX/estudio/PARA/01-Projects/electronics-learning` (estudio).
+- Full repo analysis: structure matches conventions; all 4 projects reviewed.
+- Fixed `requirements.txt`: was UTF-16 + CRLF (PowerShell 5.1 `pip freeze >`
+  trap) → re-encoded to UTF-8 + LF; 78 packages, pip-readable on any OS.
+- Updated `README.md`: added projects 03–04, fixed "stey-by-step" and
+  "Seed XIAO" typos.
+- Fixed this file's header: entries are PREPENDED at the top (the old text
+  said "appends at the end", contradicting CLAUDE.md).
+- Committed and pushed as `c7d48a8`.
+- Created the Obsidian side of the project: MOC + session log +
+  Project Dashboard section in vault `SyncV2` (syncs to all devices).
+
+### Key decisions
+
+- On Windows, regenerate requirements.txt with
+  `python -m pip freeze | Out-File -Encoding utf8` (never plain `>`).
+- Left `c7d48a8`'s garbled commit message as-is — already pushed, harmless.
+
+### Next steps (start here next session)
+
+1. **Task 17 — Wio accelerometer:** LIS3DHTR live X/Y/Z tilt on the LCD;
+   first Library Manager install (`Seeed_Arduino_LIS3DHTR`).
+2. **Task 18 — Commit Wio Terminal chapter** after Task 17.
+
+### Deferred / blocked
+
+- Unchanged: soldering iron purchase (XIAO SAMD21 chapter), NAS mirror
+  strategy, incremental MCP connector authorization.
+
+---
+
 ## 2026-07-08 — Foundation, CPX chapter, Wio Terminal chapter (partial)
 
 Big first day. Set up the whole toolchain from zero, completed the Adafruit
