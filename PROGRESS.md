@@ -6,6 +6,65 @@ each session.
 
 ---
 
+## 2026-08-01 — M5Stack Core (M5GO) onboarding: Project 08 (estudio, cowork)
+
+First session after the smart-home + electronics merge into Home-Lab.
+Onboarded the M5GO kit as the third board family in the repo (after CPX
+and Wio Terminal).
+
+### Accomplished
+
+- Identified the kit: **M5GO IoT Starter Kit** (blue box, lego-compatible
+  mounts, Grove Units: ENV, PIR motion, IR, RGB, angle).
+- Core enumerates via CH9102 USB-serial bridge →
+  `/dev/cu.usbserial-5A6D0199351` (unlike SAMD boards' native USB).
+- **First Library Manager install** (milestone originally planned for
+  Task 17): M5Unified 0.2.19 + M5GFX 0.2.26 dependency.
+- Board setup: esp32 core 3.3.10 was already installed on estudio →
+  board entry **"M5Core"**, no Boards Manager step needed.
+- **Project 08 — M5Stack Hello:** hello screen + 3 button counters +
+  battery % (M5GO base). Uploaded and verified: 272 KB compressed,
+  hash verified, RTS auto-reset. Buttons increment exactly 1 per press.
+- Concepts learned: `M5.update()` polling pattern vs raw
+  `digitalRead()` (edge detection + debounce for free); esptool
+  write → verify → hard-reset sequence; one-object board abstraction
+  (M5Unified) vs per-peripheral libraries (TFT_eSPI).
+
+### Gotchas / key decisions
+
+- **Arduino IDE hang:** after the library install, the IDE started an
+  optional esp32 3.3.11 core update that stalled >10 min ("Processing
+  esp32:3.3.11", zero file/network activity). Fix: force quit, relaunch,
+  dismiss the update. **Rule adopted: toolchain updates only at session
+  START, never mid-session.** Core 3.3.10 works fine.
+- Boards Manager shows a second ESP32 package ("Arduino ESP32 Boards
+  2.0.18" — Arduino's fork). Harmless but remove someday to avoid
+  selecting the wrong core.
+- `~/Library/Arduino15/staging` cache = 3.3 GB on estudio — safe to
+  clean for disk space.
+- **Numbering:** projects 05–07 stay reserved for the protected learning
+  track (05 soldering, 06 voice satellite, 07 plant sensor) per the
+  Smart Home & Electronics MOC — the M5Stack took **08**.
+
+### Next steps (start here next session)
+
+1. **Task 17 — Wio accelerometer:** LIS3DHTR live X/Y/Z tilt on the LCD
+   (Library Manager skill now already acquired).
+2. **Project 05 — first soldering:** ESP32-S3 DevKit headers ×2 → MB-102
+   (Weller station + consumables all on the bench).
+3. **Buy INMP441 mic** for Project 06 (voice satellite) — confirmed not
+   in inventory; batch with the mid-August sensor import if possible.
+4. Idea parked: M5GO + ENV Unit as zero-solder ESPHome test mule; M5GO /
+   Wio as HA desktop display (after the protected track).
+
+### Deferred / blocked
+
+- Project 07 sensors: capacitive soil + BME280/SHT31 on import, ETA
+  ~mid-August.
+- NAS mirror strategy for GitHub repos: unchanged.
+
+---
+
 ## 2026-07-18 — Mac onboarding: repo review + encoding/doc fixes (estudio)
 
 First session on the Mac Studio. Pulled the repo into PARA, did a full
