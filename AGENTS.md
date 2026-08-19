@@ -17,24 +17,39 @@ would require the Arduino IDE / `arduino-cli` plus vendor board cores (Seeed
 SAMD, ESP32) and libraries (TFT_eSPI, M5Unified) — none of which are committed
 or installed. Do not treat "run the firmware" as a runnable target in the cloud.
 
-### The runnable environment = the Python venv
+### The runnable environment = the Python venv (ESPHome)
 
-The only reproducible dev environment is the Python virtual environment defined
-by `requirements.txt`. It is a general-purpose data-analysis / document toolkit
-(pandas, numpy, matplotlib, seaborn, statsmodels, polars, openpyxl, weasyprint,
-playwright, sqlalchemy, ...) used for the documented "textile-KPI Excel analysis"
-side-quest, not for the firmware itself.
+The reproducible dev environment is the Python virtual environment defined by
+`requirements.txt`, whose star is **ESPHome** — the tool this project uses to
+build ESP32/ESP8266 firmware that reports sensors to Home Assistant. ESPHome
+turns a YAML file into firmware and, crucially, can **validate and compile
+configs with no board attached**, so it is a genuine runnable/testable target in
+the cloud.
 
 - The startup update script creates `.venv` and installs `requirements.txt`.
-- Use it via `. .venv/bin/activate` (or call `.venv/bin/python` / `.venv/bin/pip`
-  directly).
+- Use it via `. .venv/bin/activate` (or call `.venv/bin/esphome` /
+  `.venv/bin/python` directly).
 - System dependency (baked into the environment, not the update script):
   the `python3.12-venv` apt package is required for `python3 -m venv` to work.
-  `weasyprint`'s native libraries are already present in the base image.
 
-### Testing / lint / build
+### Testing / lint / build (what actually runs in the cloud)
 
-There are no committed automated tests, lint config, or build system. To sanity-
-check firmware source without hardware, syntax-check the CircuitPython files:
+ESPHome YAML configs live under `projects/*/*.yaml`. Validate and build them
+with (no hardware needed):
+
+- Validate (fast, the "lint"): `.venv/bin/esphome config projects/<name>/<name>.yaml`
+- Compile firmware (the "build"): `.venv/bin/esphome compile projects/<name>/<name>.yaml`
+
+Gotchas:
+- A config that uses `!secret` needs a `secrets.yaml` in the same folder. It is
+  git-ignored; copy `secrets.yaml.example` to `secrets.yaml` and fill it in
+  (any syntactically valid values let `config`/`compile` pass without a board).
+- The first `esphome compile` downloads the ESP32 toolchain (a few minutes,
+  network required) into `~/.cache/esphome`; later builds are fast.
+- `esphome run`/`upload` (flashing) needs a physical board on USB and cannot be
+  done in the cloud.
+
+There are no other committed automated tests or lint config. To sanity-check the
+older CircuitPython firmware without hardware, syntax-check it:
 `.venv/bin/python -m py_compile projects/01-cpx-blinky/code.py projects/02-cpx-light-sensor/code.py`
-(`.ino` sketches are not valid Python and cannot be checked this way).
+(`.ino` Arduino sketches are not valid Python and cannot be checked this way).

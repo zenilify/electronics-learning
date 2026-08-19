@@ -6,6 +6,67 @@ each session.
 
 ---
 
+## 2026-08-19 — Project focus reset: pure electronics + Home Assistant (ESPHome)
+
+Cleaned house and locked the repo onto its real purpose: **hobby electronics —
+dev boards, sensors, soldering, ESP32 — building sensors that report to Home
+Assistant.**
+
+### Accomplished
+
+- **Removed the textile-KPI side-quest** entirely. It was never electronics;
+  it only existed as a note plus a big Python data-analysis toolkit.
+- **Repurposed the Python venv toward the real goal:** `requirements.txt` is now
+  just **ESPHome** (was ~78 pandas/matplotlib/weasyprint packages). ESPHome is
+  the standard way to get an ESP32 into Home Assistant, and its configs validate
+  + compile on any computer — no board required.
+- **Project 09 — ESP32 → Home Assistant sensor (ESPHome):** first HA-connected
+  device. Exposes Wi-Fi signal, uptime, ESP32 internal temperature, and IP to
+  Home Assistant over the encrypted native API. No external parts, so it builds
+  clean as a "Hello, World!".
+- Verified end-to-end in the cloud: `esphome config` → *Configuration is valid!*
+  and `esphome compile` → *Successfully compiled program.* (912 KB ESP32 image).
+- Added `secrets.yaml.example` pattern + git-ignored `secrets.yaml`/`.esphome/`
+  so Wi-Fi passwords and keys never get committed.
+- **Reconciled the hardware inventory** against the real bench audit: added the
+  full detailed list as `INVENTORY.md` (source of truth) and rewrote the
+  `CLAUDE.md` summary. Headlines: a large **ESP32-S3 fleet** arrived (devkits
+  ×3 w/ ext antenna, +OLED ×2, D1-UNO ×2, Super Mini ×2, XIAO ESP32-S3 ×3), the
+  full **M5Stack family**, **AHT20+BMP280 ×3** temp/hum/pressure sensors, and
+  the **INMP441 ×5 + MAX98357 ×5** voice-satellite BOM. Dropped the phantom
+  XIAO nRF52840 / ESP32-C3 (never in inventory).
+- **Soldering is unblocked:** Weller station + LEFAVOR 858D hot-air rework +
+  consumables verified on the bench.
+
+### Gotchas / key decisions
+
+- ESPHome via `!secret` needs a `secrets.yaml` next to the config; any valid
+  values let `config`/`compile` pass without hardware.
+- First `esphome compile` downloads the ESP32 toolchain (~2 min, network) into
+  `~/.cache/esphome`; later builds are fast. Flashing (`esphome run`) still
+  needs the physical board on USB.
+- YAML/ESPHome joins the existing CircuitPython + Arduino/C++ tracks; it does
+  not replace them.
+
+### Next steps (start here next session)
+
+1. Flash Project 09 to a real generic ESP32 DevKit and confirm auto-discovery
+   in Home Assistant.
+2. Swap in a real environmental sensor (BME280 / SHT31 over I2C).
+3. Add a PIR motion `binary_sensor`; then a capacitive soil-moisture sensor for
+   the plant-monitor idea.
+
+### Deferred / blocked
+
+- Project 07 plant sensors: capacitive soil-moisture still on import (the
+  temp/hum/pressure half already arrived as AHT20+BMP280 ×3).
+- Some parts live in Toluca, not with the CDMX bench (INMP441 ×5, MAX98357 ×5,
+  screw-terminal shields, GPIO breakouts) — see `INVENTORY.md`.
+- Zigbee smart-home devices need the Toluca coordinator; Shelly Gen4 units can
+  run on WiFi/Matter meanwhile.
+
+---
+
 ## 2026-08-01 — M5Stack Core (M5GO) onboarding: Project 08 (estudio, cowork)
 
 First session after the smart-home + electronics merge into Home-Lab.
@@ -159,7 +220,7 @@ Wio Terminal C++ projects running.
 3. After that, Erick picks the next direction:
    - Continue Wio Terminal → Wi-Fi + sensor logging
    - Jump to XIAO ESP32-S3 Sense → camera / vision projects
-   - Side-quest: textile-KPI Excel analysis using the Python venv
+   - ESP32 → Home Assistant sensors via ESPHome
 
 ### Deferred / blocked
 

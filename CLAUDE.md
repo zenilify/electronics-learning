@@ -21,17 +21,56 @@ personal learning journey, not production work.
 
 ## Hardware inventory
 
-- Adafruit Circuit Playground Express — done onboarding (CircuitPython)
-- Wio Terminal (SAMD51) — active (Arduino/C++, TFT_eSPI, joystick, IMU)
-- XIAO SAMD21 + Expansion Board — pending soldering iron
-- XIAO ESP32-S3 Sense — queued (camera, AI vision)
-- XIAO nRF52840 — queued (BLE)
-- XIAO ESP32-C3 — queued (Wi-Fi/BLE)
-- Freenove ESP32-WROOM (2-pack) — queued (structured Wi-Fi kit)
-- ESP32 30-pin / 38-pin generic — queued
-- M5Stack M5GO — queued (M5Stack ecosystem)
-- Arduino Uno (R3 or R4) — queued (only when 5V logic is needed)
-- Grove modules, breadboards, jumper wires, XIAO Grove base — available
+Summary of the learning-relevant hardware on the bench. The full, detailed
+audit (SKUs, quantities, verification dates, smart-home devices, soldering
+bench) is the source of truth in `INVENTORY.md` — update that file when
+hardware arrives / leaves.
+
+**ESP32 fleet (primary focus — ESPHome → Home Assistant):**
+
+- ESP32-S3 DevKit 44-pin N16R8 ×3 (external u.FL antenna) — main HA sensor nodes
+- ESP32-S3 DevKit N16R8 + OLED 0.96" ×2 — nodes with a built-in display
+- ESP32-S3 D1 UNO ×2 (UNO form factor, barrel jack) — accepts Arduino shields
+- ESP32-S3 Super Mini ×2 — tiniest nodes (BLE proxy, embedded sensors)
+- Seeed XIAO ESP32-S3 ×3 — thumb-size, u.FL, pairs with the XIAO Grove shield
+- Freenove ESP32-WROOM ×2 — earmarked for the plant sensors (project 07)
+
+**Other microcontrollers:**
+
+- Seeed Wio Terminal D51R (SAMD51) — active (Arduino/C++, TFT_eSPI, joystick, IMU)
+- Seeed XIAO SAMD21 + expansion board + Grove shield — soldering now unblocked
+- Arduino UNO R4 WiFi, Arduino UNO (CH340 clone), Arduino MEGA 2560 (clone)
+- Adafruit Circuit Playground Express — used in projects 01–02; not in the
+  2026-07-24 bench audit (likely stored elsewhere)
+- BBC micro:bit GO — gift candidate
+
+**M5Stack family (M5Unified/ESP32; voice-satellite candidates for project 06):**
+
+- M5Stack Core, CoreS3 Dev Kit, StackChan (+ spare StackChan Core), Cardputer
+  ADV, M5StickS3, AI Chatbot kit (AtomS3R + Voice Base), Voice Pyramid base
+
+**Sensors:**
+
+- Grove Beginner Kit (DHT, light, sound, BMP280, accel, OLED, buzzer, pot, ...)
+- AHT20 + BMP280 combo ×3 (I²C temp/hum/pressure) — for the plant nodes
+- GY-521 / MPU-6050 IMU ×1, INMP441 I2S mic ×5, Elechouse Voice Recognition V3.1
+- M5Stack Grove Units: PaHub v2.1 (I²C mux), Unit MIC, Unit NFC
+- Starter-kit loose: HC-SR04, HC-SR501 PIR, MQ-x gas, water-level, DHT11, RC522
+- ⏳ Pending import: capacitive soil-moisture sensors
+
+**Smart-home devices (Home Assistant integration targets):**
+
+- ThirdReality Zigbee Smart Plug Gen2 + mmWave Presence Sensor R3
+- Shelly Plug US Gen4 ×2, Shelly 2PM Gen4 in-wall, Shelly BLU button + H&T
+  (WiFi/Matter usable in CDMX; Zigbee needs the Toluca coordinator)
+
+**Proto / audio-out / soldering:**
+
+- Breadboards (MB-102, Radox 830pt), perfboard ×10+, resistor & capacitor kits,
+  WAGO 221, ESP32/S3 screw-terminal shields + 44-pin GPIO breakouts ×5, headers
+- MAX98357 I2S amp ×5 + mini 4Ω speaker — DIY voice-satellite audio out
+- **Soldering bench available:** Weller station + LEFAVOR 858D hot-air rework +
+  full consumables (this used to be the blocker for the XIAO SAMD21 chapter)
 
 ## Environment
 
@@ -40,7 +79,7 @@ personal learning journey, not production work.
 - Project root: `E:\electronics-learning`
 - Python venv: `E:\electronics-learning\.venv` (activate before any Python work)
 - Installed tools: VS Code, Arduino IDE 2.3.10, Mu editor, Git, Python,
-  Claude Excel add-in.
+  ESPHome (in the project venv, for ESP32 → Home Assistant sensors).
 - Arduino board packages installed: Seeed SAMD Boards (Wio Terminal, XIAO SAMD21).
 - GitHub remote: `https://github.com/zenilify/electronics-learning`
 - GitHub account for this project: `zenilify` (not `ezenil-max`).
@@ -94,8 +133,14 @@ personal learning journey, not production work.
 
 ## Blocked / deferred items
 
-- XIAO SAMD21 with Expansion Board: pending soldering iron purchase
-  (recommended: basic 60W station, 0.6–0.8mm rosin-core solder).
+- ~~XIAO SAMD21 soldering: pending soldering iron~~ — **UNBLOCKED** (2026-08):
+  Weller station + LEFAVOR 858D hot-air rework + consumables are on the bench.
+- Capacitive soil-moisture sensors (project 07 plants): still on import; the
+  temp/hum/pressure half already arrived as AHT20+BMP280 ×3.
+- Some Toluca-located items (INMP441 ×5, MAX98357 ×5, screw-terminal shields,
+  GPIO breakouts) are not co-located with the CDMX bench — see `INVENTORY.md`.
+- Zigbee smart-home devices need the Toluca coordinator (SLZB-MR3U); Shelly
+  Gen4 units can run on WiFi/Matter in the meantime.
 - MCP connector authorization for Notion, Canva, Exa: user authorizes
   incrementally in claude.ai settings.
 - NAS mirror strategy for GitHub repos: pending Synology restore completion.

@@ -1,0 +1,92 @@
+# ============================================================
+# Project 09 — ESP32 → Home Assistant sensor (ESPHome)
+# Board: generic ESP32 DevKit (30-pin / 38-pin) — board: esp32dev
+# Language: YAML (ESPHome)
+#
+# What this does:
+#   Builds firmware for an ESP32 that joins your Wi-Fi and exposes a few
+#   sensors to Home Assistant over ESPHome's native encrypted API:
+#     - Wi-Fi signal strength (RSSI)
+#     - Uptime (how long the board has been running)
+#     - The ESP32's internal die temperature
+#     - Its IP address (as a text sensor)
+#
+#   This is the "Hello, World!" of Home-Assistant sensors: no external parts
+#   required, so it validates and compiles even before you wire anything up.
+#   Later projects swap in real sensors (BME280, PIR, soil moisture, ...).
+#
+# How to use (see README.md for the full lesson):
+#   1. cp secrets.yaml.example secrets.yaml   # then fill in real values
+#   2. esphome config   09-esp32-esphome-ha-sensor.yaml   # validate
+#   3. esphome compile  09-esp32-esphome-ha-sensor.yaml   # build firmware
+#   4. esphome run      09-esp32-esphome-ha-sensor.yaml   # flash + view logs
+# ============================================================
+
+# --- Core node identity ---------------------------------------------------
+# substitutions are simple find/replace variables you can reuse below.
+substitutions:
+  node_name: esp32-ha-sensor
+  friendly_name: "ESP32 HA Sensor"
+
+esphome:
+  name: ${node_name}
+  friendly_name: ${friendly_name}
+
+# --- Which chip + framework are we building for? --------------------------
+# esp32dev covers the common 30-pin / 38-pin generic ESP32-WROOM DevKits.
+# The Arduino framework is the most beginner-friendly starting point.
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# --- Logging over USB serial (and to Home Assistant) ----------------------
+logger:
+
+# --- Native Home Assistant API (encrypted) --------------------------------
+# Home Assistant auto-discovers this device. The encryption key keeps the
+# connection private; generate one with `esphome secrets`/`openssl` or the
+# ESPHome dashboard, and store it in secrets.yaml.
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+# --- Over-the-air updates -------------------------------------------------
+# After the first USB flash, future updates go over Wi-Fi.
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# --- Wi-Fi ----------------------------------------------------------------
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # If Wi-Fi drops, the board hosts a temporary hotspot so you can recover it.
+  ap:
+    ssid: "${friendly_name} Fallback"
+    password: !secret fallback_ap_password
+
+# Lets you rescue a misconfigured board via the fallback hotspot's web page.
+captive_portal:
+
+# --- The actual sensors that show up in Home Assistant --------------------
+sensor:
+  # Wi-Fi signal strength in dBm (closer to 0 = stronger).
+  - platform: wifi_signal
+    name: "Wi-Fi Signal"
+    update_interval: 60s
+
+  # How long the board has been powered on, in seconds.
+  - platform: uptime
+    name: "Uptime"
+
+  # The ESP32's built-in temperature sensor (die temperature, not ambient).
+  - platform: internal_temperature
+    name: "ESP32 Internal Temperature"
+
+text_sensor:
+  # Reports the board's IP address so you can find it on the network.
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
