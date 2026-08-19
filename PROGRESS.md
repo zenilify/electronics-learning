@@ -33,10 +33,14 @@ Assistant.**
   `CLAUDE.md` summary. Headlines: a large **ESP32-S3 fleet** arrived (devkits
   ×3 w/ ext antenna, +OLED ×2, D1-UNO ×2, Super Mini ×2, XIAO ESP32-S3 ×3), the
   full **M5Stack family**, **AHT20+BMP280 ×3** temp/hum/pressure sensors, and
-  the **INMP441 ×5 + MAX98357 ×5** voice-satellite BOM. Dropped the phantom
-  XIAO nRF52840 / ESP32-C3 (never in inventory).
+  the **INMP441 ×5 + MAX98357 ×5** voice-satellite BOM. Also logged the
+  unsoldered **XIAO nRF52840 / ESP32-C3** and the Circuit Playground Express,
+  which weren't in the 2026-07-24 photo audit.
 - **Soldering is unblocked:** Weller station + LEFAVOR 858D hot-air rework +
-  consumables verified on the bench.
+  consumables on the **Toluca** bench — the unsoldered XIAO boards (SAMD21,
+  nRF52840, ESP32-C3) can be done there.
+- **Location clarified:** the physical bench is in Toluca; CDMX is only a
+  staging/logging spot and its hardware transports to Toluca (next trip Sunday).
 
 ### Gotchas / key decisions
 
@@ -60,8 +64,8 @@ Assistant.**
 
 - Project 07 plant sensors: capacitive soil-moisture still on import (the
   temp/hum/pressure half already arrived as AHT20+BMP280 ×3).
-- Some parts live in Toluca, not with the CDMX bench (INMP441 ×5, MAX98357 ×5,
-  screw-terminal shields, GPIO breakouts) — see `INVENTORY.md`.
+- CDMX-staged hardware transports to Toluca (the actual bench) next trip
+  (Sunday) — see `INVENTORY.md` for what's already in Toluca vs. staged.
 - Zigbee smart-home devices need the Toluca coordinator; Shelly Gen4 units can
   run on WiFi/Matter meanwhile.
 

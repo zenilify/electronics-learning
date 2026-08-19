@@ -21,10 +21,14 @@ personal learning journey, not production work.
 
 ## Hardware inventory
 
-Summary of the learning-relevant hardware on the bench. The full, detailed
-audit (SKUs, quantities, verification dates, smart-home devices, soldering
-bench) is the source of truth in `INVENTORY.md` — update that file when
-hardware arrives / leaves.
+Summary of the learning-relevant hardware. The full, detailed audit (SKUs,
+quantities, verification dates, smart-home devices, soldering bench) is the
+source of truth in `INVENTORY.md` — update that file when hardware arrives /
+leaves.
+
+**Location:** the physical workbench is in **Toluca**. CDMX is only a
+staging/logging spot (no bench there); hardware logged in CDMX gets transported
+to Toluca (next trip: Sunday). So "on the bench" effectively means Toluca.
 
 **ESP32 fleet (primary focus — ESPHome → Home Assistant):**
 
@@ -38,10 +42,11 @@ hardware arrives / leaves.
 **Other microcontrollers:**
 
 - Seeed Wio Terminal D51R (SAMD51) — active (Arduino/C++, TFT_eSPI, joystick, IMU)
-- Seeed XIAO SAMD21 + expansion board + Grove shield — soldering now unblocked
+- Seeed XIAO SAMD21 + expansion board + Grove shield — unsoldered; soldering now unblocked
+- Seeed XIAO nRF52840 — present but unsoldered (BLE track)
+- Seeed XIAO ESP32-C3 — present but unsoldered (Wi-Fi/BLE)
 - Arduino UNO R4 WiFi, Arduino UNO (CH340 clone), Arduino MEGA 2560 (clone)
-- Adafruit Circuit Playground Express — used in projects 01–02; not in the
-  2026-07-24 bench audit (likely stored elsewhere)
+- Adafruit Circuit Playground Express — available on the workbench; used in projects 01–02
 - BBC micro:bit GO — gift candidate
 
 **M5Stack family (M5Unified/ESP32; voice-satellite candidates for project 06):**
@@ -62,15 +67,16 @@ hardware arrives / leaves.
 
 - ThirdReality Zigbee Smart Plug Gen2 + mmWave Presence Sensor R3
 - Shelly Plug US Gen4 ×2, Shelly 2PM Gen4 in-wall, Shelly BLU button + H&T
-  (WiFi/Matter usable in CDMX; Zigbee needs the Toluca coordinator)
+  (WiFi/Matter usable now; Zigbee needs the Toluca coordinator)
 
 **Proto / audio-out / soldering:**
 
 - Breadboards (MB-102, Radox 830pt), perfboard ×10+, resistor & capacitor kits,
   WAGO 221, ESP32/S3 screw-terminal shields + 44-pin GPIO breakouts ×5, headers
 - MAX98357 I2S amp ×5 + mini 4Ω speaker — DIY voice-satellite audio out
-- **Soldering bench available:** Weller station + LEFAVOR 858D hot-air rework +
-  full consumables (this used to be the blocker for the XIAO SAMD21 chapter)
+- **Soldering bench available (Toluca):** Weller station + LEFAVOR 858D hot-air
+  rework + full consumables — unblocks the unsoldered XIAO boards (SAMD21,
+  nRF52840, ESP32-C3)
 
 ## Environment
 
@@ -134,11 +140,13 @@ hardware arrives / leaves.
 ## Blocked / deferred items
 
 - ~~XIAO SAMD21 soldering: pending soldering iron~~ — **UNBLOCKED** (2026-08):
-  Weller station + LEFAVOR 858D hot-air rework + consumables are on the bench.
+  Weller station + LEFAVOR 858D hot-air rework + consumables are on the Toluca
+  bench. The unsoldered XIAO boards (SAMD21, nRF52840, ESP32-C3) can be done there.
 - Capacitive soil-moisture sensors (project 07 plants): still on import; the
   temp/hum/pressure half already arrived as AHT20+BMP280 ×3.
-- Some Toluca-located items (INMP441 ×5, MAX98357 ×5, screw-terminal shields,
-  GPIO breakouts) are not co-located with the CDMX bench — see `INVENTORY.md`.
+- Hardware logged in CDMX (there is no CDMX bench) is transported to Toluca —
+  next trip Sunday — where the actual bench lives. See `INVENTORY.md` for which
+  items are already in Toluca vs. still staged in CDMX.
 - Zigbee smart-home devices need the Toluca coordinator (SLZB-MR3U); Shelly
   Gen4 units can run on WiFi/Matter in the meantime.
 - MCP connector authorization for Notion, Canva, Exa: user authorizes

@@ -6,7 +6,16 @@ it when hardware arrives, is gifted, or is returned (part of the 5S closing
 ritual). Latest photo audit: **2026-07-24** (with in-situ verifications through
 2026-08-15).
 
+**Location:** the physical workbench is in **Toluca**. CDMX is only a
+staging/logging spot (no bench there); items logged/verified in CDMX travel to
+Toluca on the next trip (Sunday). Rows tagged "📍 Toluca" are already there;
+rows tagged "🧳 viaja a Toluca" are staged in CDMX pending transport.
+
 Boxes labeled with a Dymo 420P: MCU · SENSORES · PROTO · CONSUMIBLES · CABLES.
+
+> **Post-audit additions (2026-08-19):** the two unsoldered XIAO radios (nRF52840,
+> ESP32-C3) and the Adafruit Circuit Playground Express are confirmed on hand but
+> were not in the 2026-07-24 photo audit — added to the MCU table below.
 
 ---
 
@@ -22,7 +31,10 @@ Boxes labeled with a Dymo 420P: MCU · SENSORES · PROTO · CONSUMIBLES · CABLE
 | Arduino MEGA 2560 (clon) | rojo, USB-C | ✅ |
 | Arduino UNO (clon CH340) | azul, USB-B | ✅ |
 | Freenove ESP32-WROOM ×2 | FNK0090 — para sensores de plantas | ✅ sellado |
-| Seeed XIAO SAMD21 + expansion board | OLED, buzzer, RTC, 8× Grove | ✅ |
+| Seeed XIAO SAMD21 + expansion board | OLED, buzzer, RTC, 8× Grove | ✅ sin soldar |
+| Seeed XIAO nRF52840 | módulo BLE (nRF52840) formato XIAO — track Bluetooth | ✅ presente, **sin soldar** (post-audit 2026-08-19) |
+| Seeed XIAO ESP32-C3 | RISC-V WiFi+BLE formato XIAO, u.FL antena ext. | ✅ presente, **sin soldar** (post-audit 2026-08-19) |
+| Adafruit Circuit Playground Express | ATSAMD21 · NeoPixels, sensores onboard · CircuitPython (proyectos 01–02) | ✅ disponible en banco (post-audit 2026-08-19) |
 | Grove Shield para XIAO | sellado | ✅ |
 | M5Stack Core | pantalla + 3 botones, caja azul con accesorios | ✅ |
 | BBC micro:bit GO | kit completo | ✅ (candidato a regalo) |
