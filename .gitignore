@@ -5,3 +5,7 @@ __pycache__/
 Thumbs.db
 .DS_Store
 *.log
+
+# ESPHome build artifacts and real secrets (never commit credentials/keys).
+.esphome/
+secrets.yaml

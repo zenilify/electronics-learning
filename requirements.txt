@@ -1,78 +1,18 @@
-annotated-types==0.7.0
-anyio==4.14.1
-brotli==1.2.0
-certifi==2026.6.17
-cffi==2.0.0
-contourpy==1.3.3
-cssselect2==0.9.0
-cycler==0.12.1
-datacompy==1.0.2
-defusedxml==0.7.1
-et_xmlfile==2.0.0
-fonttools==4.63.0
-greenlet==3.5.3
-h11==0.16.0
-httpcore==1.0.9
-httpx==0.28.1
-idna==3.18
-janitor-rs==0.6.1
-Jinja2==3.1.6
-kiwisolver==1.5.0
-markdown-it-py==4.2.0
-MarkupSafe==3.0.3
-matplotlib==3.11.0
-mdurl==0.1.2
-multipledispatch==1.0.0
-mypy_extensions==1.1.0
-narwhals==2.23.0
-natsort==8.4.0
-numpy==2.4.6
-odfpy==1.4.1
-openpyxl==3.1.5
-ordered-set==4.1.0
-packaging==26.2
-pandas==3.0.4
-pandas-flavor==0.8.1
-pandera==0.32.1
-parse_pip_search==0.0.2
-patsy==1.0.2
-pillow==12.3.0
-playwright==1.61.0
-plotly==6.8.0
-polars==1.41.2
-polars-runtime-32==1.41.2
-pyarrow==24.0.0
-pycparser==3.0
-pydantic==2.13.4
-pydantic_core==2.46.4
-pydyf==0.12.1
-pyee==13.0.1
-Pygments==2.20.0
-pyjanitor==0.32.23
-pyodbc==5.3.0
-pyparsing==3.3.2
-pyphen==0.17.2
-python-calamine==0.7.0
-python-dateutil==2.9.0.post0
-pyxlsb==1.0.10
-RapidFuzz==3.14.5
-rich==15.0.0
-scipy==1.18.0
-seaborn==0.13.2
-six==1.17.0
-SQLAlchemy==2.0.51
-statsmodels==0.14.6
-tinycss2==1.5.1
-tinyhtml5==2.1.0
-typeguard==4.5.2
-typing-inspect==0.9.0
-typing-inspection==0.4.2
-typing_extensions==4.16.0
-tzdata==2026.2
-Unidecode==1.4.0
-uv==0.11.26
-weasyprint==69.0
-webencodings==0.5.1
-xarray==2026.4.0
-xlrd==2.0.2
-zopfli==0.4.3
+# Python tooling for the electronics-learning journey.
+#
+# The goal of this repo is hobby electronics: learning dev boards, sensors,
+# soldering, and configuring ESP32 boards to build sensors that report to
+# Home Assistant.
+#
+# ESPHome is the star here: it turns a small YAML file into ESP32/ESP8266
+# firmware that talks to Home Assistant natively. Configs can be validated
+# and compiled on any computer (no board attached needed), which makes it a
+# great learning + CI tool.
+#
+# Install into the project venv:
+#   python3 -m venv .venv
+#   . .venv/bin/activate
+#   pip install -r requirements.txt
+#
+# ESPHome pulls in its own dependencies (platformio, esptool, pyserial, ...).
+esphome==2026.7.4

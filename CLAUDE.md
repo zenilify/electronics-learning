@@ -40,7 +40,7 @@ personal learning journey, not production work.
 - Project root: `E:\electronics-learning`
 - Python venv: `E:\electronics-learning\.venv` (activate before any Python work)
 - Installed tools: VS Code, Arduino IDE 2.3.10, Mu editor, Git, Python,
-  Claude Excel add-in.
+  ESPHome (in the project venv, for ESP32 → Home Assistant sensors).
 - Arduino board packages installed: Seeed SAMD Boards (Wio Terminal, XIAO SAMD21).
 - GitHub remote: `https://github.com/zenilify/electronics-learning`
 - GitHub account for this project: `zenilify` (not `ezenil-max`).
