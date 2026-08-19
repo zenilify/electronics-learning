@@ -28,6 +28,15 @@ Assistant.**
   and `esphome compile` → *Successfully compiled program.* (912 KB ESP32 image).
 - Added `secrets.yaml.example` pattern + git-ignored `secrets.yaml`/`.esphome/`
   so Wi-Fi passwords and keys never get committed.
+- **Reconciled the hardware inventory** against the real bench audit: added the
+  full detailed list as `INVENTORY.md` (source of truth) and rewrote the
+  `CLAUDE.md` summary. Headlines: a large **ESP32-S3 fleet** arrived (devkits
+  ×3 w/ ext antenna, +OLED ×2, D1-UNO ×2, Super Mini ×2, XIAO ESP32-S3 ×3), the
+  full **M5Stack family**, **AHT20+BMP280 ×3** temp/hum/pressure sensors, and
+  the **INMP441 ×5 + MAX98357 ×5** voice-satellite BOM. Dropped the phantom
+  XIAO nRF52840 / ESP32-C3 (never in inventory).
+- **Soldering is unblocked:** Weller station + LEFAVOR 858D hot-air rework +
+  consumables verified on the bench.
 
 ### Gotchas / key decisions
 
@@ -49,8 +58,12 @@ Assistant.**
 
 ### Deferred / blocked
 
-- Project 05 first soldering: still pending bench time with the iron.
-- Project 07 sensors (soil + BME280/SHT31): pending the sensor import.
+- Project 07 plant sensors: capacitive soil-moisture still on import (the
+  temp/hum/pressure half already arrived as AHT20+BMP280 ×3).
+- Some parts live in Toluca, not with the CDMX bench (INMP441 ×5, MAX98357 ×5,
+  screw-terminal shields, GPIO breakouts) — see `INVENTORY.md`.
+- Zigbee smart-home devices need the Toluca coordinator; Shelly Gen4 units can
+  run on WiFi/Matter meanwhile.
 
 ---
 
