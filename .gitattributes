@@ -1,16 +1,35 @@
-# Normalize line endings across Windows (MSI) and macOS (Mac Studio) so text
-# files don't generate phantom diffs when the same repo is edited on
-# different platforms.
+# Line endings: the repo stores LF and every platform checks out LF (macOS, Linux, msi/Windows).
+# Prevents phantom diffs between devices and CRLF leaking into scripts copied to Linux boxes.
 * text=auto eol=lf
+
+# Windows-native scripts keep CRLF in the working tree.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
 
 # Explicit binary types (never touch line endings).
 *.png binary
 *.jpg binary
 *.jpeg binary
 *.gif binary
+*.webp binary
+*.ico binary
 *.pdf binary
 *.zip binary
+*.gz binary
+*.7z binary
 *.uf2 binary
 *.bin binary
 *.hex binary
 *.mpy binary
+*.safetensors binary
+*.stl binary
+*.glb binary
+*.xlsx binary
+*.docx binary
+*.pptx binary
+*.sqlite3 binary
+*.db binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
