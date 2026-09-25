@@ -6,6 +6,32 @@ each session.
 
 ---
 
+## 2026-09-25 — Lesson 00 written: protoboards & soldering roadmap (cockpit session, estudio)
+
+Added `lessons/00-protoboards-and-soldering-roadmap.md`: an 8-phase roadmap
+(bench + safety → breadboard fluency → first joints → headers on the XIAO
+ESP32-S3 → INMP441/MAX98357 breakouts for the DIY voice satellite → a
+perfboard AHT20+BMP280 node in a box → rework with wick/pump/858D → optional
+KiCad PCB), each phase with a "done when" checkpoint, plus the safety card
+and a glossary. Written against the real bench in `INVENTORY.md`.
+
+- Corrects the standing "pending soldering iron purchase" note: the Weller
+  station, 858D hot-air gun, 60/40 solder, flux, wick, pump and third hand
+  have been on the bench since the 2026-07 CDMX purchases.
+- Repo status: **sub-project of Home-Lab** from today (dashboard rows
+  `🔌 Electrónica ·`; `repos.yml` in mission-control now maps it there).
+- No hardware touched this session; Tasks 17/18 unchanged.
+
+### Next steps (start here next session)
+
+1. Task 17 (Wio accelerometer) and Task 18 (commit the Wio chapter) — unchanged.
+2. Then **Lesson 00, phases 0–3** in one sitting (~3 h): bench, breadboard,
+   30 practice joints, headers on two XIAO ESP32-S3 → first XIAO node on the
+   Grove shield running ESPHome.
+3. Then phase 5: the perfboard plant node (project 07, node #1).
+
+---
+
 ## 2026-08-19 — Project focus reset: pure electronics + Home Assistant (ESPHome)
 
 Cleaned house and locked the repo onto its real purpose: **hobby electronics —
@@ -224,8 +250,7 @@ Wio Terminal C++ projects running.
 
 ### Deferred / blocked
 
-- XIAO SAMD21 chapter: pending soldering iron purchase (basic 60W station,
-  0.6–0.8 mm rosin-core solder — ~USD 20–40).
+- ~~XIAO SAMD21 chapter: pending soldering iron purchase~~ — **stale since 2026-07** (bench fully equipped, see `INVENTORY.md` → Banco de soldadura); the SAMD21 is superseded by the XIAO ESP32-S3 ×3. Retired 2026-09-25 by Lesson 00.
 - NAS mirror strategy for GitHub repos: pending Synology restore
   completion.
 - MCP connector authorization in claude.ai settings still incremental for
