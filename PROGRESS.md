@@ -18,8 +18,9 @@ PaperS3, NuttX nsh + lvgl_demo for the Tab5) + QEMU boots the StickS3 image to
 
 ### Next steps (start here next session)
 
-1. Decide on stackchan-estudio: bump `esphome-intercom` or set `bits_per_sample`
-   before upgrading cachy's ESPHome past 2026.9.1.
+1. Done same day: stackchan-estudio migrated to esphome-audio-stack v2026.11.0
+   (home-lab 0284c5e, 31fa2ca), matrix 22/22. It now needs ESPHome >= 2026.10 to
+   build: upgrade cachy's ESPHome before the next flash of the Stack-chan.
 2. Pin `platform = espressif32@8.0.0` in the PaperS3 badge `platformio.ini`.
 3. Optional: first NuttX contribution candidate = ESP32-C6 hosted Wi-Fi for the Tab5.
 

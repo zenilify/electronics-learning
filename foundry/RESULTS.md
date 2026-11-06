@@ -1,5 +1,30 @@
 # Foundry results
 
+## 2026-11-06 (later) — stackchan-estudio fixed, full matrix 22/22 (Cloud Build `5f3299d8`)
+
+Erick chose to update the external component rather than patch one value.
+home-lab `0284c5e` + `31fa2ca`:
+
+- The audio engine left `esphome-intercom`: now `github://n-IA-hane/esphome-audio-stack@v2026.11.0`
+  (commit `3787f502d19c`, requires ESPHome >= 2026.10). `i2s_audio_duplex` -> `esp_audio_stack`
+  (same pins / 48 kHz bus / 16 kHz output / `esp_aec` sr_low_cost / PSRAM buffers), `audio_processor`
+  dropped, speaker `bits_per_sample: 16` explicit, `buffer_duration`/`timeout` 500 ms (old defaults).
+- **Behaviour change (unavoidable):** the new stack has no pre-AEC microphone; `mic_wake_word` now
+  receives the same echo-cancelled stream as `mic_aec` (upstream's recommended wake-word feed).
+  Check wake-word sensitivity after the next flash.
+- Two ESPHome 2026.10 core API breaks in the node's lambdas: `select.state` -> `current_option()`;
+  media files are `const audio::AudioFile *` (script param stays `audio::AudioFile*`, callers `const_cast`).
+- `github://m5stack/esphome-yaml/components` pinned to `f76024e1527b` in stackchan-base
+  (voz-piramide-estudio and atoms3r-with-echo-base still follow `main`).
+- **This node no longer builds with ESPHome < 2026.10** — cachy is on 2026.9.1.
+
+stackchan-estudio: firmware.factory.bin 5,084,912 B (sha256 `70f481ede63a…`). Every other target
+still OK (no regression). `pins.txt` now lists only the external components each config names
+(verified: clima-recamara no longer shows esphome-intercom).
+
+Runs: `d8c27a84` (21/22: compile errors above), `a5f69bf5` (21/22: script type cannot contain
+`const`), `5f3299d8` (22/22). Cloud Build total for the day ~5.1 USD (~94 MXN) list price.
+
 ## 2026-11-06 — first full run (Cloud Build `1d5e72d9`, 21/22 OK)
 
 Artifacts + `manifest.json` / `manifest.md`: `gs://papps-c-foundry/2026-11-06/`.
