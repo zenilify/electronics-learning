@@ -6,6 +6,25 @@ each session.
 
 ---
 
+## 2026-11-06 — Kaizen Firmware Foundry: whole fleet builds in Cloud Build (GCP sprint lane C, macbook)
+
+New `foundry/`: four pinned builder images in Artifact Registry (ESP-IDF 6.0.3 +
+microlink, ESPHome 2026.10.2, arduino-cli/Seeed SAMD/PlatformIO, NuttX RISC-V GCC)
+and a `cloudbuild.yaml` matrix fed by `targets.tsv`. `stage.sh` ships git-tracked
+files only (secret gate), `dummy_secrets.py` fills placeholders. First full run:
+**21/22 OK** (all ESPHome nodes except stackchan-estudio, StickS3, Wio x3, M5 Core,
+PaperS3, NuttX nsh + lvgl_demo for the Tab5) + QEMU boots the StickS3 image to
+`app_main()`. Details and cost in `foundry/RESULTS.md`. No device was flashed.
+
+### Next steps (start here next session)
+
+1. Decide on stackchan-estudio: bump `esphome-intercom` or set `bits_per_sample`
+   before upgrading cachy's ESPHome past 2026.9.1.
+2. Pin `platform = espressif32@8.0.0` in the PaperS3 badge `platformio.ini`.
+3. Optional: first NuttX contribution candidate = ESP32-C6 hosted Wi-Fi for the Tab5.
+
+---
+
 ## 2026-09-25 — Lesson 00 written: protoboards & soldering roadmap (cockpit session, estudio)
 
 Added `lessons/00-protoboards-and-soldering-roadmap.md`: an 8-phase roadmap

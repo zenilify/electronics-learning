@@ -1,0 +1,37 @@
+# Builds and pushes the four pinned builder images to Artifact Registry.
+#   gcloud builds submit foundry --config foundry/cloudbuild-images.yaml --project papps-513907
+# (run from a staged context or directly from the repo's foundry/ dir)
+substitutions:
+  _AR: us-central1-docker.pkg.dev/${PROJECT_ID}/kaizen-foundry
+  _IDF_TAG: 6.0.3-ml-da157ac
+  _ESPHOME_TAG: 2026.10.2
+  _ARDUINO_TAG: cli1.5.1-samd1.8.6-pio6.1.19
+  _NUTTX_TAG: xpack14.2.0-3-kf
+steps:
+  - id: idf
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args: [build, -t, '${_AR}/idf:${_IDF_TAG}', images/idf]
+  - id: esphome
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args: [build, -t, '${_AR}/esphome:${_ESPHOME_TAG}', images/esphome]
+  - id: arduino
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args: [build, -t, '${_AR}/arduino:${_ARDUINO_TAG}', images/arduino]
+  - id: nuttx
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args: [build, -t, '${_AR}/nuttx:${_NUTTX_TAG}', images/nuttx]
+images:
+  - '${_AR}/idf:${_IDF_TAG}'
+  - '${_AR}/esphome:${_ESPHOME_TAG}'
+  - '${_AR}/arduino:${_ARDUINO_TAG}'
+  - '${_AR}/nuttx:${_NUTTX_TAG}'
+options:
+  machineType: E2_HIGHCPU_8
+  diskSizeGb: 100
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+timeout: 3600s

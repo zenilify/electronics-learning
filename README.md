@@ -14,3 +14,7 @@ My step-by-step journey learning electronics with development boards (Adafruit, 
 - 02-cpx-light-sensor - Reactive NeoPixels driven by the onboard light sensor.
 - 03-wio-hello-lcd - First Arduino/C++ program: color text on the Wio Terminal 320x240 LCD (TFT_eSPI).
 - 04-wio-input-dashboard - Live dashboard of every Wio Terminal button and joystick direction (INPUT_PULLUP, digitalRead).
+
+## Foundry
+
+- [foundry/](foundry/README.md) — Kaizen Firmware Foundry: reproducible Cloud Build builds (pinned toolchain images, placeholder secrets, sha256 manifest) for every firmware in the fleet — ESPHome nodes, StickS3 ESP-IDF, Wio Terminal, PaperS3, and a NuttX "TabOS" spike for the Tab5. Results in [foundry/RESULTS.md](foundry/RESULTS.md).

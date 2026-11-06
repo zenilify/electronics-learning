@@ -1,0 +1,29 @@
+# kind	name	path (relative to the staged src/)	extra
+# kind: esphome | idf | arduino | pio | nuttx
+# Edit this file to add/remove firmware from the matrix. Paths are inside the
+# build context that stage.sh assembles from git-tracked files only.
+# esphome "leader" rows build first, one at a time, so PlatformIO downloads each
+# toolchain once; the rest then build in parallel against the warm cache.
+# Configs that share an esphome `name:` share a build dir, so all but one of them
+# must be leaders (m5core-qr-probe and m5core-qr are both `m5core-qr`).
+esphome	atom-echo-voice2	home-lab/esphome/atom-echo-voice2.yaml	leader
+esphome	el-09-ha-sensor	electronics-learning/projects/09-esp32-esphome-ha-sensor/09-esp32-esphome-ha-sensor.yaml	leader
+esphome	voz-satelite-2	home-lab/esphome/voz-satelite-2.yaml	leader
+esphome	xiao-line-b-diag	wio-mission-control/firmware/xiao-line-node/xiao-line-b-diag.yaml	leader
+esphome	tab5-banco	home-lab/esphome/tab5-banco.yaml	leader
+esphome	clima-recamara	home-lab/esphome/clima-recamara.yaml	-
+esphome	m5core-qr-probe	home-lab/esphome/m5core-qr-probe.yaml	leader
+esphome	m5core-qr	home-lab/esphome/m5core-qr.yaml	-
+esphome	sensor-recamara	home-lab/esphome/sensor-recamara.yaml	-
+esphome	stackchan-estudio	home-lab/esphome/stackchan-estudio.yaml	-
+esphome	voz-piramide-estudio	home-lab/esphome/voz-piramide-estudio.yaml	-
+esphome	xiao-line-b	wio-mission-control/firmware/xiao-line-node/xiao-line-b.yaml	-
+esphome	xiao-line-node	wio-mission-control/firmware/xiao-line-node/xiao-line-node.yaml	-
+idf	sticks3-bridge	home-lab/firmware/sticks3-bridge	esp32s3
+arduino	wio-mission-control	wio-mission-control/firmware/wio-mission-control	Seeeduino:samd:seeed_wio_terminal
+arduino	el-03-wio-hello-lcd	electronics-learning/projects/03-wio-hello-lcd	Seeeduino:samd:seeed_wio_terminal
+arduino	el-04-wio-input-dashboard	electronics-learning/projects/04-wio-input-dashboard	Seeeduino:samd:seeed_wio_terminal
+arduino	el-08-m5stack-hello	electronics-learning/projects/08-m5stack-hello	esp32:esp32:m5stack_core
+pio	paper-badge	paper-badge/firmware	papers3
+nuttx	nuttx-tab5-nsh	-	esp32p4-tab5:nsh
+nuttx	nuttx-tab5-lvgl_demo	-	esp32p4-tab5:lvgl_demo

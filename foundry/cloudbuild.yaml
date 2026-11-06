@@ -1,0 +1,58 @@
+# Kaizen Firmware Foundry — the firmware matrix. Context = output of foundry/stage.sh
+# (foundry/, src/, sources.tsv). Submit with foundry/submit.sh.
+# All build steps run in parallel; each records per-target status and never fails
+# the build on its own. The manifest step collects, the upload step publishes to
+# gs://${_BUCKET}/${_DATE}/, and the verdict step fails the build if any target failed.
+substitutions:
+  _AR: us-central1-docker.pkg.dev/${PROJECT_ID}/kaizen-foundry
+  _BUCKET: papps-c-foundry
+  _DATE: 'unset'
+  _NUTTX_SHA: 9ffe7625cb187004cf209f113b3cd96472c92ab2   # apache/nuttx master 2026-11-06
+  _APPS_SHA: d14111ebeff7e8eb0512e63238883dece6842c05    # apache/nuttx-apps master 2026-11-06
+  _ONLY: 'esphome idf arduino nuttx qemu'                # subset for re-runs
+steps:
+  - id: esphome
+    name: '${_AR}/esphome:2026.10.2'
+    waitFor: ['-']
+    entrypoint: bash
+    args: ['-c', 'case " ${_ONLY} " in *" esphome "*) bash foundry/scripts/build_esphome.sh;; esac']
+  - id: idf
+    name: '${_AR}/idf:6.0.3-ml-da157ac'
+    waitFor: ['-']
+    entrypoint: bash
+    args: ['-c', 'case " ${_ONLY} " in *" idf "*) bash foundry/scripts/build_idf.sh;; esac']
+  - id: qemu
+    name: '${_AR}/idf:6.0.3-ml-da157ac'
+    waitFor: ['idf']
+    entrypoint: bash
+    args: ['-c', 'case " ${_ONLY} " in *" qemu "*) bash foundry/scripts/qemu_smoke.sh sticks3-bridge 25;; esac']
+  - id: arduino
+    name: '${_AR}/arduino:cli1.5.1-samd1.8.6-pio6.1.19'
+    waitFor: ['-']
+    entrypoint: bash
+    args: ['-c', 'case " ${_ONLY} " in *" arduino "*) bash foundry/scripts/build_arduino.sh;; esac']
+  - id: nuttx
+    name: '${_AR}/nuttx:xpack14.2.0-3-kf'
+    waitFor: ['-']
+    entrypoint: bash
+    env: ['NUTTX_SHA=${_NUTTX_SHA}', 'APPS_SHA=${_APPS_SHA}']
+    args: ['-c', 'case " ${_ONLY} " in *" nuttx "*) bash foundry/scripts/build_nuttx.sh;; esac']
+  - id: manifest
+    name: '${_AR}/esphome:2026.10.2'
+    waitFor: ['esphome', 'qemu', 'arduino', 'nuttx']
+    entrypoint: python3
+    args: ['foundry/scripts/manifest.py', '/workspace/out', 'sources.tsv', '${BUILD_ID}', 'gs://${_BUCKET}/${_DATE}/']
+  - id: upload
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args: ['-c', 'cp sources.tsv out/ && gcloud storage cp -r "out/*" "gs://${_BUCKET}/${_DATE}/"']
+  - id: verdict
+    name: '${_AR}/esphome:2026.10.2'
+    entrypoint: python3
+    args: ['-c', 'import json,sys; s=json.load(open("/workspace/out/manifest.json"))["summary"]; print(s); sys.exit(1 if s["failed"] else 0)']
+options:
+  machineType: E2_HIGHCPU_32
+  diskSizeGb: 200
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+timeout: 5400s
