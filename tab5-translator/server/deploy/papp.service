@@ -1,0 +1,19 @@
+# systemd --user unit on cachy (linger is on, so it starts at boot without a login).
+# Install: cp papp.service ~/.config/systemd/user/ && systemctl --user daemon-reload \
+#          && systemctl --user enable --now papp.service
+[Unit]
+Description=PAPP pocket translator (docker compose, LAN + Tailscale only)
+After=default.target network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=%h/papp/src/deploy
+# The Tailscale bind fails if tailscale0 has no IP yet: wait up to 120 s for it.
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do ip -4 addr show tailscale0 2>/dev/null | grep -q 100.69.244.21 && exit 0; sleep 2; done; exit 1'
+ExecStart=/usr/bin/docker compose -f compose.yaml up -d --no-build
+ExecStop=/usr/bin/docker compose -f compose.yaml stop
+TimeoutStartSec=180
+
+[Install]
+WantedBy=default.target

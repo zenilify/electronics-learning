@@ -1,0 +1,7 @@
+tools/
+deploy/
+testaudio/
+**/__pycache__
+*.env
+*.token
+.venv

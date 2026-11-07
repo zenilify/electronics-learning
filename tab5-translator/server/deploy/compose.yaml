@@ -1,0 +1,28 @@
+# cachy deployment. Published ONLY on the LAN IP and the Tailscale IP — never 0.0.0.0.
+# Started by the user unit papp.service (waits for the Tailscale IP before `up`).
+name: papp
+services:
+  papp:
+    image: papp:latest
+    build: ..
+    container_name: papp
+    restart: unless-stopped
+    environment:
+      NVIDIA_KEY_FILE: /run/secrets/nvidia_build.env
+      PAPP_TOKEN_FILE: /run/secrets/papp_token
+    volumes:
+      - ${HOME}/.config/zenilify/nvidia_build.env:/run/secrets/nvidia_build.env:ro
+      - ${HOME}/.config/zenilify/papp_token:/run/secrets/papp_token:ro
+    ports:
+      - "192.168.1.5:8787:8080"     # LAN (Toluca)
+      - "100.69.244.21:8787:8080"   # Tailscale (cachy) — the path from China
+    read_only: true
+    tmpfs: [/tmp]
+    labels:
+      lane: l4
+      owner: erick
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
