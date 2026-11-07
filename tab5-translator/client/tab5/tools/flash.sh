@@ -4,7 +4,8 @@
 #   tools/flash.sh backup     full 16 MB read-back to ~/t5/backup/ (+ sha256)  [do this once, before the first flash]
 #   tools/flash.sh nvs        write ~/t5/secrets/nvs.bin at 0x9000 (tools/provision.py makes it)
 #   tools/flash.sh app [DIR]  write bootloader + partition table + app from DIR (default build/; or a Foundry artifact dir)
-#   tools/flash.sh monitor    30 s of serial log to stdout (no reset)
+#   tools/flash.sh monitor    30 s of serial log to stdout (opening the port resets the Tab5)
+#   tools/flash.sh bench [S]  reset, then send 'status' + 'demo' on the console and log S seconds
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 DEV=/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_30:ED:A0:E2:EF:41-if00
@@ -28,5 +29,6 @@ case "${1:-}" in
   app)    D="${2:-build}"
           run "cd $D && python -m esptool --chip esp32p4 -p $REAL -b 921600 --before default-reset --after hard-reset write-flash @flash_args" ;;
   monitor) run "timeout ${2:-30} python -c 'import serial,sys; s=serial.Serial(\"$REAL\",115200,timeout=1); [sys.stdout.write(s.read(4096).decode(\"utf-8\",\"replace\")) or sys.stdout.flush() for _ in iter(int,1)]' || true" ;;
+  bench)  run "python tools/bench_serial.py $REAL ${2:-120}" ;;
   *) sed -n 2,9p "$0"; exit 2 ;;
 esac

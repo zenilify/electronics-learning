@@ -2,6 +2,7 @@
 #include "papp.h"
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
@@ -82,7 +83,10 @@ static void rec_task(void *arg)
         job->wav_len = 44 + n; job->wav_owned = true; job->side = side; job->demo_idx = -1;
         lang_t l, r; pair_langs(papp_get_pair(), &l, &r);
         job->src = side ? r : l; job->tgt = side ? l : r;
-        ESP_LOGI(TAG, "recorded %d ms side %d %s->%s", ms, side, lang_code(job->src), lang_code(job->tgt));
+        {   int16_t *pp = (int16_t *)(s_buf + 44); size_t ns = n / 2; int pk = 0; double acc = 0;
+            for (size_t i = 0; i < ns; i++) { int v = abs(pp[i]); if (v > pk) pk = v; acc += (double)pp[i] * pp[i]; }
+            ESP_LOGI(TAG, "recorded %d ms side %d %s->%s peak %d rms %d", ms, side, lang_code(job->src),
+                     lang_code(job->tgt), pk, (int)sqrt(acc / (ns ? ns : 1))); }
         if (!papp_submit(job)) { free(job->wav); free(job); }
     }
 }

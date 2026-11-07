@@ -214,6 +214,7 @@ void ui_add_error(papp_job_t *job, const papp_result_t *r)
     case 401: msg = papp_have_token() ? "Token rechazado (401) · 令牌无效" : "Sin token — provisionar por USB · 未配置令牌"; break;
     case 400: msg = "Audio o idioma no válido (400) · 音频无效"; break;
     case 413: msg = "Demasiado largo (> 30 s) · 太长了"; break;
+    case 422: msg = "No se entendió — habla más cerca · 没听清，请靠近再说"; break;
     case 502: msg = "Servicio no disponible (502) · 服务不可用"; break;
     case -1:  msg = "Sin conexión al servidor · 无法连接服务器"; break;
     default:  snprintf(tmp, sizeof tmp, "Error HTTP %d · 出错了", r->http_status); msg = tmp;
@@ -221,7 +222,7 @@ void ui_add_error(papp_job_t *job, const papp_result_t *r)
     wrap_label(b, f24, C_RED, msg, job->side);
     bubble_t *bd = calloc(1, sizeof *bd);
     bd->retry = job;
-    if (r->http_status != 401 && r->http_status != 400 && r->http_status != 413) {
+    if (r->http_status != 401 && r->http_status != 400 && r->http_status != 413 && r->http_status != 422) {
         lv_obj_t *btn = lv_button_create(b);
         lv_obj_set_style_bg_color(btn, lv_color_hex(C_LINE), 0);
         lv_obj_set_style_radius(btn, 14, 0);

@@ -108,6 +108,9 @@ static void run_job(papp_job_t *job)
     ESP_LOGI(TAG, "turn %s->%s status %d rtt %d ms (asr %d nmt %d tts %d) via %s%s",
              lang_code(job->src), lang_code(job->tgt), r.http_status, r.rtt_ms, r.t_asr, r.t_nmt, r.t_tts,
              papp_endpoint_name(r.endpoint), offline ? " [offline demo]" : "");
+    if (r.http_status == 200 && (!r.tgt_text || !r.tgt_text[0] || !r.samples)) {
+        r.http_status = 422;                      // server answered but heard nothing usable
+    }
     if (r.http_status == 200) {
         int16_t *pcm = r.pcm; size_t n = r.samples; int rate = r.rate;
         ui_add_turn(job, &r, offline);           // bubble now owns pcm
@@ -169,6 +172,25 @@ void papp_demo_toggle(bool offline_only)
 }
 bool papp_demo_running(void) { return s_demo; }
 
+// ---------- serial console (bench tests over the USB-C port) ----------
+static void console_task(void *a)
+{
+    char line[64]; size_t n = 0;
+    for (;;) {
+        int c = fgetc(stdin);
+        if (c == EOF) { vTaskDelay(pdMS_TO_TICKS(50)); continue; }
+        if (c != '\n' && c != '\r') { if (n < sizeof line - 1) line[n++] = (char)c; continue; }
+        line[n] = 0; n = 0;
+        if (!strcmp(line, "demo")) papp_demo_toggle(false);
+        else if (!strcmp(line, "demo offline")) papp_demo_toggle(true);
+        else if (!strcmp(line, "status"))
+            ESP_LOGI(TAG, "status wifi=%d rssi=%d ep=%d health=%d ms batt=%.2f V %.2f A free_int=%u kB psram=%u kB",
+                     g_status.wifi_up, g_status.rssi, g_status.endpoint, g_status.health_ms, g_status.batt_v, g_status.batt_a,
+                     (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
+                     (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
+    }
+}
+
 // ---------- boot ----------
 void app_main(void)
 {
@@ -183,7 +205,7 @@ void app_main(void)
         .lvgl_port_cfg = ESP_LVGL_PORT_INIT_CONFIG(),
         .buffer_size = BSP_LCD_H_RES * CONFIG_BSP_LCD_DRAW_BUF_HEIGHT,
         .double_buffer = true,
-        .flags = { .buff_dma = true, .buff_spiram = false, .sw_rotate = true },
+        .flags = { .buff_dma = false, .buff_spiram = true, .sw_rotate = true },
     };
     cfg.lvgl_port_cfg.task_stack = 12288;
     cfg.lvgl_port_cfg.task_affinity = 1;
@@ -200,6 +222,7 @@ void app_main(void)
     battery_start();
     xTaskCreatePinnedToCore(worker, "worker", 8192, NULL, 5, NULL, 0);
     net_start();
+    xTaskCreate(console_task, "console", 4096, NULL, 2, NULL);
     ESP_LOGI(TAG, "up: free internal %u kB, PSRAM %u kB",
              (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
              (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
