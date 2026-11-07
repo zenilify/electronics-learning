@@ -22,6 +22,8 @@ static esp_netif_t *s_netif;
 static void on_wifi(void *a, esp_event_base_t base, int32_t id, void *data)
 {
     if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
+        wifi_event_sta_disconnected_t *d = data;
+        ESP_LOGW(TAG, "disconnected, reason %d rssi %d", d ? d->reason : -1, d ? d->rssi : 0);
         g_status.wifi_up = false; g_status.endpoint = -1;
         xEventGroupClearBits(s_ev, EV_IP);
         xEventGroupSetBits(s_ev, EV_FAIL);
@@ -40,10 +42,13 @@ static bool try_connect(int idx)
     wifi_config_t wc = {0};
     strlcpy((char *)wc.sta.ssid, ssid, sizeof wc.sta.ssid);
     strlcpy((char *)wc.sta.password, pass, sizeof wc.sta.password);
-    wc.sta.threshold.authmode = pass[0] ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
+    wc.sta.threshold.authmode = pass[0] ? WIFI_AUTH_WPA_PSK : WIFI_AUTH_OPEN;   // accept WPA/WPA2 mixed routers
+    wc.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;       // fast scan missed the AP (reason 201, rssi -128) on the hosted C6
+    wc.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
+    wc.sta.failure_retry_cnt = 3;
     wc.sta.pmf_cfg.capable = true;
     memset(pass, 0, sizeof pass);
-    esp_wifi_disconnect();
+    if (g_status.wifi_up) esp_wifi_disconnect();
     xEventGroupClearBits(s_ev, EV_IP | EV_FAIL);
     esp_wifi_set_config(WIFI_IF_STA, &wc);
     memset(&wc, 0, sizeof wc);
@@ -60,7 +65,13 @@ static void net_task(void *arg)
     for (;;) {
         if (!(xEventGroupGetBits(s_ev) & EV_IP)) {
             bool ok = false;
-            for (int i = 0; i < 3 && !ok; i++) ok = try_connect(i);
+            for (int i = 0; i < 3 && !ok; i++)
+                for (int k = 0; k < 3 && !ok; k++) {
+                    char tmp[33], tp[65];
+                    if (!settings_get_wifi(i, tmp, sizeof tmp, tp, sizeof tp)) break;
+                    ok = try_connect(i);
+                    if (!ok) vTaskDelay(pdMS_TO_TICKS(1500));
+                }
             if (!ok) {
                 if (!settings_get_wifi(0, (char[33]){0}, 33, (char[65]){0}, 65)) {
                     ESP_LOGW(TAG, "no Wi-Fi provisioned (tools/provision.py)");
@@ -99,5 +110,9 @@ void net_start(void)
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_start());
+    // Modem sleep off: with power save on, the hosted C6 dropped the AP with reason 200 (beacon timeout)
+    // mid-turn and then 201 (no AP found) for ~25 s (bench 2026-11-07). A demo unit on USB/battery can afford it.
+    esp_err_t ps = esp_wifi_set_ps(WIFI_PS_NONE);
+    ESP_LOGI(TAG, "wifi power save off: %s", esp_err_to_name(ps));
     xTaskCreatePinnedToCore(net_task, "net", 8192, NULL, 4, NULL, 0);
 }
