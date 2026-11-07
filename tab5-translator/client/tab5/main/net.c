@@ -11,6 +11,7 @@
 #include "esp_netif.h"
 #include "esp_event.h"
 #include "esp_log.h"
+#include "bsp/m5stack_tab5.h"
 
 static const char *TAG = "net";
 static EventGroupHandle_t s_ev;
@@ -69,8 +70,11 @@ static void net_task(void *arg)
                 for (int k = 0; k < 3 && !ok; k++) {
                     char tmp[33], tp[65];
                     if (!settings_get_wifi(i, tmp, sizeof tmp, tp, sizeof tp)) break;
+                    // the driver may finish an earlier association late: never tear down a link that came up
+                    if (xEventGroupGetBits(s_ev) & EV_IP) { ok = true; break; }
                     ok = try_connect(i);
                     if (!ok) vTaskDelay(pdMS_TO_TICKS(1500));
+                    if (xEventGroupGetBits(s_ev) & EV_IP) ok = true;
                 }
             if (!ok) {
                 if (!settings_get_wifi(0, (char[33]){0}, 33, (char[65]){0}, 65)) {
@@ -99,6 +103,14 @@ void net_reprobe(void) { if (s_ev) xEventGroupSetBits(s_ev, EV_PROBE); }
 void net_start(void)
 {
     s_ev = xEventGroupCreate();
+    // Power-cycle the ESP32-C6 (WLAN_PWR_EN = IO expander 0x44 P0) before esp_hosted starts. A C6 left wedged by a
+    // previous transport failure / host restart / co-proc OTA does not recover from the GPIO15 CHIP_PU reset alone,
+    // only from losing power (esp-hosted-mcu #240, M5Tab5-UserDemo #20). Costs ~0.7 s of boot.
+    bsp_feature_enable(BSP_FEATURE_WIFI, false);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    bsp_feature_enable(BSP_FEATURE_WIFI, true);
+    vTaskDelay(pdMS_TO_TICKS(200));
+    ESP_LOGI(TAG, "C6 power-cycled");
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     s_netif = esp_netif_create_default_wifi_sta();

@@ -18,6 +18,7 @@
 #include "battery.h"
 #include "settings.h"
 #include "demo_data.h"
+#include "c6ota.h"
 
 static const char *TAG = "papp";
 volatile papp_status_t g_status = { .endpoint = -1, .batt_v = -1 };
@@ -175,7 +176,7 @@ bool papp_demo_running(void) { return s_demo; }
 // ---------- serial console (bench tests over the USB-C port) ----------
 static void console_task(void *a)
 {
-    char line[64]; size_t n = 0;
+    char line[160]; size_t n = 0;
     for (;;) {
         int c = fgetc(stdin);
         if (c == EOF) { vTaskDelay(pdMS_TO_TICKS(50)); continue; }
@@ -183,6 +184,12 @@ static void console_task(void *a)
         line[n] = 0; n = 0;
         if (!strcmp(line, "demo")) papp_demo_toggle(false);
         else if (!strcmp(line, "demo offline")) papp_demo_toggle(true);
+        else if (!strncmp(line, "c6ota ", 6)) c6_ota_start(line + 6);
+        else if (!strcmp(line, "c6ver")) {
+            uint32_t a, b, c;
+            if (c6_version(&a, &b, &c)) ESP_LOGI(TAG, "C6 esp-hosted fw %lu.%lu.%lu", (unsigned long)a, (unsigned long)b, (unsigned long)c);
+            else ESP_LOGW(TAG, "C6 fw version not available");
+        }
         else if (!strcmp(line, "status"))
             ESP_LOGI(TAG, "status wifi=%d rssi=%d ep=%d health=%d ms batt=%.2f V %.2f A free_int=%u kB psram=%u kB",
                      g_status.wifi_up, g_status.rssi, g_status.endpoint, g_status.health_ms, g_status.batt_v, g_status.batt_a,

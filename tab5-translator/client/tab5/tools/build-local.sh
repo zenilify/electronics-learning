@@ -5,5 +5,7 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 IMG=espressif/idf:v6.0.3@sha256:01ab23e20744721378d1dd9d0fff4fe15e2edd8bd5cdaf02d24597f4ade05a1e
+# rsync -a keeps the Mac mtimes, which can be older than build objects -> ninja skips edits. Always rebuild main.
+touch "$HERE"/main/*.c "$HERE"/main/*.h
 docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$HERE":/p -w /p "$IMG" \
   bash -c '[ -f build/CMakeCache.txt ] || idf.py set-target esp32p4 >/dev/null; idf.py build'

@@ -130,6 +130,11 @@ Wi-Fi networks provisioned: `wifi0` = home (from the ESPHome secrets), `wifi1` =
 
 Talk 20–30 cm from the top edge (the mics); keep utterances under ~10 s.
 
+## Offline mode
+
+Today every live turn needs the internet (NVIDIA hosted models behind cachy / Cloud Run). Options and the
+recommended all-M5Stack offline brain are in [OFFLINE.md](OFFLINE.md).
+
 ## Verification (2026-11-07, lane T5)
 
 | What | Measured how | Result |
@@ -144,9 +149,12 @@ Talk 20–30 cm from the top edge (the mics); keep utterances under ~10 s.
 
 **Known issues**
 
-- **Wi-Fi via the C6 is flaky**: association sometimes needs several tries (reason 201 at −50 dBm),
-  one upload stalled 65 s, beacon timeout (200) after ~2 min. The co-processor reports esp-hosted
-  firmware **0.0.0** vs host 2.12 ("upgrade co-proc to avoid RPC timeouts"). Decision D-T5-1.
+- **Wi-Fi co-processor updated (D-T5-1, 2026-11-07):** the C6 ran factory esp-hosted slave **1.4.1**; it was
+  OTA'd from the P4 (`c6ota <url>` on the console, `main/c6ota.c`) to **2.12.13**, built from the same component
+  (1,269,840 B, sha256 `bfbe138450d88326`). After the update the link only came up with the host SDIO clock at
+  **20 MHz** (landmine 318); the C6 is also power-cycled at every boot (IO expander 0x44 P0). Result: joins first
+  try, 12 consecutive turns OK in a 5-min soak — but one beacon-timeout drop (reason 200) still occurred on the
+  ISP router's 2.4 GHz SSID; reconnect takes ~20 s and demo mode falls back to its built-in replies meanwhile.
 - **Backlight is on/off only** on this unit: IDF 6.0.3 LEDC faults on P4 rev<3 (landmine 315), see
   `main/p4_rev1_ledc.c`.
 - The pre-flash backup has two unreadable regions (landmine 316): 0x1A0000–0x1FFFFF, 0x900000–0x9FFFFF.

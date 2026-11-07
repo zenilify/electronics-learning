@@ -6,7 +6,7 @@ import serial, sys, time
 port, dur = sys.argv[1], int(sys.argv[2]) if len(sys.argv) > 2 else 120
 s = serial.Serial(port, 115200, timeout=0.5)
 t0, sent = time.time(), set()
-cmds = [(14, b"status\n"), (16, b"demo\n"), (dur - 5, b"status\n")]
+cmds = [(14, b"status\n")] + [(16 + 75 * k, b"demo\n") for k in range(max(1, (dur - 30) // 75))] + [(dur - 5, b"status\n")]
 while time.time() - t0 < dur:
     d = s.read(4096)
     if d:

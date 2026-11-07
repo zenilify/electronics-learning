@@ -5,6 +5,7 @@
 #   tools/flash.sh nvs        write ~/t5/secrets/nvs.bin at 0x9000 (tools/provision.py makes it)
 #   tools/flash.sh app [DIR]  write bootloader + partition table + app from DIR (default build/; or a Foundry artifact dir)
 #   tools/flash.sh monitor    30 s of serial log to stdout (opening the port resets the Tab5)
+#   tools/flash.sh console S 'AT:cmd'...  reset, send console commands at AT seconds, log S seconds
 #   tools/flash.sh bench [S]  reset, then send 'status' + 'demo' on the console and log S seconds
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -29,6 +30,8 @@ case "${1:-}" in
   app)    D="${2:-build}"
           run "cd $D && python -m esptool --chip esp32p4 -p $REAL -b 921600 --before default-reset --after hard-reset write-flash @flash_args" ;;
   monitor) run "timeout ${2:-30} python -c 'import serial,sys; s=serial.Serial(\"$REAL\",115200,timeout=1); [sys.stdout.write(s.read(4096).decode(\"utf-8\",\"replace\")) or sys.stdout.flush() for _ in iter(int,1)]' || true" ;;
+  console) shift; S="$1"; shift; A=""; for x in "$@"; do A="$A '$x'"; done
+          run "python tools/console.py $REAL $S $A" ;;
   bench)  run "python tools/bench_serial.py $REAL ${2:-120}" ;;
   *) sed -n 2,9p "$0"; exit 2 ;;
 esac
