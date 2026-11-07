@@ -106,6 +106,14 @@ void net_start(void)
     // Power-cycle the ESP32-C6 (WLAN_PWR_EN = IO expander 0x44 P0) before esp_hosted starts. A C6 left wedged by a
     // previous transport failure / host restart / co-proc OTA does not recover from the GPIO15 CHIP_PU reset alone,
     // only from losing power (esp-hosted-mcu #240, M5Tab5-UserDemo #20). Costs ~0.7 s of boot.
+    // Antenna switch = IO expander 0x43 P0 (devices.esphome.io Tab5 pin map: low = internal, high = external MMCX).
+    // Nothing drove it so far -> state undefined; pin it to the internal antenna.
+    esp_io_expander_handle_t ex = bsp_io_expander_init();
+    if (ex) {
+        esp_io_expander_set_dir(ex, IO_EXPANDER_PIN_NUM_0, IO_EXPANDER_OUTPUT);
+        esp_io_expander_set_level(ex, IO_EXPANDER_PIN_NUM_0, 0);
+        ESP_LOGI(TAG, "antenna: internal");
+    }
     bsp_feature_enable(BSP_FEATURE_WIFI, false);
     vTaskDelay(pdMS_TO_TICKS(500));
     bsp_feature_enable(BSP_FEATURE_WIFI, true);
