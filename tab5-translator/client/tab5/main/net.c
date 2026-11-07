@@ -3,6 +3,7 @@
 #include "papp_http.h"
 #include "settings.h"
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -12,6 +13,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "bsp/m5stack_tab5.h"
+#include "settings.h"
 
 static const char *TAG = "net";
 static EventGroupHandle_t s_ev;
@@ -98,6 +100,20 @@ static void net_task(void *arg)
     }
 }
 
+void net_scan_log(void)
+{
+    wifi_scan_config_t sc = { .show_hidden = false, .scan_type = WIFI_SCAN_TYPE_ACTIVE };
+    if (esp_wifi_scan_start(&sc, true) != ESP_OK) { ESP_LOGW(TAG, "scan failed"); return; }
+    uint16_t n = 20; wifi_ap_record_t *r = calloc(n, sizeof *r);
+    if (!r) return;
+    esp_wifi_scan_get_ap_records(&n, r);
+    wifi_country_t cc = {0}; esp_wifi_get_country(&cc);
+    ESP_LOGI(TAG, "scan: %u APs, country %.2s ch %u-%u", n, cc.cc, cc.schan, cc.schan + cc.nchan - 1);
+    for (int i = 0; i < n; i++)
+        ESP_LOGI(TAG, "  ch%2u %4d dBm auth %d  %s", r[i].primary, r[i].rssi, r[i].authmode, (char *)r[i].ssid);
+    free(r);
+}
+
 void net_reprobe(void) { if (s_ev) xEventGroupSetBits(s_ev, EV_PROBE); }
 
 void net_start(void)
@@ -106,13 +122,16 @@ void net_start(void)
     // Power-cycle the ESP32-C6 (WLAN_PWR_EN = IO expander 0x44 P0) before esp_hosted starts. A C6 left wedged by a
     // previous transport failure / host restart / co-proc OTA does not recover from the GPIO15 CHIP_PU reset alone,
     // only from losing power (esp-hosted-mcu #240, M5Tab5-UserDemo #20). Costs ~0.7 s of boot.
-    // Antenna switch = IO expander 0x43 P0 (devices.esphome.io Tab5 pin map: low = internal, high = external MMCX).
-    // Nothing drove it so far -> state undefined; pin it to the internal antenna.
+    // Antenna switch (schematic p.4: TPG619C6 SPDT, RF1 = internal 3D antenna, RF2 = MMCX J15 "External ANT").
+    // Driven from IO expander 0x43 P0 (net RF_PTH_L_INT_H_EXT: low = internal, high = external). The other MMCX
+    // (J16 "EXT. module bypass") is a pass-through for an add-on module's IPEX — not Wi-Fi.
+    // NVS "ant": 0 internal (default), 1 external. Console: `ant ext` / `ant int` (saved, applied after reboot).
+    uint8_t ant = settings_get_u8("ant", 0);
     esp_io_expander_handle_t ex = bsp_io_expander_init();
     if (ex) {
         esp_io_expander_set_dir(ex, IO_EXPANDER_PIN_NUM_0, IO_EXPANDER_OUTPUT);
-        esp_io_expander_set_level(ex, IO_EXPANDER_PIN_NUM_0, 0);
-        ESP_LOGI(TAG, "antenna: internal");
+        esp_io_expander_set_level(ex, IO_EXPANDER_PIN_NUM_0, ant ? 1 : 0);
+        ESP_LOGI(TAG, "antenna: %s", ant ? "EXTERNAL (MMCX J15)" : "internal");
     }
     bsp_feature_enable(BSP_FEATURE_WIFI, false);
     vTaskDelay(pdMS_TO_TICKS(500));

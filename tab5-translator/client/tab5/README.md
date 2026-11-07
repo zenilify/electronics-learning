@@ -150,11 +150,16 @@ recommended all-M5Stack offline brain are in [OFFLINE.md](OFFLINE.md).
 **Known issues**
 
 - **Wi-Fi co-processor updated (D-T5-1, 2026-11-07):** the C6 ran factory esp-hosted slave **1.4.1**; it was
-  OTA'd from the P4 (`c6ota <url>` on the console, `main/c6ota.c`) to **2.12.13**, built from the same component
-  (1,269,840 B, sha256 `bfbe138450d88326`). After the update the link only came up with the host SDIO clock at
-  **20 MHz** (landmine 318); the C6 is also power-cycled at every boot (IO expander 0x44 P0). Result: joins first
-  try, 12 consecutive turns OK in a 5-min soak — but one beacon-timeout drop (reason 200) still occurred on the
-  ISP router's 2.4 GHz SSID; reconnect takes ~20 s and demo mode falls back to its built-in replies meanwhile.
+  OTA'd from the P4 (`c6ota <url>` on the console, `main/c6ota.c`) to **2.12.13** (1,269,840 B, sha256
+  `bfbe138450d88326`). Since then the P4↔C6 SDIO link fails to come up on *some* boots (0x107, host self-resets until a
+  good boot) — first blamed on the 40 MHz clock, but it also happened once at 20 MHz, so the cause is **open**
+  (landmine 318, retracted claim noted there). Wi-Fi association needs several tries after boot (reason 201), and
+  under load there are stalls/drops. The antenna is not the cause: RSSI −47…−57 dBm on the internal antenna.
+- **Antennas (schematic p.4):** two MMCX on top. **J15 "External ANT"** = the C6 Wi-Fi radio via an SPDT switch
+  (TPG619C6), selected by IO expander 0x43 P0 (low = internal 3D antenna, high = J15). **J16 "EXT. module bypass"** is a
+  plain pass-through to an internal IPEX (J14) for an add-on module (Stamp cellular/LoRa) — not Wi-Fi.
+  Console `ant ext` / `ant int` stores the choice in NVS and reboots (external with nothing attached = no Wi-Fi;
+  `tools/flash.sh nvs` resets it). Console `scan` lists APs.
 - **Backlight is on/off only** on this unit: IDF 6.0.3 LEDC faults on P4 rev<3 (landmine 315), see
   `main/p4_rev1_ledc.c`.
 - The pre-flash backup has two unreadable regions (landmine 316): 0x1A0000–0x1FFFFF, 0x900000–0x9FFFFF.

@@ -8,6 +8,7 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_heap_caps.h"
 #include "bsp/m5stack_tab5.h"
 #include "papp.h"
@@ -185,6 +186,12 @@ static void console_task(void *a)
         if (!strcmp(line, "demo")) papp_demo_toggle(false);
         else if (!strcmp(line, "demo offline")) papp_demo_toggle(true);
         else if (!strncmp(line, "c6ota ", 6)) c6_ota_start(line + 6);
+        else if (!strcmp(line, "ant ext") || !strcmp(line, "ant int")) {
+            settings_set_u8("ant", line[4] == 'e');
+            ESP_LOGW(TAG, "antenna set to %s — rebooting", line + 4);
+            vTaskDelay(pdMS_TO_TICKS(300)); esp_restart();
+        }
+        else if (!strcmp(line, "scan")) net_scan_log();
         else if (!strcmp(line, "c6ver")) {
             uint32_t a, b, c;
             if (c6_version(&a, &b, &c)) ESP_LOGI(TAG, "C6 esp-hosted fw %lu.%lu.%lu", (unsigned long)a, (unsigned long)b, (unsigned long)c);
