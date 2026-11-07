@@ -1,0 +1,6 @@
+## PAPP Tab5 — pinned component versions (resolved set lands in dependencies.lock)
+dependencies:
+  idf: ">=6.0"
+  espressif/m5stack_tab5: "1.3.2"          # BSP: ST7123/ILI9881C auto-detect, ES8388 + ES7210, LVGL port
+  espressif/esp_wifi_remote: "1.6.5"       # same pins ESPHome 2026.10.2 uses for esp32_hosted 2.x
+  espressif/esp_hosted: "2.12.13"

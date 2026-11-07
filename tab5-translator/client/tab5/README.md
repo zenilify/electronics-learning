@@ -1,9 +1,27 @@
-# Tab5 client spec (ESP32-P4 · ESP-IDF + LVGL) — not built yet
+# PAPP on the Tab5 — push-to-talk translator firmware (ESP32-P4 · ESP-IDF 6.0.3 · LVGL 9)
 
-Status 2026-11-07: **spec only**. The firmware does not exist yet; `../desktop/papp_client.py`
-is the reference implementation — the Tab5 must send exactly the bytes it sends.
+Status 2026-11-07 (lane T5): **built and flashed** — see *Verification* at the bottom for what was
+measured on Erick's unit and what was not. Showcase target: M5Stack, Shenzhen, Thu 26 Nov.
 
-## The one HTTP call
+Hold the left button and speak Spanish/English, or the right button and speak Chinese; release.
+The Tab5 sends **one HTTP POST** with the recording to the PAPP backend (`../../server/`), shows the
+recognised text and the translation, and plays the translated speech. Every turn shows its latency.
+
+```
+ ┌─ PAPP ─ [ES ⇄ 中文] [EN ⇄ 中文] [ES ⇄ EN] ─────────── ✓ LAN · 38 ms   Wi-Fi -52   🔋 78 %   ▶ DEMO ┐
+ │ ┌────────┐  ┌──────────────────────────────────────────────┐  ┌────────┐ │
+ │ │  🎙    │  │ ES → 中文                                     │  │  🎙    │ │
+ │ │   ES   │  │ Hola, mucho gusto…                            │  │  中文  │ │
+ │ │ Mantén │  │ 很高兴，我们从墨西哥来参观您的公司。            │  │ 按住说话│ │
+ │ │  para  │  │ ▶ 1.9 s · ASR 0.6 · MT 0.4 · TTS 0.8 · LAN   │  │        │ │
+ │ │ hablar │  │                       中文 → ES ┃              │  │        │ │
+ │ │ ▁▃▅▂▁  │  │ ◌ Traduciendo ES → 中文 · 翻译中  1.2 s       │  │        │ │
+ │ └────────┘  └──────────────────────────────────────────────┘  └────────┘ │
+ └──────────────────────────────────────────────────────────────────────────┘
+   teal = left speaker (ES / EN)                         amber = right speaker (中文 / EN)
+```
+
+## The one HTTP call (unchanged contract — byte-for-byte `../desktop/papp_client.py`)
 
 ```
 POST {BASE}/translate?src={es|en|zh}&tgt={es|en|zh}&format=wav&rate=16000
@@ -14,48 +32,106 @@ Content-Length: {44 + n_samples*2}
 <RIFF/WAVE header, PCM16, mono, 16000 Hz><samples little-endian>
 ```
 
-Reply `200 audio/wav` (PCM16 mono at `rate`, standard 44-byte header) plus headers:
-
-| Header | Content |
-|---|---|
-| `X-Papp-Src-Text` | recognised text, URL-encoded UTF-8 (show on screen) |
-| `X-Papp-Tgt-Text` | translation, URL-encoded UTF-8 (show on screen — needs a CJK font) |
-| `X-Papp-Timings` | JSON `{"asr":ms,"nmt":ms,"tts":ms,"total":ms}` |
-| `X-Papp-Asr-Model` | which hosted ASR answered (fallback chain) |
-
-Errors: `400` bad audio/lang · `401` token · `413` > 30 s audio · `502` NVIDIA upstream down
-(show "servicio no disponible", keep the recording, offer retry).
+Reply `200 audio/wav` (PCM16 mono, 16 kHz) with `X-Papp-Src-Text` / `X-Papp-Tgt-Text`
+(URL-encoded UTF-8, decoded with `unquote` semantics), `X-Papp-Timings` (`{"asr","nmt","tts","total"}` ms)
+and `X-Papp-Asr-Model`. Errors: `400` bad audio/lang · `401` token · `413` > 30 s · `502` NVIDIA
+upstream down — the firmware keeps the recording and shows **Reintentar · 重试**.
 
 ## Endpoints, in the order the firmware tries them
 
-| # | BASE | When it works |
+| # | BASE | Works when |
 |---|---|---|
-| 1 | `http://100.69.244.21:8787` | Tab5 on a network routed into the tailnet (travel router with Tailscale / exit node) — **the China path** |
-| 2 | `http://192.168.1.5:8787` | at home, Toluca LAN |
-| 3 | `https://papp-138753081869.us-central1.run.app` | anywhere Google is reachable (not mainland China) |
+| 0 | `http://100.69.244.21:8787` | the Tab5's Wi-Fi is routed into the tailnet (travel router with Tailscale / subnet route) — **the China path** |
+| 1 | `http://192.168.1.5:8787` | Toluca LAN — and through the UTR's Teleport tunnel (client NAT; untested) |
+| 2 | `https://papp-138753081869.us-central1.run.app` | anywhere Google is reachable (not mainland China); TLS via the IDF CA bundle |
 
-Probe `GET {BASE}/health` with a 2 s timeout at boot and on Wi-Fi change; pick the first `200`.
-The ESP32-P4 has no Tailscale client, so in China the Tab5 joins the **travel router's Wi-Fi**
-(GL.iNet with Tailscale, subnet route / exit node into the tailnet); then path 1 is plain HTTP
-inside WireGuard. Do not expose 8787 publicly to "fix" this.
+`GET {BASE}/health` with a 2 s timeout at boot, on every Wi-Fi (re)connect, every 20 s while offline
+and every 2 min otherwise; the first `200` wins. A transport error during a turn re-probes and retries
+once on the next endpoint. The ESP32-P4 has no Tailscale client — do not expose 8787 publicly.
 
-## Firmware outline (ESP-IDF 6.x, M5Stack Tab5 BSP)
+## Features
 
-1. **UI (LVGL)**: two big buttons = push-to-talk for each side of the pair
-   (`ES → 中文` and `中文 → ES`); a pair selector (es↔zh, en↔zh, es↔en); two text areas
-   (source / translation) with a font that covers CJK (e.g. a subset of Noto Sans SC
-   compiled with `lv_font_conv` — subset ~3500 common hanzi keeps it < 1.5 MB in PSRAM/flash).
-2. **Record**: while the button is held, read the ES7210 mic codec via the BSP I2S at
-   16 kHz / 16-bit / mono into a PSRAM ring (max 30 s = 960 KB). Release = stop.
-3. **Send**: write the 44-byte WAV header + samples with `esp_http_client`
-   (`esp_http_client_open(len)` + `esp_http_client_write` in 4 KB chunks — no multipart,
-   no base64). Timeout 30 s. Token from NVS (provisioned once over USB serial, never in source).
-4. **Receive**: `esp_http_client_fetch_headers`, read the 3 `X-Papp-*` headers (URL-decode),
-   stream the body to PSRAM, skip the 44-byte header, play through the ES8388 speaker codec
-   at the reply rate. Show texts while playing.
-5. **Latency budget** measured server-side: 1.4–2.6 s warm for a 4–6 s utterance; first
-   request after idle on Cloud Run adds a cold start (see top-level README). Show a spinner.
+| | |
+|---|---|
+| Language pairs | ES ⇄ 中文 · EN ⇄ 中文 · ES ⇄ EN (top bar, remembered in NVS) |
+| Push-to-talk | hold = record (ES7210, 16 kHz mono, max 30 s, PSRAM); < 0.45 s = ignored tap; talking interrupts playback |
+| Conversation | bubbles left/right per speaker: source text, translation (40 px), latency line; **tap a bubble to replay** (last 24 kept) |
+| Status bar | backend endpoint + health RTT, Wi-Fi SSID + RSSI, battery % + charging bolt (INA226 @0x41) |
+| Errors | no token / 401 / 413 / 502 / offline each have a bilingual message; retryable ones get a button |
+| Demo mode | **▶ DEMO** tap = 5 canned phrases sent through the *live* pipeline (real latency); if no backend answers, each falls back to the embedded reply. **Long-press** = offline-only (no network needed) |
+| Boot splash | generic "PAPP" mark with animated voice bars (no third-party logos) |
+| Screen | landscape 1280×720 (panel is 720×1280; LVGL rotation via PPA). **Long-press "PAPP"** flips it 180° (NVS) |
+| Fonts | Noto Sans SC (OFL) subset, weight 500: GB2312 level-1 hanzi (3,755) + Latin-1 + punctuation + every UI/demo string = 4,092 glyphs, **1.14 MB**, rendered with LVGL `tiny_ttf` at 20–96 px; Montserrat fallback for symbols |
 
-## Build check
+## Layout
 
-Optional: add a `tab5-papp` row to `foundry/targets.tsv` (ESP-IDF family) once the app exists.
+| Path | What |
+|---|---|
+| `main/main.c` | boot, worker task (one turn at a time), demo sequencer, language pairs |
+| `main/papp_http.c` | `/health` probe + the `/translate` POST (streamed body, `X-Papp-*` headers, endpoint failover) |
+| `main/audio.c` | BSP duplex I2S @16 kHz, recorder task, WAV header/parser, playback (+ resample if ever ≠ 16 kHz) |
+| `main/ui.c` | LVGL screens: splash, top bar, two PTT panels, chat, status line |
+| `main/net.c` | Wi-Fi via the ESP32-C6 (esp_hosted 2.12.13 over SDIO slot 1, pins from `home-lab/esphome/tab5-banco.yaml`) |
+| `main/battery.c` · `main/settings.c` | INA226 · NVS (`papp` namespace) |
+| `main/assets/` | `papp_cjk.ttf` (+ `OFL-NotoSansSC.txt`), `demo/d1..d5_{src,tgt}.wav` (Magpie TTS via the backend) |
+| `main/demo_data.h` | generated by `tools/make_demo.py` — canned texts |
+| `tools/` | `build-local.sh` · `make_font.sh` · `make_demo.py` · `provision.py` · `flash.sh` |
+| `sdkconfig.defaults` · `partitions.csv` · `dependencies.lock` | P4 **rev < 3.0** support (this unit is v1.3), 16 MB flash, 12 MB app, PSRAM hex 200 MHz |
+
+## Build
+
+```bash
+# authoritative: Kaizen Firmware Foundry (Cloud Build, papps-513907) — row `tab5-papp` in foundry/targets.tsv
+GCLOUD_HOST=cachy foundry/submit.sh firmware idf        # from the macbook/estudio clone
+# fast loop on cachy, same pinned image (espressif/idf:v6.0.3 by digest)
+rsync -a --exclude build --exclude managed_components tab5-translator/client/tab5/ cachy:t5/src/
+ssh cachy 't5/src/tools/build-local.sh'                 # ~4 min cold, seconds incremental
+```
+
+## Provision + flash (cachy, Tab5 on USB-C)
+
+The token and Wi-Fi never enter the source tree or argv. `tools/provision.py` reads
+`~/.config/zenilify/papp_token` and `~/esphome/secrets.yaml` on cachy, pipes a CSV into
+`nvs_partition_gen` and writes `~/t5/secrets/nvs.bin` (0600). `tools/flash.sh` only talks to the
+port `/dev/serial/by-id/…30:ED:A0:E2:EF:41…` (cachy has a second Espressif board on USB).
+
+```bash
+ssh cachy
+cd ~/t5/src
+tools/flash.sh backup        # once: full 16 MB read-back in 1 MB segments -> ~/t5/backup/*.bin + .sha256
+python3 tools/provision.py   # -> ~/t5/secrets/nvs.bin (prints lengths + sha256 prefix only)
+tools/flash.sh app           # bootloader @0x2000, partition table @0x8000, app @0x10000 (or: app <foundry dir>)
+tools/flash.sh nvs           # token + Wi-Fi @0x9000
+tools/flash.sh monitor 40    # boot log
+```
+
+Restore the old ESPHome bench console: `esptool write-flash 0 ~/t5/backup/tab5-30eda0e2ef41-full-*.bin`
+(or re-flash `tab5-banco` from ESPHome over USB).
+
+Wi-Fi networks provisioned: `wifi0` = home (from the ESPHome secrets), `wifi1` = `zenilify-6E` (the UTR's
+2.4 GHz SSID). The C6 radio is **2.4 GHz only**. For China, add the travel router as `wifi2` in
+`provision.py` and re-run `provision.py` + `flash.sh nvs` — no rebuild.
+
+## Demo script — M5Stack, Shenzhen (Thu 26 Nov), ~3 minutes
+
+1. **Before the room** (hotel): Tab5 charged; travel router up; check the status bar shows
+   `✓ Tailscale` (or `✓ Cloud Run` on roaming data). If it says `✕ offline`, use step 5 only.
+2. **Boot** (10 s): the PAPP splash — "push-to-talk translator on the ESP32-P4, Wi-Fi through the
+   on-board ESP32-C6, speech AI on our own backend".
+3. **Live, Spanish → Chinese**: hold the teal button: *"Hola, mucho gusto. Venimos de México a visitar
+   su empresa."* Release. Point at the latency line (≈ 2 s warm).
+4. **Live, their turn**: hand them the Tab5, amber side: *"你们想喝点茶吗？"* — the Spanish appears and is spoken.
+5. **DEMO** (tap): five canned turns through the live pipeline, both directions plus English.
+   If the network dies on stage, the same five play from flash ("demo · offline"). Long-press DEMO to
+   force offline from the start.
+6. **Talking points**: ES7210 mic array + ES8388 codec via the official Tab5 BSP; LVGL 9 with
+   PPA-rotated 1280×720; 4,092-glyph CJK font in 1.1 MB; one plain HTTP POST per turn (works through a
+   travel router into a private network); first request after idle can take ~10 s (server warm-up).
+
+Talk 20–30 cm from the top edge (the mics); keep utterances under ~10 s.
+
+## Verification (2026-11-07, lane T5)
+
+See the lane handoff `mission-control/claude/handoffs/2026-11-07-t5.md` for the measured rows
+(build hashes, flash, boot log, round trips with latency). Hypotheses still to measure on the unit:
+battery % mapping (2S Li-ion 6.4–8.3 V assumed), speaker loudness in a noisy room, ES7210 gain (30 dB).

@@ -27,3 +27,4 @@ arduino	el-08-m5stack-hello	electronics-learning/projects/08-m5stack-hello	esp32
 pio	paper-badge	paper-badge/firmware	papers3
 nuttx	nuttx-tab5-nsh	-	esp32p4-tab5:nsh
 nuttx	nuttx-tab5-lvgl_demo	-	esp32p4-tab5:lvgl_demo
+idf	tab5-papp	electronics-learning/tab5-translator/client/tab5	esp32p4

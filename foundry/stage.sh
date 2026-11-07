@@ -12,7 +12,7 @@ OUT="${1:-/tmp/kaizen-foundry-ctx}"
 REPOS=(
   "home-lab|$P/home-lab|esphome firmware/sticks3-bridge"
   "wio-mission-control|$P/SeeedStudio/wio-mission-control|firmware"
-  "electronics-learning|$P/electronics-learning|projects"
+  "electronics-learning|$P/electronics-learning|projects tab5-translator/client/tab5"
   "paper-badge|$P/Zenilify-Consulting|docs/brand/paper-badge/firmware"
 )
 # Untracked-but-required build inputs (generated, not secret). Recorded by sha256.

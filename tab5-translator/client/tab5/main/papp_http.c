@@ -1,0 +1,187 @@
+// Byte-for-byte the request client/desktop/papp_client.py makes:
+//   POST {BASE}/translate?src=..&tgt=..&format=wav&rate=16000
+//   Content-Type: audio/wav · Authorization: Bearer <token> · body = RIFF/WAVE PCM16 mono 16 kHz
+// The token comes from NVS (tools/provision.py) and is never logged.
+#include "papp_http.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include "esp_http_client.h"
+#include "esp_crt_bundle.h"
+#include "esp_log.h"
+#include "esp_timer.h"
+#include "esp_heap_caps.h"
+#include "settings.h"
+#include "audio.h"
+
+static const char *TAG = "papp_http";
+static const char *EP_URL[PAPP_EP_COUNT] = {
+    "http://100.69.244.21:8787",                         // cachy over Tailscale (the China path, via a tailnet router)
+    "http://192.168.1.5:8787",                           // cachy on the Toluca LAN
+    "https://papp-138753081869.us-central1.run.app",     // Cloud Run (outside mainland China)
+};
+static const char *EP_NAME[PAPP_EP_COUNT] = { "Tailscale", "LAN", "Cloud Run" };
+static char s_token[96];
+static int s_active = -1;
+
+const char *papp_endpoint_url(int i) { return i >= 0 && i < PAPP_EP_COUNT ? EP_URL[i] : ""; }
+const char *papp_endpoint_name(int i) { return i >= 0 && i < PAPP_EP_COUNT ? EP_NAME[i] : "offline"; }
+bool papp_have_token(void) { return s_token[0] != 0; }
+
+void papp_http_init(void)
+{
+    if (!settings_get_token(s_token, sizeof s_token)) s_token[0] = 0;
+    ESP_LOGI(TAG, "token present: %s (len %u)", s_token[0] ? "yes" : "NO", (unsigned)strlen(s_token));
+}
+
+void papp_result_free(papp_result_t *r)
+{
+    free(r->src_text); free(r->tgt_text); free(r->pcm);
+    memset(r, 0, sizeof *r);
+}
+
+static char *url_decode(const char *s)   // urllib.parse.unquote semantics (no '+' -> space)
+{
+    size_t n = strlen(s); char *o = malloc(n + 1), *p = o;
+    for (size_t i = 0; i < n; i++) {
+        if (s[i] == '%' && i + 2 < n + 0 && isxdigit((unsigned char)s[i + 1]) && isxdigit((unsigned char)s[i + 2])) {
+            char hx[3] = { s[i + 1], s[i + 2], 0 }; *p++ = (char)strtol(hx, NULL, 16); i += 2;
+        } else *p++ = s[i];
+    }
+    *p = 0; return o;
+}
+
+typedef struct { char *src, *tgt, *tim, *asr; } hdrs_t;
+
+static void app_hdr(char **dst, const char *v)
+{
+    size_t a = *dst ? strlen(*dst) : 0, b = strlen(v);
+    char *n = realloc(*dst, a + b + 1);
+    if (!n) return;
+    memcpy(n + a, v, b + 1); *dst = n;
+}
+
+static esp_err_t on_evt(esp_http_client_event_t *e)
+{
+    hdrs_t *h = e->user_data;
+    if (e->event_id == HTTP_EVENT_ON_HEADER && h) {
+        if (!strcasecmp(e->header_key, "X-Papp-Src-Text")) app_hdr(&h->src, e->header_value);
+        else if (!strcasecmp(e->header_key, "X-Papp-Tgt-Text")) app_hdr(&h->tgt, e->header_value);
+        else if (!strcasecmp(e->header_key, "X-Papp-Timings")) app_hdr(&h->tim, e->header_value);
+        else if (!strcasecmp(e->header_key, "X-Papp-Asr-Model")) app_hdr(&h->asr, e->header_value);
+    }
+    return ESP_OK;
+}
+
+static esp_http_client_handle_t mk(const char *url, int timeout_ms, esp_http_client_method_t m, void *ud)
+{
+    esp_http_client_config_t c = {
+        .url = url, .method = m, .timeout_ms = timeout_ms,
+        .buffer_size = 8192, .buffer_size_tx = 2048,
+        .event_handler = on_evt, .user_data = ud,
+        .user_agent = "papp-tab5/" PAPP_VERSION,
+        .keep_alive_enable = false,
+    };
+    if (!strncmp(url, "https", 5)) c.crt_bundle_attach = esp_crt_bundle_attach;
+    return esp_http_client_init(&c);
+}
+
+int papp_probe(int *health_ms)
+{
+    for (int i = 0; i < PAPP_EP_COUNT; i++) {
+        char url[128]; snprintf(url, sizeof url, "%s/health", EP_URL[i]);
+        esp_http_client_handle_t c = mk(url, 2000, HTTP_METHOD_GET, NULL);
+        int64_t t0 = esp_timer_get_time();
+        esp_err_t e = esp_http_client_perform(c);
+        int st = e == ESP_OK ? esp_http_client_get_status_code(c) : -1;
+        esp_http_client_cleanup(c);
+        int ms = (int)((esp_timer_get_time() - t0) / 1000);
+        ESP_LOGI(TAG, "probe %s -> %d (%d ms)", EP_NAME[i], st, ms);
+        if (st == 200) { s_active = i; if (health_ms) *health_ms = ms; return i; }
+    }
+    s_active = -1;
+    return -1;
+}
+
+static int jint(const char *j, const char *k)
+{
+    if (!j) return -1;
+    char pat[16]; snprintf(pat, sizeof pat, "\"%s\"", k);
+    const char *p = strstr(j, pat); if (!p) return -1;
+    p = strchr(p + strlen(pat), ':'); return p ? atoi(p + 1) : -1;
+}
+
+static int one_try(int ep, const papp_job_t *job, papp_result_t *r)
+{
+    char url[200], auth[128];
+    snprintf(url, sizeof url, "%s/translate?src=%s&tgt=%s&format=wav&rate=%d",
+             EP_URL[ep], lang_code(job->src), lang_code(job->tgt), PAPP_RATE);
+    snprintf(auth, sizeof auth, "Bearer %s", s_token);
+    hdrs_t h = {0};
+    esp_http_client_handle_t c = mk(url, 30000, HTTP_METHOD_POST, &h);
+    esp_http_client_set_header(c, "Content-Type", "audio/wav");
+    esp_http_client_set_header(c, "Authorization", auth);
+    memset(auth, 0, sizeof auth);
+    int64_t t0 = esp_timer_get_time();
+    int status = -1;
+    esp_err_t e = esp_http_client_open(c, job->wav_len);
+    if (e == ESP_OK) {
+        size_t off = 0;
+        while (off < job->wav_len) {
+            int n = esp_http_client_write(c, (const char *)job->wav + off,
+                                          job->wav_len - off > 4096 ? 4096 : job->wav_len - off);
+            if (n <= 0) { e = ESP_FAIL; break; }
+            off += n;
+        }
+    }
+    if (e == ESP_OK) {
+        int64_t cl = esp_http_client_fetch_headers(c);
+        status = esp_http_client_get_status_code(c);
+        size_t cap = cl > 0 ? (size_t)cl : 256 * 1024, len = 0;
+        uint8_t *body = heap_caps_malloc(cap, MALLOC_CAP_SPIRAM);
+        while (body) {
+            if (len == cap) { uint8_t *nb = heap_caps_realloc(body, cap * 2, MALLOC_CAP_SPIRAM); if (!nb) break; body = nb; cap *= 2; }
+            int n = esp_http_client_read(c, (char *)body + len, cap - len);
+            if (n <= 0) break;
+            len += n;
+        }
+        r->rtt_ms = (int)((esp_timer_get_time() - t0) / 1000);
+        if (status == 200 && body) {
+            const int16_t *pcm; size_t ns; int rate;
+            if (wav_parse(body, len, &pcm, &ns, &rate)) {
+                r->pcm = heap_caps_malloc(ns * 2, MALLOC_CAP_SPIRAM);
+                if (r->pcm) { memcpy(r->pcm, pcm, ns * 2); r->samples = ns; r->rate = rate; }
+            } else ESP_LOGW(TAG, "reply is not a PCM16 mono WAV (%u B)", (unsigned)len);
+        } else if (body && len) {
+            ESP_LOGW(TAG, "HTTP %d: %.*s", status, (int)(len > 160 ? 160 : len), (char *)body);
+        }
+        free(body);
+    } else {
+        ESP_LOGW(TAG, "%s: %s", EP_NAME[ep], esp_err_to_name(e));
+    }
+    esp_http_client_close(c);
+    esp_http_client_cleanup(c);
+    r->http_status = status; r->endpoint = ep;
+    if (h.src) r->src_text = url_decode(h.src);
+    if (h.tgt) r->tgt_text = url_decode(h.tgt);
+    if (h.asr) snprintf(r->asr_model, sizeof r->asr_model, "%s", h.asr);
+    r->t_asr = jint(h.tim, "asr"); r->t_nmt = jint(h.tim, "nmt"); r->t_tts = jint(h.tim, "tts"); r->t_total = jint(h.tim, "total");
+    free(h.src); free(h.tgt); free(h.tim); free(h.asr);
+    return status;
+}
+
+void papp_translate(const papp_job_t *job, papp_result_t *r)
+{
+    memset(r, 0, sizeof *r);
+    r->http_status = -1; r->endpoint = -1;
+    if (!s_token[0]) { r->http_status = 401; return; }
+    if (s_active < 0) papp_probe(NULL);
+    if (s_active < 0) return;
+    int st = one_try(s_active, job, r);
+    if (st < 0) {                       // transport error: endpoint gone -> re-probe, retry once
+        int old = s_active;
+        papp_result_free(r); r->http_status = -1; r->endpoint = -1;
+        if (papp_probe(NULL) >= 0 && s_active != old) one_try(s_active, job, r);
+    }
+}
