@@ -73,6 +73,7 @@ proxy — not worth it for an ESP32.
 | direct pipeline on cachy | 2.0–4.2 s | ASR 0.5–2.4 s · NMT 0.36–0.46 s · TTS 0.8–1.6 s |
 | cachy via Tailscale IP | 1.8–2.7 s | 12 calls, all 6 directions |
 | Cloud Run | 1.4–2.7 s | US region sits next to NVCF |
+| Cloud Run cold start (scaled to zero after ~15 min idle) | 5.7 s | ~3.3 s instance start + 2.4 s pipeline (en→zh, 07:45 UTC) |
 | first es call after a restart | ~11 s | `parakeet-ctc-0_6b-es` dead → 8 s deadline → fallback; then 5 min cooldown |
 
 Hosted-function health on 2026-11-07 01:20 CST: `parakeet-ctc-0_6b-es` and
