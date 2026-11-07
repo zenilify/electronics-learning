@@ -132,6 +132,22 @@ Talk 20–30 cm from the top edge (the mics); keep utterances under ~10 s.
 
 ## Verification (2026-11-07, lane T5)
 
-See the lane handoff `mission-control/claude/handoffs/2026-11-07-t5.md` for the measured rows
-(build hashes, flash, boot log, round trips with latency). Hypotheses still to measure on the unit:
-battery % mapping (2S Li-ion 6.4–8.3 V assumed), speaker loudness in a noisy room, ES7210 gain (30 dB).
+| What | Measured how | Result |
+|---|---|---|
+| Unit | esptool connect | ESP32-P4 **rev v1.3**, MAC 30:ed:a0:e2:ef:41; BSP log: *board version 3 (LCD ST7121, Touch ST712x)* |
+| Foundry | Cloud Build `d811b717` (commit `5560547`) | ✅ tab5-papp ok, `papp_tab5.bin` 4,073,616 B sha256 `f667924d072d38da…` |
+| Flash | `tools/flash.sh app <foundry dir>` | ✅ hash verified; boots, 362 kB internal / 25.6 MB PSRAM free |
+| Demo through the live backend | `tools/flash.sh bench` (console `demo`) | ✅ 5/5 `200` via LAN; cold es→zh 11.4 s, warm 2.5–3.8 s |
+| Erick's voice, es→zh | his test + backend log | ✅ 3 turns, server 1.5–2.3 s (device RTT not captured) |
+| Clips, zh→es | `zh-clip-1..3.wav` played into the mic | ✅ 3 turns, server 1.2–2.4 s |
+| Battery | INA226 0x41 | 8.34 V on USB (100 %); % mapping is a hypothesis |
+
+**Known issues**
+
+- **Wi-Fi via the C6 is flaky**: association sometimes needs several tries (reason 201 at −50 dBm),
+  one upload stalled 65 s, beacon timeout (200) after ~2 min. The co-processor reports esp-hosted
+  firmware **0.0.0** vs host 2.12 ("upgrade co-proc to avoid RPC timeouts"). Decision D-T5-1.
+- **Backlight is on/off only** on this unit: IDF 6.0.3 LEDC faults on P4 rev<3 (landmine 315), see
+  `main/p4_rev1_ledc.c`.
+- The pre-flash backup has two unreadable regions (landmine 316): 0x1A0000–0x1FFFFF, 0x900000–0x9FFFFF.
+  Restore of the old bench console = rebuild `home-lab/esphome/tab5-banco.yaml`.
