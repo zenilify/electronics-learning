@@ -350,7 +350,15 @@ class Pipeline:
 
     # --- end to end -------------------------------------------------------
     def run(self, wav: bytes, src: str, tgt: str, out_rate: int = 16000,
-            pair: tuple[str, str] | None = None, mt: str = "nmt") -> dict:
+            pair: tuple[str, str] | None = None, mt: str = "nmt", nocache: bool = False) -> dict:
+        cache.local.bypass = nocache      # bench only: MT/TTS cache reads miss, writes still happen
+        try:
+            return self._run(wav, src, tgt, out_rate, pair, mt)
+        finally:
+            cache.local.bypass = False
+
+    def _run(self, wav: bytes, src: str, tgt: str, out_rate: int = 16000,
+             pair: tuple[str, str] | None = None, mt: str = "nmt") -> dict:
         """src="auto": detect es/en/zh; with pair=(a, b) the target is the other one of the pair
         (conversation mode), else tgt. detected == tgt -> no translation, text echoed."""
         from concurrent.futures import ThreadPoolExecutor

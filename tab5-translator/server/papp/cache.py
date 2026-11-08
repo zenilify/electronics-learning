@@ -17,6 +17,8 @@ _MEM_MAX = 256
 _mem: "OrderedDict[str, bytes]" = OrderedDict()
 _lock = threading.Lock()
 stats = {"tts_hit": 0, "tts_miss": 0, "nmt_hit": 0, "nmt_miss": 0}
+# per-thread read bypass for benchmarks (?nocache=1): reads miss, writes still happen
+local = threading.local()
 
 
 def key(*parts: object) -> str:
@@ -28,6 +30,8 @@ def _path(kind: str, k: str) -> str:
 
 
 def get(kind: str, k: str) -> bytes | None:
+    if getattr(local, "bypass", False):
+        return None
     with _lock:
         if (kind, k).__str__() in _mem:
             _mem.move_to_end(str((kind, k)))

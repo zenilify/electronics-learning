@@ -47,9 +47,38 @@ def main():
     ap.add_argument("--token-file", required=True)
     ap.add_argument("--image")
     ap.add_argument("--md")
+    ap.add_argument("--clip", action="append", default=[], help="WAV for the pair=es,zh mt=llm vs mt=nmt A/B (repeatable)")
+    ap.add_argument("--reps", type=int, default=3)
+    ap.add_argument("--ab-only", action="store_true", help="only the mt A/B rows")
     a = ap.parse_args()
-    tok = (sys.stdin if a.token_file == "-" else open(a.token_file)).read().strip()
+    tok = (sys.stdin if a.token_file == "-" else open(os.path.expanduser(a.token_file))).read().strip()
     rows = []
+    if a.clip:
+        import statistics, urllib.parse
+        for url in a.url:
+            url = url.rstrip("/")
+            for mt in ("llm", "nmt"):
+                tot, stages = [], []
+                for f in a.clip:
+                    wav = open(os.path.expanduser(f), "rb").read()
+                    for r in range(a.reps):
+                        raw, h, c, ms = call(url, f"/translate?pair=es,zh&mt={mt}&format=wav&rate=16000&nocache=1", tok, wav, "audio/wav")
+                        if c != 200:
+                            print(f"{url[:30]} {mt} {os.path.basename(f)} HTTP {c}", flush=True); continue
+                        t = json.loads(h.get("x-papp-timings", "{}") or "{}")
+                        tot.append(ms); stages.append(t)
+                        if r == 0:
+                            print(f"{url[:30]:30} mt={mt} {os.path.basename(f):14} {ms:5d} ms {t} det={h.get('x-papp-detected')} "
+                                  f"-> {urllib.parse.unquote(h.get('x-papp-tgt-text', ''))[:90]}"
+                                  f"{'  [alt: ' + urllib.parse.unquote(h.get('x-papp-asr-alt', ''))[:40] + ']' if h.get('x-papp-asr-alt') else ''}", flush=True)
+                if tot:
+                    med = {k: int(statistics.median([s_.get(k, 0) for s_ in stages])) for k in ("asr", "nmt", "tts", "total")}
+                    note = (f"n={len(tot)} median client {int(statistics.median(tot))} ms (p90 {sorted(tot)[int(0.9 * (len(tot) - 1))]}) "
+                            f"server median asr {med['asr']} · mt {med['nmt']} · tts {med['tts']} · total {med['total']}")
+                    print(f"{url[:30]:30} mt={mt} {note}", flush=True)
+                    rows.append((url.split("//")[1][:38], f"/translate pair=es,zh mt={mt} (nocache)", 200, int(statistics.median(tot)), note))
+        if a.ab_only:
+            a.url = []
     for url in a.url:
         url = url.rstrip("/")
         def row(name, code, ms, note=""):

@@ -107,7 +107,8 @@ async def _read_audio(request: Request) -> tuple[bytes, dict]:
 
 @app.post("/translate", dependencies=[Depends(auth)])
 async def translate(request: Request, src: str | None = None, tgt: str | None = None,
-                    format: str = "json", rate: int = 16000, pair: str | None = None, mt: str | None = None):
+                    format: str = "json", rate: int = 16000, pair: str | None = None, mt: str | None = None,
+                    nocache: int = 0):
     data, fields = await _read_audio(request)
     # mt=llm|nmt; conversation mode (pair=) defaults to the speech-aware LLM translation (T5, 11-08)
     mt = (mt or ("llm" if pair else "nmt")).lower()
@@ -124,7 +125,7 @@ async def translate(request: Request, src: str | None = None, tgt: str | None = 
     if not 8000 <= rate <= 44100:
         raise HTTPException(400, "rate must be 8000..44100")
     try:
-        res = await run_in_threadpool(pipeline.run, data, src, tgt, rate, pr, mt)
+        res = await run_in_threadpool(pipeline.run, data, src, tgt, rate, pr, mt, bool(nocache))
     except BadAudio as e:
         raise HTTPException(400, str(e)) from e
     except UpstreamError as e:
