@@ -39,14 +39,14 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from . import cache, lid, llm, ocr, stream
 from .config import load_settings
-from .pipeline import LANGS, BadAudio, PcmAudio, Pipeline, UpstreamError, read_wav, to_wav
+from .pipeline import HOTWORDS, LANGS, BadAudio, PcmAudio, Pipeline, UpstreamError, read_wav, to_wav
 
 log = logging.getLogger("papp")
 logging.basicConfig(level=os.environ.get("PAPP_LOG_LEVEL", "INFO"))
 
 settings = load_settings()
 pipeline = Pipeline(settings.nvidia_api_key, settings.grpc_server)
-app = FastAPI(title="PAPP translator", version="0.2.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="PAPP translator", version="0.2.1", docs_url=None, redoc_url=None)
 _bearer = HTTPBearer(auto_error=False)
 MAX_AUDIO_BYTES = 30 * 16000 * 2 + 1024  # 30 s of 16 kHz PCM16
 
@@ -68,10 +68,10 @@ def _warm() -> None:
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "service": "papp", "version": app.version,
+    return {"ok": True, "service": "papp", "version": app.version, "commit": os.environ.get("PAPP_COMMIT", "dev"),
             "langs": sorted(LANGS), "cooling_down": pipeline.status(),
             "features": ["translate", "auto", "translate-text", "tts-cache", "summarize", "ocr-translate",
-                         "fx", "stream"],
+                         "fx", "stream", "mt-llm", "asr-alt"],
             "ocr_engines": ["vl", "ocr"] + (["best"] if llm.gemini_available() or PEER else []),
             "cache": {k: v for k, v in cache.stats.items()}}
 
@@ -137,7 +137,8 @@ async def translate(request: Request, src: str | None = None, tgt: str | None = 
         return Response(wav, media_type="audio/wav", headers={
             "X-Papp-Src-Text": q(res["src_text"]), "X-Papp-Tgt-Text": q(res["tgt_text"]),
             "X-Papp-Timings": json.dumps(res["timings_ms"]), "X-Papp-Asr-Model": res["asr_model"],
-            "X-Papp-Src": res["src"], "X-Papp-Tgt": res["tgt"], "X-Papp-Detected": res.get("detected", "")})
+            "X-Papp-Src": res["src"], "X-Papp-Tgt": res["tgt"], "X-Papp-Detected": res.get("detected", ""),
+            "X-Papp-Mt": res.get("mt", ""), "X-Papp-Asr-Alt": q(res.get("asr_alt", ""))})
     res["audio_b64"] = base64.b64encode(wav).decode()
     res["audio_rate"] = rate
     return res
@@ -268,6 +269,30 @@ _SUM_PROMPT = {k: (f"You summarise voice notes and meeting recordings. The trans
                    f"(Spanish, English, German, Chinese...). Write EVERY field — title, summary, bullets, actions — "
                    f"in {v}, translating as needed. Never answer in the transcript's language unless it is {v}.")
                for k, v in _SUM_LANG.items()}
+# T5-S v2.1 (11-08 eval_summarize.py baseline): ASR writes "Eric", the summary then dropped the name or wrote
+# "LM"/"UE" for LLM/OEE -> give the model the glossary and ask for owners in actions.
+_SUM_GLOSS = (f" Names and terms that may appear (spell them exactly like this even if the transcript misspells "
+              f"them, e.g. Eric -> Erick): {HOTWORDS}, OEE. Start each action with its owner's name when one was "
+              f"said (\"Erick: …\").")
+_STOP = {"de": set("der die das und ist nicht wir ich sie ein eine mit für auf zu den dem bis wird werden soll".split()),
+         "en": set("the and is are we will should must to of for with by this that next have be".split()),
+         "es": set("el la los las de y que en un una para con por se del al es son debe hasta".split())}
+
+
+def _wrong_lang(fields: list[str], out: str) -> str:
+    """'' when every field is in `out`; else a short reason (CJK in es/en, or a German/English sentence in es)."""
+    import re as _re
+    for v in fields:
+        if out != "zh" and _re.search(r"[\u3400-\u9fff]", v):
+            return "CJK"
+        if out == "zh" and not _re.search(r"[\u3400-\u9fff]", v):
+            return "no CJK"
+        w = _re.findall(r"[a-záéíóúüñäöß]+", v.lower())
+        if out in ("es", "en") and len(w) >= 4:
+            sc = {k: sum(x in st for x in w) for k, st in _STOP.items()}
+            if max(sc, key=sc.get) != out and sc[max(sc, key=sc.get)] >= 2 + sc[out]:
+                return max(sc, key=sc.get)
+    return ""
 
 
 @app.post("/summarize", dependencies=[Depends(auth)])
@@ -313,7 +338,7 @@ async def summarize(request: Request, lang: str = "auto", out: str = "es"):
         return {"lang": det, "out": out, "audio_s": round(audio_s, 1), "transcript": t, "title": t[:60],
                 "summary": t, "bullets": [], "actions": [], "model": "", "markdown": f"# {t[:60]}\n\n{t}\n",
                 "timings_ms": {"asr": round((t1 - t0) * 1000), "llm": 0, "total": round((t1 - t0) * 1000)}}
-    msgs = [{"role": "system", "content": _SUM_PROMPT[out] + ' Reply ONLY JSON: {"title": "<= 8 words", '
+    msgs = [{"role": "system", "content": _SUM_PROMPT[out] + _SUM_GLOSS + ' Reply ONLY JSON: {"title": "<= 8 words", '
              '"summary": "2-3 sentences", "bullets": ["key points, max 6"], "actions": ["plain strings like '
              '\'Owner: task — deadline as said (e.g. before 5 December)\'; never invent a year; [] if none"]}'},
             {"role": "user", "content": f"Transcript (summarise it in {_SUM_LANG[out]}):\n{text}"}]
@@ -321,11 +346,26 @@ async def summarize(request: Request, lang: str = "auto", out: str = "es"):
         raw, model = await run_in_threadpool(lambda: llm.nv_chat(settings.nvidia_api_key, msgs, 700, 40,
                                                                  json_mode=True))
         j = llm.parse_json(raw)
+        flat = [_flat(j.get("title", "")), _flat(j.get("summary", ""))] + [_flat(x) for x in (j.get("bullets") or [])] \
+            + [_flat(x) for x in (j.get("actions") or [])]
+        why = _wrong_lang(flat, out)
+        if why:   # one retry with the language stated again; keep the retry only if it is clean
+            log.warning("summarize: output not in %s (%s), retrying once", out, why)
+            msgs2 = msgs + [{"role": "assistant", "content": raw},
+                            {"role": "user", "content": f"Some fields are not in {_SUM_LANG[out]} ({why}). Rewrite the "
+                             f"same JSON with EVERY field in {_SUM_LANG[out]}."}]
+            raw2, model2 = await run_in_threadpool(lambda: llm.nv_chat(settings.nvidia_api_key, msgs2, 700, 40,
+                                                                       json_mode=True))
+            j2 = llm.parse_json(raw2)
+            flat2 = [_flat(j2.get("title", "")), _flat(j2.get("summary", ""))] + \
+                [_flat(x) for x in (j2.get("bullets") or [])] + [_flat(x) for x in (j2.get("actions") or [])]
+            if not _wrong_lang(flat2, out):
+                j, model = j2, model2 + " (retry)"
     except Exception as e:  # noqa: BLE001
         raise HTTPException(502, f"summary LLM: {type(e).__name__}") from e
     t2 = time.perf_counter()
     res = {"lang": det, "out": out, "audio_s": round(audio_s, 1), "transcript": text,
-           "title": j.get("title", ""), "summary": j.get("summary", ""),
+           "title": _flat(j.get("title", "")), "summary": _flat(j.get("summary", "")),
            "bullets": [_flat(b) for b in (j.get("bullets") or [])], "actions": [_flat(x) for x in (j.get("actions") or [])],
            "model": model,
            "timings_ms": {"asr": round((t1 - t0) * 1000), "llm": round((t2 - t1) * 1000),

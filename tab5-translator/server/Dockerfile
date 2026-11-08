@@ -14,5 +14,8 @@ RUN chmod -R a+rX /app
 # uid 1000 so a 0600 file owned by cachy (uid 1000) is readable when bind-mounted.
 RUN useradd -u 1000 -m papp
 USER papp
+# commit shown by GET /health (cachy + Cloud Run parity check): docker build --build-arg PAPP_COMMIT=$(git rev-parse --short HEAD)
+ARG PAPP_COMMIT=dev
+ENV PAPP_COMMIT=$PAPP_COMMIT
 EXPOSE 8080
 CMD ["sh", "-c", "exec uvicorn papp.app:app --host 0.0.0.0 --port ${PORT} --workers 1 --no-access-log"]

@@ -42,12 +42,39 @@ LANGS = {
            "nmt": "zh-CN", "tts_code": "zh-CN", "voice": "Magpie-Multilingual.ZH-CN.HouZhen"},
 }
 AUTO_ASR = [("whisper-large-v3", "multi"), ("parakeet-1_1b-rnnt-multilingual-asr", "multi")]
+# Second, independent recognition for the speech-aware MT guard (T5-S v2.1, 11-08). Measured on z16-1..4 (cachy):
+# whisper-large-v3 hears 开发板->开发版 and 买->卖 (z16-2); canary-1b-asr zh-CN hears 开发板 + 买 right but is worse
+# elsewhere (换音, 网游, 饭一区; m16 CER 0.35 vs whisper 0.12) -> never the primary, only a hint to the LLM.
+# super-vl given both hypotheses: "placa" + "compra(s)" 2/2 runs; given whisper alone: "vende" 4/4.
+# Hosted parakeet-ctc-0_6b-zh-cn answers INVALID_ARGUMENT "Unavailable model" and whisper ignores
+# custom_configuration prompts (output identical) — so no hotword boosting is available for zh on NVCF today.
+ALT_ASR = {"zh": ("canary-1b-asr", "zh-CN")}
+ALT_ASR_LANGS = tuple(x for x in _os.environ.get("PAPP_ALT_ASR_LANGS", "zh").split(",") if x in ALT_ASR)
+ALT_DEADLINE_S = 4.0
+# Names and product terms the speakers use (MT guard + summaries). Override with PAPP_HOTWORDS (comma list).
+HOTWORDS = _os.environ.get("PAPP_HOTWORDS", "开发板 (dev board / placa de desarrollo), M5Stack, 明栈 (M5Stack), Tab5, "
+                           "Erick, LLM, ESP32, ESP32-P4, 深圳 (Shenzhen), 华强北 (Huaqiangbei), NVIDIA, Zenilify")
 NMT_FN = "riva-translate-1_6b"
 TTS_FN = "magpie-tts-multilingual"
 ASR_DEADLINE_S = 8.0
 NMT_DEADLINE_S = 15.0
 TTS_DEADLINE_S = 20.0
 COOLDOWN_S = 300.0
+
+
+_CJK_RE = __import__("re").compile(r"[\u3400-\u9fff\uf900-\ufaff]")
+
+
+def _mt_sane(out: str, src_text: str, tgt: str) -> bool:
+    """Reject LLM replies that are not a bare translation (echoed prompt parts, notes, wrong script)."""
+    if not out or len(out) > 3 * len(src_text) + 80:
+        return False
+    low = out.lower()
+    if "asr a" in low or "asr b" in low or "\n\n" in out or "traducción:" in low or "translation:" in low:
+        return False
+    if tgt != "zh" and _CJK_RE.search(out):
+        return False
+    return True
 
 
 class BadAudio(ValueError):
@@ -106,7 +133,7 @@ class Pipeline:
 
     def warm(self) -> None:
         """Resolve every function id once (one NVCF list call, cached 1 h)."""
-        fns = {f for s in LANGS.values() for f, _ in s["asr"]} | {NMT_FN, TTS_FN}
+        fns = {f for s in LANGS.values() for f, _ in s["asr"]} | {NMT_FN, TTS_FN} | {f for f, _ in ALT_ASR.values()}
         for fn in fns:
             try:
                 self._auth_for(fn)
@@ -186,6 +213,25 @@ class Pipeline:
         sep = "" if det == "zh" else " "
         return sep.join(out).strip(), det
 
+    def asr_alt(self, audio: PcmAudio, lang: str) -> str:
+        """Second recognition (canary) for the MT guard; '' when not configured or on any failure."""
+        if lang not in ALT_ASR_LANGS:
+            return ""
+        fn, code = ALT_ASR[lang]
+        if time.monotonic() - self._down.get(fn, -1e9) <= COOLDOWN_S:
+            return ""
+        try:
+            cfg = riva.client.RecognitionConfig(
+                encoding=riva.client.AudioEncoding.LINEAR_PCM, sample_rate_hertz=audio.rate, language_code=code,
+                max_alternatives=1, enable_automatic_punctuation=True, audio_channel_count=1)
+            r = riva.client.ASRService(self._auth_for(fn)).stub.Recognize(
+                riva_asr_pb2.RecognizeRequest(config=cfg, audio=audio.pcm), metadata=self._md(fn),
+                timeout=ALT_DEADLINE_S)
+            return "".join(x.alternatives[0].transcript.strip() for x in r.results if x.alternatives)
+        except Exception:  # noqa: BLE001 — a hint, never a failure
+            self._down[fn] = time.monotonic()
+            return ""
+
     def translate(self, text: str, src: str, tgt: str) -> str:
         k = cache.key("nmt", NMT_FN, src, tgt, text)
         hit = cache.get_json("nmt", k)
@@ -195,33 +241,49 @@ class Pipeline:
         cache.put_json("nmt", k, {"t": out, "src": src, "tgt": tgt, "s": text})
         return out
 
-    def translate_llm(self, text: str, src: str, tgt: str) -> str:  # noqa: C901
-        """Speech-aware MT (T5, 11-08): the input is an ASR transcript, so let the LLM repair obvious
-        recognition errors from context first (homophones, tones: 开发版→开发板, 卖↔买, missing punctuation)
-        and then translate. Erick's dev-board clip: Riva NMT gave '¿Cuánto cuesta vender 10 copias de este
-        producto?' for '这个开发版多少钱如果你卖10个…'. Falls back to Riva NMT on any LLM failure."""
+    def translate_llm(self, text: str, src: str, tgt: str, alt: str = "") -> str:  # noqa: C901
+        """Speech-aware MT (T5, 11-08; T5-S v2.1 adds `alt` + glossary): the input is an ASR transcript, so let the
+        LLM repair recognition errors from context (homophones, tones: 开发版->开发板, 卖<->买, missing punctuation)
+        and then translate. `alt` = a second, independent recognition of the same audio (canary for zh) — the
+        measured fix for 买/卖. Falls back to Riva NMT on any LLM failure."""
         from . import llm
         names = {"es": "Spanish", "en": "English", "zh": "Simplified Chinese"}
-        k = cache.key("llmmt2", ",".join(MT_MODELS), src, tgt, text)   # bump on prompt/model change
+        alt = alt if alt and alt != text else ""
+        k = cache.key("llmmt3", ",".join(MT_MODELS), HOTWORDS, src, tgt, text, alt)   # bump on prompt/model change
         hit = cache.get_json("nmt", k)
         if hit is not None:
             return hit["t"]
-        msgs = [{"role": "system", "content":
-                 "You are the interpreter in a face-to-face conversation between a foreign visitor and local "
-                 f"people (shops, electronics markets, taxis, business meetings). Translate spoken {names[src]} "
-                 f"into natural spoken {names[tgt]}. The input is a speech-recognition transcript and often has "
-                 "recognition errors: homophones (板/版), wrong tones (买 buy / 卖 sell — pick what fits who is "
-                 "speaking), missing punctuation. Silently repair the transcript from context, then translate the "
-                 "meaning faithfully, keeping numbers, prices and names. Reply with ONLY the translation."},
-                {"role": "user", "content": text}]
-        try:
-            out, _model = llm.nv_chat(self.api_key, msgs, 300, 15, models=MT_MODELS)
-            out = out.strip().strip('"').strip()
-            if not out:
-                raise ValueError("empty")
-        except Exception:  # noqa: BLE001 — never lose a turn to the LLM
+        base = ("You are the interpreter in a face-to-face conversation between a foreign visitor and local "
+                f"people (shops, electronics markets, taxis, business meetings). Translate spoken {names[src]} "
+                f"into natural spoken {names[tgt]}. The input is a speech-recognition transcript and often has "
+                "recognition errors: homophones (板/版), wrong tones (买 buy / 卖 sell — pick what fits who is "
+                "speaking), missing punctuation. Silently repair the transcript from context, then translate the "
+                "meaning faithfully, keeping numbers, prices and names. Reply with ONLY the translation.")
+        gloss = f" Glossary (names/products that may appear): {HOTWORDS}."
+        # Attempts in order. Measured 11-08 (probe_mt.py, z16-1..4): super-vl + both hypotheses is clean 8/8;
+        # lightning given two hypotheses echoes "ASR A/B", adds notes or "Soy un modelo de lenguaje" -> lightning only
+        # ever gets the single-transcript prompt.
+        attempts = []
+        if alt:
+            attempts.append((MT_MODELS[:1], base + " You get two independent recognitions of the SAME utterance; "
+                             "where they differ, choose what makes sense." + gloss, f"ASR A: {text}\nASR B: {alt}"))
+        attempts.append((MT_MODELS[1:] if alt else MT_MODELS, base + gloss, text))
+        out = ""
+        for models, sys_, user in attempts:
+            if not models:
+                continue
+            try:
+                o, _model = llm.nv_chat(self.api_key, [{"role": "system", "content": sys_},
+                                                       {"role": "user", "content": user}], 300, 15, models=models)
+                o = o.strip().strip('"').strip()
+            except Exception:  # noqa: BLE001
+                continue
+            if _mt_sane(o, text, tgt):
+                out = o
+                break
+        if not out:   # never lose a turn to the LLM
             return self.translate(text, src, tgt)
-        cache.put_json("nmt", k, {"t": out, "src": src, "tgt": tgt, "s": text, "mt": "llm"})
+        cache.put_json("nmt", k, {"t": out, "src": src, "tgt": tgt, "s": text, "alt": alt, "mt": "llm"})
         return out
 
     def translate_many(self, texts: list[str], src: str, tgt: str) -> list[str]:
@@ -291,9 +353,18 @@ class Pipeline:
             pair: tuple[str, str] | None = None, mt: str = "nmt") -> dict:
         """src="auto": detect es/en/zh; with pair=(a, b) the target is the other one of the pair
         (conversation mode), else tgt. detected == tgt -> no translation, text echoed."""
+        from concurrent.futures import ThreadPoolExecutor
         t0 = time.perf_counter()
         audio = read_wav(wav)
         detected = ""
+        # mt=llm: start the second recognition (canary zh) in parallel with the primary ASR, speculatively for
+        # src=auto when zh is a candidate; its result is used only if the detected language matches.
+        alt_lang = ""
+        if mt == "llm":
+            cands = (pair if pair else ("es", "en", "zh")) if src == "auto" else (src,)
+            alt_lang = next((l for l in cands if l in ALT_ASR_LANGS), "")
+        pool = ThreadPoolExecutor(1) if alt_lang else None
+        fut = pool.submit(self.asr_alt, audio, alt_lang) if pool else None
         if src == "auto":
             allowed = pair if pair else ("es", "en", "zh")
             src_text, src, asr_fn = self.asr_auto(audio, allowed)
@@ -302,6 +373,13 @@ class Pipeline:
                 tgt = pair[1] if src == pair[0] else pair[0]
         else:
             src_text, asr_fn = self.asr(audio, src)
+        alt = ""
+        if fut is not None:
+            try:
+                alt = fut.result(timeout=ALT_DEADLINE_S) if src == alt_lang else ""
+            except Exception:  # noqa: BLE001
+                alt = ""
+            pool.shutdown(wait=False)
         t1 = time.perf_counter()
         if src == tgt or not src:
             t3 = time.perf_counter()
@@ -309,14 +387,19 @@ class Pipeline:
                     "asr_model": asr_fn, "audio_in_s": round(len(audio.pcm) / 2 / audio.rate, 2),
                     "timings_ms": {"asr": round((t1 - t0) * 1000), "nmt": 0, "tts": 0,
                                    "total": round((t3 - t0) * 1000)}, "wav": b""}
-        tr = self.translate_llm if mt == "llm" else self.translate
-        tgt_text = tr(src_text, src, tgt) if src_text else ""
+        if not src_text:
+            tgt_text = ""
+        elif mt == "llm":
+            tgt_text = self.translate_llm(src_text, src, tgt, alt)
+        else:
+            tgt_text = self.translate(src_text, src, tgt)
         t2 = time.perf_counter()
         pcm = self.tts(tgt_text, tgt, out_rate) if tgt_text else b""
         t3 = time.perf_counter()
         return {
             "src": src, "tgt": tgt, "detected": detected, "src_text": src_text, "tgt_text": tgt_text,
-            "asr_model": asr_fn, "tts_cached": getattr(self, "last_tts_cached", False), "audio_in_s": round(len(audio.pcm) / 2 / audio.rate, 2),
+            "asr_model": asr_fn, "asr_alt": alt, "mt": mt,
+            "tts_cached": getattr(self, "last_tts_cached", False), "audio_in_s": round(len(audio.pcm) / 2 / audio.rate, 2),
             "timings_ms": {"asr": round((t1 - t0) * 1000), "nmt": round((t2 - t1) * 1000),
                            "tts": round((t3 - t2) * 1000), "total": round((t3 - t0) * 1000)},
             "wav": to_wav(pcm, out_rate) if pcm else b"",

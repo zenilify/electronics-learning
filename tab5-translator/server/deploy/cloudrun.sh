@@ -11,7 +11,7 @@ export PATH="$(dirname "$G"):$PATH"
 P=espbuilder; R=us-central1; REPO=papp; SVC=papp; SECRET=papp-l4
 SA=papp-run@$P.iam.gserviceaccount.com
 IMG=$R-docker.pkg.dev/$P/$REPO/papp:${TAG:-$(date +%Y%m%d-%H%M)}
-LABELS=lane=l4,lane2=t5-s,owner=erick
+LABELS=lane=t5-s,lane0=l4,owner=erick
 GEMINI_PROJECT=${GEMINI_PROJECT:-papps-513907}   # Vertex enabled there; Gemini 3.x answers on locations/global
 step=${1:-all}
 
@@ -44,7 +44,7 @@ fi
 
 if [[ $step == all || $step == image ]]; then
   $G auth configure-docker $R-docker.pkg.dev --quiet >/dev/null
-  docker build -t "$IMG" . && docker push "$IMG"
+  docker build --build-arg PAPP_COMMIT="${PAPP_COMMIT:-dev}" -t "$IMG" . && docker push "$IMG"
   echo "$IMG" > /tmp/papp_last_image
 fi
 
