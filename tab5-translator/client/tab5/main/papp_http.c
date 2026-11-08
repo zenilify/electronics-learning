@@ -395,3 +395,27 @@ char *json_str(const char *j, const char *key)
     *w = 0;
     return o;
 }
+
+int papp_get_url(const char *url, uint8_t **buf, size_t *len, int tmo)   // any URL, PAPP bearer, body -> PSRAM
+{
+    esp_http_client_config_t cfg = { .url = url, .timeout_ms = tmo, .buffer_size = 4096, .keep_alive_enable = false };
+    esp_http_client_handle_t c = esp_http_client_init(&cfg);
+    char auth[128]; snprintf(auth, sizeof auth, "Bearer %s", s_token);
+    esp_http_client_set_header(c, "Authorization", auth); memset(auth, 0, sizeof auth);
+    int st = -1; *buf = NULL; *len = 0;
+    if (esp_http_client_open(c, 0) == ESP_OK) {
+        int64_t cl = esp_http_client_fetch_headers(c);
+        st = esp_http_client_get_status_code(c);
+        size_t cap = cl > 0 ? (size_t)cl : 256 * 1024, n = 0;
+        uint8_t *b = heap_caps_malloc(cap, MALLOC_CAP_SPIRAM);
+        while (b) {
+            if (n == cap) { uint8_t *nb = heap_caps_realloc(b, cap * 2, MALLOC_CAP_SPIRAM); if (!nb) break; b = nb; cap *= 2; }
+            int r = esp_http_client_read(c, (char *)b + n, cap - n);
+            if (r <= 0) break;
+            n += r;
+        }
+        if (st == 200 && b && n) { *buf = b; *len = n; } else free(b);
+    }
+    esp_http_client_close(c); esp_http_client_cleanup(c);
+    return st;
+}

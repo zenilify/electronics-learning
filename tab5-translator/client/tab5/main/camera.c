@@ -19,6 +19,9 @@
 #include "esp_video_device.h"
 #include "driver/jpeg_encode.h"
 #include "driver/ppa.h"
+#include "driver/jpeg_decode.h"
+#include "settings.h"
+#include "papp_http.h"
 #include "ui_priv.h"
 #include "papp.h"
 #include "svc.h"
@@ -162,9 +165,126 @@ static void scale_into(const uint16_t *src, int w, int h, uint16_t *dst, bool mi
     }
 }
 
-static void cam_task(void *a)
+
+// ================= back camera: Seeed XIAO ESP32S3 Sense + OV3660 over Wi-Fi (satellites/xiao-cam) =================
+// /frame = VGA JPEG for the viewfinder, /capture = 2048x1536 JPEG sent to OCR untouched. Found by mDNS (_pappcam._tcp).
+static volatile bool s_back;                 // source: false = Tab5 front camera, true = XIAO on the back
+static int s_brot;                           // 0..3 x 90° for the viewfinder/result (mounting orientation)
+static char s_bcam[48];                      // "http://ip:port" or ""
+
+static jpeg_decoder_handle_t s_jdec;
+static uint8_t *s_jin; static size_t s_jin_cap;
+static uint16_t *s_jout; static size_t s_jout_cap;
+
+void cam_set_back_url(const char *ip, int port)
 {
-    s_task_alive = true;
+    char u[48] = "";
+    if (ip && ip[0]) snprintf(u, sizeof u, "http://%s:%d", ip, port);
+    if (strcmp(u, s_bcam)) { ESP_LOGI(TAG, "back camera: %s", u[0] ? u : "gone"); strlcpy(s_bcam, u, sizeof s_bcam); }
+}
+
+static int bcam_get(const char *path, uint8_t **buf, size_t *len, int tmo)
+{
+    char url[96]; snprintf(url, sizeof url, "%s%s", s_bcam, path);
+    return papp_get_url(url, buf, len, tmo);       // papp_http.c (lwIP headers clash with V4L2 ioctl macros here)
+}
+
+static bool jpeg_rgb(const uint8_t *j, size_t n, int *w, int *h, int *stride)
+{
+    if (!s_jdec) { jpeg_decode_engine_cfg_t ec = { .timeout_ms = 300 }; if (jpeg_new_decoder_engine(&ec, &s_jdec) != ESP_OK) return false; }
+    jpeg_decode_picture_info_t info;
+    if (jpeg_decoder_get_info(j, n, &info) != ESP_OK) return false;
+    int aw = (info.width + 15) & ~15, ah = (info.height + 15) & ~15;
+    size_t need = (size_t)aw * ah * 2;
+    if (need > s_jout_cap) {
+        free(s_jout); s_jout_cap = 0;
+        jpeg_decode_memory_alloc_cfg_t mo = { .buffer_direction = JPEG_DEC_ALLOC_OUTPUT_BUFFER };
+        s_jout = jpeg_alloc_decoder_mem(need, &mo, &s_jout_cap);
+        if (!s_jout) return false;
+    }
+    if (n > s_jin_cap) {
+        free(s_jin); s_jin_cap = 0;
+        jpeg_decode_memory_alloc_cfg_t mi = { .buffer_direction = JPEG_DEC_ALLOC_INPUT_BUFFER };
+        s_jin = jpeg_alloc_decoder_mem(n + 4096, &mi, &s_jin_cap);
+        if (!s_jin) return false;
+    }
+    memcpy(s_jin, j, n);
+    jpeg_decode_cfg_t dc = { .output_format = JPEG_DECODE_OUT_FORMAT_RGB565, .rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR,
+                             .conv_std = JPEG_YUV_RGB_CONV_STD_BT601 };
+    uint32_t ol = 0;
+    if (jpeg_decoder_process(s_jdec, &dc, s_jin, n, (uint8_t *)s_jout, s_jout_cap, &ol) != ESP_OK) return false;
+    *w = info.width; *h = info.height; *stride = aw;
+    return true;
+}
+
+// letterboxed fit of src (w x h, stride px) into PW x PH, rotated rot x 90°. CPU nearest-neighbour on purpose:
+// the PPA here hung LVGL's own PPA rotation in the flush (task_wdt in wait_for_flushing, 11-08) — keep the PPA for
+// the front camera only until that is understood. 720x540 output ~ 4 ms on the P4.
+static void fit_into(const uint16_t *src, int w, int h, int stride, int sh, uint16_t *dst, int rot)
+{
+    (void)sh;
+    int rw = rot & 1 ? h : w, rh = rot & 1 ? w : h;
+    float s = (float)PW / rw < (float)PH / rh ? (float)PW / rw : (float)PH / rh;
+    int ow = (int)(rw * s), oh = (int)(rh * s), ox = (PW - ow) / 2, oy = (PH - oh) / 2;
+    memset(dst, 0, PW * PH * 2);
+    for (int y = 0; y < oh; y++) {
+        int ry = (int)(y / s);
+        uint16_t *d = dst + (size_t)(oy + y) * PW + ox;
+        for (int x = 0; x < ow; x++) {
+            int rx = (int)(x / s), sx, sy;                       // (rx, ry) in the rotated image -> source pixel
+            switch (rot & 3) {
+            case 0: sx = rx; sy = ry; break;
+            case 1: sx = ry; sy = h - 1 - rx; break;
+            case 2: sx = w - 1 - rx; sy = h - 1 - ry; break;
+            default: sx = w - 1 - ry; sy = rx; break;
+            }
+            d[x] = src[(size_t)sy * stride + sx];
+        }
+    }
+}
+
+static void back_loop(void)
+{
+    int frames = 0; int64_t t0 = esp_timer_get_time();
+    while (s_run && s_back) {
+        if (!s_bcam[0]) {
+            lock(); lv_label_set_text(l_st, LV_SYMBOL_WARNING " cámara trasera no encontrada — ¿está encendida y en la misma red?"); unlock();
+            vTaskDelay(pdMS_TO_TICKS(1000)); continue;
+        }
+        if (s_snap) {
+            s_snap = false;
+            uint8_t *jp; size_t n; int64_t c0 = esp_timer_get_time();
+            int st = bcam_get("/capture", &jp, &n, 8000);
+            ESP_LOGI(TAG, "back capture HTTP %d %u B in %d ms", st, (unsigned)n, (int)((esp_timer_get_time() - c0) / 1000));
+            if (st != 200) { lock(); lv_label_set_text(c_st, LV_SYMBOL_WARNING " la cámara trasera no respondió"); unlock(); continue; }
+            int w, h, sw;
+            if (jpeg_rgb(jp, n, &w, &h, &sw)) fit_into(s_jout, w, h, sw, (h + 15) & ~15, s_shot, s_brot);
+            lock();
+            lv_obj_invalidate(r_img); lv_obj_clean(c_list);
+            lv_label_set_text(c_st, LV_SYMBOL_REFRESH " leyendo el texto · 识别中 …"); lv_label_set_text(r_sum, "");
+            unlock();
+            if (sd_ok()) {
+                char p[64]; snprintf(p, sizeof p, SD_ROOT "/photos/back-%lld.jpg", (long long)(esp_timer_get_time() / 1000000));
+                mkdir(SD_ROOT "/photos", 0775);
+                FILE *f = fopen(p, "wb"); if (f) { fwrite(jp, 1, n, f); fclose(f); }
+            }
+            const char *path = s_engine ? "/ocr-translate?engine=vl" : "/ocr-translate?engine=ocr";
+            if (!svc_post(path, "image/jpeg", jp, n, ocr_done, NULL)) { lock(); lv_label_set_text(c_st, "ocupado, intenta de nuevo"); unlock(); }
+            continue;
+        }
+        if (s_paused) { vTaskDelay(pdMS_TO_TICKS(60)); continue; }
+        uint8_t *jp; size_t n; int w, h, sw;
+        if (bcam_get("/frame", &jp, &n, 3000) == 200 && jpeg_rgb(jp, n, &w, &h, &sw)) {
+            fit_into(s_jout, w, h, sw, (h + 15) & ~15, s_prev, s_brot);
+            lock(); lv_obj_invalidate(c_img); unlock();
+            if (++frames == 30) ESP_LOGI(TAG, "back preview %.1f fps", 30e6 / (esp_timer_get_time() - t0));
+        } else vTaskDelay(pdMS_TO_TICKS(300));
+        free(jp);
+    }
+}
+
+static void front_loop(void)
+{
     int fd = -1; void *mem[NBUF] = {0}; size_t mlen[NBUF] = {0}; int w = 0, h = 0;
     if (!s_cam_inited) {
         esp_err_t e = bsp_camera_start(NULL);
@@ -200,7 +320,7 @@ static void cam_task(void *a)
     int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     ioctl(fd, VIDIOC_STREAMON, &type);
     int frames = 0; int64_t t0 = esp_timer_get_time();
-    while (s_run) {
+    while (s_run && !s_back) {
         struct v4l2_buffer b = { .type = V4L2_BUF_TYPE_VIDEO_CAPTURE, .memory = V4L2_MEMORY_MMAP };
         if (ioctl(fd, VIDIOC_DQBUF, &b) != 0) { vTaskDelay(pdMS_TO_TICKS(10)); continue; }
         const uint16_t *src = mem[b.index];
@@ -249,6 +369,13 @@ static void cam_task(void *a)
 out:
     for (int i = 0; i < NBUF; i++) if (mem[i]) munmap(mem[i], mlen[i]);
     if (fd >= 0) close(fd);
+    if (s_run && !s_back) vTaskDelay(pdMS_TO_TICKS(1000));      // failed to open: don't spin
+}
+
+static void cam_task(void *a)
+{
+    s_task_alive = true;
+    while (s_run) { if (s_back) back_loop(); else front_loop(); }   // the source button just flips s_back
     s_task_alive = false;
     vTaskDelete(NULL);
 }
@@ -273,7 +400,24 @@ static void eng_set(int i)
     for (int k = 0; k < 2; k++) lv_obj_set_style_bg_color(c_eng[k], lv_color_hex(k == i ? C_VIOLET : C_PANEL), 0);
 }
 static void on_eng(lv_event_t *e) { eng_set((int)(intptr_t)lv_event_get_user_data(e)); }
-static void on_mirror(lv_event_t *e) { s_mirror = !s_mirror; }
+static lv_obj_t *c_src;
+static void src_label(void)
+{
+    lv_label_set_text(lv_obj_get_child(c_src, 0), s_back ? LV_SYMBOL_IMAGE " trasera" : LV_SYMBOL_IMAGE " frontal");
+}
+static void on_src(lv_event_t *e)
+{
+    s_back = !s_back; settings_set_u8("bcam", s_back);     // cam_task switches loops on its own
+    src_label();
+    memset(s_prev, 0, s_prev_sz); lv_obj_invalidate(c_img);
+    lv_label_set_text(l_st, s_back ? "cámara trasera (XIAO)" : "pon el letrero frente a la cámara");
+}
+// mirror button: front = selfie mirror; back = rotate the viewfinder 90° (how the XIAO is stuck on)
+static void on_mirror(lv_event_t *e)
+{
+    if (s_back) { s_brot = (s_brot + 1) & 3; settings_set_u8("brot", (uint8_t)s_brot); }
+    else s_mirror = !s_mirror;
+}
 
 static void img_dsc(lv_image_dsc_t *d, uint16_t *buf)
 {
@@ -349,13 +493,21 @@ void cam_app_open(void)
         c_eng[0] = pill(col, LV_SYMBOL_CHARGE " rápido  ~1 s", C_PANEL, f24);
         c_eng[1] = pill(col, LV_SYMBOL_EYE_OPEN " mejor  ~3 s", C_PANEL, f24);
         for (int i = 0; i < 2; i++) { lv_obj_set_width(c_eng[i], 240); lv_obj_add_event_cb(c_eng[i], on_eng, LV_EVENT_CLICKED, (void *)(intptr_t)i); }
-        lv_obj_t *mi = pill(col, LV_SYMBOL_SHUFFLE " espejo", C_PANEL, f18);
+        lv_obj_t *row = lv_obj_create(col); plain(row, C_BG);
+        lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW); lv_obj_set_style_pad_column(row, 8, 0);
+        c_src = pill(row, "", C_PANEL, f18);
+        lv_obj_add_event_cb(c_src, on_src, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *mi = pill(row, LV_SYMBOL_SHUFFLE, C_PANEL, f18);
         lv_obj_add_event_cb(mi, on_mirror, LV_EVENT_CLICKED, NULL);
+        src_label();
         l_st = label(col, f18, C_DIM, "pon el letrero frente a la cámara");
         lv_obj_set_width(l_st, 240); lv_label_set_long_mode(l_st, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_align(l_st, LV_TEXT_ALIGN_CENTER, 0);
         build_result();
         eng_set(1);                                              // Erick 11-08: VL ("mejor") gives clearly better answers
+        s_back = settings_get_u8("bcam", 0); s_brot = settings_get_u8("brot", 0) & 3;
+        src_label();
     }
     s_paused = false;
     open_scr(s_scr);
@@ -374,3 +526,5 @@ bool cam_key(int enter)          // physical keyboard: Enter / space = capture, 
     if (enter) on_snap(NULL);
     return true;
 }
+
+void cam_toggle_source(void) { if (c_src) on_src(NULL); }   // display lock held (console / keyboard 'b')

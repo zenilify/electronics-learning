@@ -5,6 +5,7 @@
 #include "c6ota.h"
 #include "mdns.h"
 #include "esp_netif_sntp.h"
+#include "camera.h"
 #include <time.h>
 #include <string.h>
 #include <stdlib.h>
@@ -136,13 +137,22 @@ static void brain_lookup(void)
     static bool inited;
     if (!inited) { inited = mdns_init() == ESP_OK; if (!inited) return; }
     mdns_result_t *res = NULL;
-    if (mdns_query_ptr("_papp", "_tcp", 1500, 4, &res) != ESP_OK || !res) { papp_set_brain(NULL, 0); return; }
     char ip[16] = ""; int port = 0;
+    if (mdns_query_ptr("_papp", "_tcp", 1500, 4, &res) != ESP_OK) res = NULL;
     for (mdns_result_t *r = res; r && !ip[0]; r = r->next)
         for (mdns_ip_addr_t *a = r->addr; a; a = a->next)
             if (a->addr.type == ESP_IPADDR_TYPE_V4) { snprintf(ip, sizeof ip, IPSTR, IP2STR(&a->addr.u_addr.ip4)); port = r->port; break; }
-    mdns_query_results_free(res);
+    if (res) mdns_query_results_free(res);
     papp_set_brain(ip, port);
+    // back camera (XIAO ESP32S3 Sense, satellites/xiao-cam)
+    res = NULL; ip[0] = 0; port = 0;
+    if (mdns_query_ptr("_pappcam", "_tcp", 1000, 2, &res) == ESP_OK && res) {
+        for (mdns_result_t *r = res; r && !ip[0]; r = r->next)
+            for (mdns_ip_addr_t *a = r->addr; a; a = a->next)
+                if (a->addr.type == ESP_IPADDR_TYPE_V4) { snprintf(ip, sizeof ip, IPSTR, IP2STR(&a->addr.u_addr.ip4)); port = r->port; break; }
+        mdns_query_results_free(res);
+    }
+    cam_set_back_url(ip, port);
 }
 
 static void net_task(void *arg)

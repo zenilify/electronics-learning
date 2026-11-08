@@ -694,6 +694,7 @@ void home_kbd(const char *text, int sp)
         return;
     }
     bool ent = sp == KBD_ENTER || (text && text[0] == ' ');
+    if (text && text[0] == 'b' && cam_key(0)) { cam_toggle_source(); return; }   // camera screen: b = front/back
     if (cam_key(ent) || notes_key(ent, text) || conv_key(ent)) { if (sp == KBD_ESC) home_show(); return; }
     if (a == s_home && text) {          // shortcuts: t e f l c a p
         static const struct { char k; int id; } K[] = { {'t', A_TRANSLATE}, {'e', A_TYPE}, {'f', A_PHRASE},
