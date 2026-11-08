@@ -15,6 +15,7 @@
 #include "c6ota.h"
 #include "settings.h"
 #include "content.h"
+#include "kbd.h"
 
 static const char *TAG = "home";
 static lv_obj_t *s_home, *h_wifi, *h_batt, *h_ep, *h_sd;
@@ -223,7 +224,7 @@ static void build_places(void)
 }
 
 // ---------- Type & Translate ----------
-static lv_obj_t *s_type, *ty_ta, *ty_out, *ty_src, *ty_st, *ty_dir[2];
+static lv_obj_t *s_type, *ty_ta, *ty_out, *ty_src, *ty_st, *ty_dir[2], *ty_kb;
 static int ty_lang;                // 0 = ES→中文, 1 = EN→中文
 static char *ty_last;
 static void ty_dir_set(int d)
@@ -291,7 +292,7 @@ static void build_type(void)
     lv_label_set_long_mode(ty_out, LV_LABEL_LONG_WRAP);
     ty_src = label(out, f18, C_DIM, "");
     lv_obj_align(ty_src, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-    lv_obj_t *kb = lv_keyboard_create(body);
+    lv_obj_t *kb = ty_kb = lv_keyboard_create(body);
     lv_obj_set_size(kb, LV_PCT(100), 380);
     lv_obj_align(kb, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_text_font(kb, &lv_font_montserrat_28, 0);
@@ -494,9 +495,8 @@ static const tile_t TILES[] = {
 };
 #define TILE_N (int)(sizeof TILES / sizeof TILES[0])
 
-static void on_tile(lv_event_t *e)
+static void open_app(int id)
 {
-    int id = (int)(intptr_t)lv_event_get_user_data(e);
     switch (id) {
     case A_TRANSLATE: open_scr(ui_translator_screen()); break;
     case A_TYPE:      if (!s_type) build_type(); open_scr(s_type); break;
@@ -511,6 +511,7 @@ static void on_tile(lv_event_t *e)
     default:          open_soon(id - A_SOON0); break;
     }
 }
+static void on_tile(lv_event_t *e) { open_app((int)(intptr_t)lv_event_get_user_data(e)); }
 
 static void home_tick(lv_timer_t *t)
 {
@@ -598,4 +599,40 @@ void home_init(void)
         lv_obj_add_event_cb(t, on_tile, LV_EVENT_CLICKED, (void *)(intptr_t)TILES[i].id);
     }
     lv_timer_create(home_tick, 1000, NULL);
+}
+
+// ---------- physical keyboard (Keyboard for Tab5, kbd.c) — display lock held ----------
+void home_kbd(const char *text, int sp)
+{
+    lv_obj_t *a = lv_screen_active();
+    if (s_show && !lv_obj_has_flag(s_show, LV_OBJ_FLAG_HIDDEN)) { lv_obj_add_flag(s_show, LV_OBJ_FLAG_HIDDEN); return; }
+    if (a == s_type) {
+        if (ty_kb && !lv_obj_has_flag(ty_kb, LV_OBJ_FLAG_HIDDEN)) {      // real keys → hide the on-screen one
+            lv_obj_add_flag(ty_kb, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_height(ty_ta, 420); lv_obj_set_width(ty_ta, 600);
+            lv_obj_set_height(lv_obj_get_parent(ty_out), 420);
+            lv_obj_set_style_text_font(ty_out, f64, 0);
+        }
+        if (text) lv_textarea_add_text(ty_ta, text);
+        else if (sp == KBD_ENTER) ty_go();
+        else if (sp == KBD_BKSP) lv_textarea_delete_char(ty_ta);
+        else if (sp == KBD_TAB) ty_dir_set(!ty_lang);
+        else if (sp == KBD_ESC) { if (lv_textarea_get_text(ty_ta)[0]) lv_textarea_set_text(ty_ta, ""); else home_show(); }
+        return;
+    }
+    if (a == s_conv) {
+        if (text && (strchr("0123456789.", text[0]) && text[0])) lv_textarea_add_text(cv_ta, text);
+        else if (sp == KBD_BKSP) lv_textarea_delete_char(cv_ta);
+        else if (sp == KBD_ESC) home_show();
+        else if (sp == KBD_TAB) { lv_dropdown_set_selected(cv_dd, (lv_dropdown_get_selected(cv_dd) + 1) % FX_N); cv_update(); }
+        return;
+    }
+    if (a == s_home && text) {          // shortcuts: t e f l c a
+        static const struct { char k; int id; } K[] = { {'t', A_TRANSLATE}, {'e', A_TYPE}, {'f', A_PHRASE},
+                                                        {'l', A_PLACES}, {'c', A_CONV}, {'a', A_SETTINGS} };
+        for (int i = 0; i < (int)(sizeof K / sizeof K[0]); i++)
+            if (text[0] == K[i].k) open_app(K[i].id);
+        return;
+    }
+    if (sp == KBD_ESC && a != s_home) home_show();
 }

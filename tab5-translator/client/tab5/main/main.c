@@ -22,6 +22,7 @@
 #include "c6ota.h"
 #include "sdcard.h"
 #include "svc.h"
+#include "kbd.h"
 
 static const char *TAG = "papp";
 volatile papp_status_t g_status = { .endpoint = -1, .batt_v = -1 };
@@ -250,6 +251,7 @@ void app_main(void)
     xTaskCreatePinnedToCore(worker, "worker", 8192, NULL, 5, NULL, 0);
     net_start();
     svc_start();
+    kbd_start();
     sd_mount();                       // after the C6 (slot 1) so both slots share one initialised host
     xTaskCreate(console_task, "console", 4096, NULL, 2, NULL);
     ESP_LOGI(TAG, "up: free internal %u kB, PSRAM %u kB",

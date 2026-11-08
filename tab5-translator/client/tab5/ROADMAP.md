@@ -36,7 +36,15 @@ Later (stretch, after 17 Nov only if green): dual-boot — shrink our factory to
 
 Server endpoints (I own the server now as tower): `/translate-text`, `/tts`, `/summarize`, `/ocr-translate`, `/fx`, `/translate?src=auto`. Same bearer, same 3-endpoint failover.
 
-## 3 · Network (D-T5-7) — three layers, the Tab5 never cares which
+## 3 · Network (D-T5-7) — layers, the Tab5 never cares which
+
+0. **UniFi Travel Router "Kaizen-UTR"** (shown by Erick 11-07: SSID `kaizen-tr` 2.4 + 5 GHz, fw 6.6.122, Teleport → `ucg-toluca` connected).
+   Tab5 + MacBook + phones join `kaizen-tr`; UTR uplink = hotel Ethernet / hotel Wi-Fi / phone USB tether; Teleport brings
+   192.168.1.0/24 to the hotel room, so the **LAN endpoint (cachy 192.168.1.5) works unchanged**. Test before departure with the
+   UTR uplinked to the S26U hotspot (today it's on the home switch, which proves nothing about Teleport).
+   ⚠ China: Teleport is WireGuard-based and Cloud Run is a Google domain — both can be blocked on hotel/China-Mobile lines.
+   A phone on a **roaming SIM/eSIM** exits abroad (bypasses that), so "UTR ← USB tether ← roaming phone" is the robust path;
+   layer 2 (MacBook offline brain) is the no-internet fallback.
 
 1. **Direct**: NVS holds up to 3 SSIDs → S26 Ultra hotspot (first), iPhone hotspot (fallback), home. *Need from Erick: SSIDs + passwords into `~/.config/zenilify/t5-wifi` (0600) on cachy — never in chat.*
 2. **MacBook "offline brain"**: the MacBook joins the same hotspot and runs the server; the Tab5 finds it by **mDNS `_papp._tcp`** and puts it first in the endpoint list. Works with no mobile data at all.

@@ -62,19 +62,49 @@ static bool try_connect(int idx)
     return false;
 }
 
+#define NET_SLOTS 6
+// Provisioned slots whose SSID shows up in a scan, strongest first. Scan failure / nothing seen ->
+// every provisioned slot in NVS order (old behaviour), so a hidden or slow AP still gets tried.
+static int visible_slots(int *order)
+{
+    int n = 0, rssi[NET_SLOTS];
+    uint16_t na = 30; wifi_ap_record_t *r = calloc(na, sizeof *r);
+    wifi_scan_config_t sc = { .show_hidden = false, .scan_type = WIFI_SCAN_TYPE_ACTIVE };
+    bool scanned = r && esp_wifi_scan_start(&sc, true) == ESP_OK && esp_wifi_scan_get_ap_records(&na, r) == ESP_OK;
+    for (int i = 0; i < NET_SLOTS; i++) {
+        char ssid[33], pw[65];
+        if (!settings_get_wifi(i, ssid, sizeof ssid, pw, sizeof pw)) continue;
+        memset(pw, 0, sizeof pw);
+        int best = -999;
+        if (scanned) for (int a = 0; a < na; a++) if (!strcmp((char *)r[a].ssid, ssid) && r[a].rssi > best) best = r[a].rssi;
+        if (scanned && best == -999) continue;
+        int pos = n++;
+        while (pos > 0 && rssi[pos - 1] < best) { order[pos] = order[pos - 1]; rssi[pos] = rssi[pos - 1]; pos--; }
+        order[pos] = i; rssi[pos] = best;
+        ESP_LOGI(TAG, "candidate wifi%d \"%s\" %d dBm", i, ssid, best);
+    }
+    free(r);
+    if (scanned && n == 0) {                       // nothing known on the air: fall back to all slots
+        for (int i = 0; i < NET_SLOTS; i++) { char a[33], b[65]; if (settings_get_wifi(i, a, 33, b, 65)) order[n++] = i; }
+        ESP_LOGW(TAG, "no provisioned SSID visible in scan (%u APs) — trying all %d", na, n);
+    }
+    return n;
+}
+
 static void net_task(void *arg)
 {
     int64_t last_probe = 0;
     for (;;) {
         if (!(xEventGroupGetBits(s_ev) & EV_IP)) {
+            // Scan first, then try only the provisioned networks that are on the air, strongest first
+            // (travel: kaizen-tr UTR, S26U / iPhone hotspots, home — up to NET_SLOTS in NVS).
+            int order[NET_SLOTS], no = visible_slots(order);
             bool ok = false;
-            for (int i = 0; i < 3 && !ok; i++)
+            for (int j = 0; j < no && !ok; j++)
                 for (int k = 0; k < 3 && !ok; k++) {
-                    char tmp[33], tp[65];
-                    if (!settings_get_wifi(i, tmp, sizeof tmp, tp, sizeof tp)) break;
                     // the driver may finish an earlier association late: never tear down a link that came up
                     if (xEventGroupGetBits(s_ev) & EV_IP) { ok = true; break; }
-                    ok = try_connect(i);
+                    ok = try_connect(order[j]);
                     if (!ok) vTaskDelay(pdMS_TO_TICKS(1500));
                     if (xEventGroupGetBits(s_ev) & EV_IP) ok = true;
                 }

@@ -4,6 +4,9 @@
   token       <- ~/.config/zenilify/papp_token            (0600, the backend bearer)
   wifi0_*     <- ~/esphome/secrets.yaml wifi_ssid/password (home, 2.4 GHz)
   wifi1_*     <- "zenilify-6E" + the same passphrase       (UTR 2.4 GHz SSID, see tab5-banco.yaml)
+  wifi2..5_*  <- ~/.config/zenilify/t5-wifi (0600, optional): one "ssid<TAB>password" per line —
+                 travel networks (kaizen-tr UTR, S26U / iPhone hotspots). Firmware scans and joins the
+                 strongest visible one, so order here doesn't matter. Max 6 networks in total.
   pair, rot   <- defaults (es<->zh, 90 deg)
 
 Nothing secret is printed or put in argv: the CSV goes to nvs_partition_gen through stdin and
@@ -30,6 +33,15 @@ def main():
     token = open(os.path.join(HOME, ".config/zenilify/papp_token")).read().strip()
     s = secrets_yaml(os.path.join(HOME, "esphome/secrets.yaml"))
     nets = [(s["wifi_ssid"], s["wifi_password"]), ("zenilify-6E", s["wifi_password"])]
+    extra = os.path.join(HOME, ".config/zenilify/t5-wifi")
+    if os.path.exists(extra):
+        if os.stat(extra).st_mode & 0o077:
+            sys.exit("refusing: ~/.config/zenilify/t5-wifi must be chmod 600")
+        for line in open(extra, encoding="utf-8"):
+            if "\t" in line.rstrip("\n"):
+                ssid, pw = line.rstrip("\n").split("\t", 1)
+                if ssid and ssid not in [n[0] for n in nets]: nets.append((ssid, pw))
+    nets = nets[:6]
     rows = [["key", "type", "encoding", "value"], ["papp", "namespace", "", ""], ["token", "data", "string", token]]
     for i, (ssid, pw) in enumerate(nets):
         rows += [[f"wifi{i}_ssid", "data", "string", ssid], [f"wifi{i}_pass", "data", "string", pw]]
@@ -46,7 +58,7 @@ def main():
     out = os.path.join(OUTDIR, "nvs.bin"); os.chmod(out, 0o600)
     b = open(out, "rb").read()
     print(f"nvs.bin {len(b)} B sha256:{hashlib.sha256(b).hexdigest()[:12]} token_len={len(token)} "
-          f"wifi0_ssid_len={len(nets[0][0])} wifi_pw_len={len(nets[0][1])} wifi1_ssid=zenilify-6E")
+          f"networks={len(nets)} ssid_lens={[len(n[0]) for n in nets]} pw_lens={[len(n[1]) for n in nets]}")
     return 0
 
 if __name__ == "__main__":
