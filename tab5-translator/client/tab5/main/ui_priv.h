@@ -27,3 +27,7 @@ void on_logo_long(lv_event_t *e);         // rotate 180° + remember
 void home_init(void);                      // called inside ui_init (display lock held)
 lv_obj_t *home_screen(void);
 void home_show(void);                      // LVGL context only
+lv_obj_t *pill(lv_obj_t *p, const char *txt, uint32_t bg, const lv_font_t *f);
+lv_obj_t *app_frame(lv_obj_t **scr_out, const char *title, uint32_t accent);   // returns the body
+void open_scr(lv_obj_t *s);
+void show_card(const char *zh, const char *py, const char *sub, const char *addr);

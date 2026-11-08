@@ -15,3 +15,5 @@ bool svc_prefetch(lang_t lang, const char *const *texts, int n, svc_progress_t p
 // Mirror the server's SD pack (GET /sd/index, /sd/file) into /sdcard/papp/. Files with the same size are kept.
 // prog(i, n, ok) per file; ok: 1 downloaded, 2 already there, 0 failed. Final call has i == n.
 bool svc_sd_sync(svc_progress_t prog, void *ud);
+// POST raw bytes (takes ownership of buf, freed after) -> r->tgt_text = JSON body. e.g. /ocr-translate image/jpeg
+bool svc_post(const char *path, const char *ctype, uint8_t *buf, size_t len, svc_cb_t cb, void *ud);

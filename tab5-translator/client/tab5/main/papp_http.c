@@ -184,6 +184,15 @@ static int one_req(int ep, const char *path, const char *ctype, const uint8_t *b
     return status;
 }
 
+static bool health_ok(int ep)
+{
+    char url[128]; snprintf(url, sizeof url, "%.100s/health", EP_URL[ep]);
+    esp_http_client_handle_t c = mk(url, 2000, HTTP_METHOD_GET, NULL);
+    bool ok = esp_http_client_perform(c) == ESP_OK && esp_http_client_get_status_code(c) == 200;
+    esp_http_client_cleanup(c);
+    return ok;
+}
+
 // Active endpoint, then re-probe once and retry on a transport error.
 static void with_failover(const char *path, const char *ctype, const uint8_t *b, size_t n, papp_result_t *r)
 {
@@ -198,12 +207,15 @@ static void with_failover(const char *path, const char *ctype, const uint8_t *b,
         papp_result_free(r); r->http_status = -1; r->endpoint = -1;
         if (papp_probe(NULL) >= 0 && s_active != old) st = one_req(s_active, path, ctype, b, n, r);
     }
-    // 404/422 from the offline brain = a v2 route it doesn't have yet (T5-B contract): try the next endpoints once
-    for (int ep = r->endpoint + 1; (st == 404 || st == 422) && r->endpoint == 0 && ep < PAPP_EP_COUNT; ep++) {
-        if (!EP_URL[ep][0]) continue;
-        papp_result_free(r);
-        st = one_req(ep, path, ctype, b, n, r);
-        if (st < 0) st = 404;          // unreachable: keep walking
+    // 404/422 from the offline brain = a v2 route it doesn't have yet (T5-B contract): walk the other endpoints,
+    // each one only if its /health answers within 2 s (an unreachable one costs a full connect timeout otherwise)
+    if ((st == 404 || st == 422) && r->endpoint == 0) {
+        for (int ep = 1; ep < PAPP_EP_COUNT; ep++) {
+            if (!EP_URL[ep][0] || !health_ok(ep)) continue;
+            papp_result_free(r);
+            st = one_req(ep, path, ctype, b, n, r);
+            if (st >= 0 && st != 404) break;
+        }
     }
 }
 
@@ -305,4 +317,9 @@ int papp_get_file(const char *path, FILE *fp)
     if (s_active < 0) papp_probe(NULL);
     if (s_active < 0) return -1;
     return one_get(s_active, path, NULL, NULL, fp);
+}
+
+void papp_post_bytes(const char *path, const char *ctype, const uint8_t *b, size_t n, papp_result_t *r)
+{
+    with_failover(path, ctype, b, n, r);
 }

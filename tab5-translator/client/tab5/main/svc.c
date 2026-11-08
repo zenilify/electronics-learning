@@ -74,11 +74,12 @@ static void sd_sync(svc_progress_t prog, void *ud)
     if (prog) prog(total, total, bad == 0, ud);
 }
 
-typedef enum { R_TEXT, R_SAY, R_JSON, R_PREFETCH, R_SDSYNC } rtype_t;
+typedef enum { R_TEXT, R_SAY, R_JSON, R_PREFETCH, R_SDSYNC, R_POST } rtype_t;
 typedef struct {
     rtype_t t; lang_t a, b; char *text; bool speak;
     svc_cb_t cb; void *ud;
     const char *const *list; int n; svc_progress_t prog;
+    uint8_t *buf; size_t len; const char *ctype;
 } req_t;
 static QueueHandle_t s_q;
 static volatile bool s_busy;
@@ -139,6 +140,11 @@ static void task(void *a)
             papp_get_json(q.text, &r);
             if (q.cb) q.cb(&r, q.ud);
             break;
+        case R_POST:
+            papp_post_bytes(q.text, q.ctype, q.buf, q.len, &r);
+            free(q.buf);
+            if (q.cb) q.cb(&r, q.ud);
+            break;
         case R_SDSYNC:
             sd_sync(q.prog, q.ud);
             break;
@@ -174,3 +180,9 @@ bool svc_prefetch(lang_t lang, const char *const *texts, int n, svc_progress_t p
 { req_t r = { .t = R_PREFETCH, .a = lang, .text = NULL, .list = texts, .n = n, .prog = prog, .ud = ud }; return push(&r); }
 bool svc_sd_sync(svc_progress_t prog, void *ud)
 { req_t r = { .t = R_SDSYNC, .prog = prog, .ud = ud }; return push(&r); }
+bool svc_post(const char *path, const char *ctype, uint8_t *buf, size_t len, svc_cb_t cb, void *ud)
+{
+    req_t r = { .t = R_POST, .text = strdup(path), .ctype = ctype, .buf = buf, .len = len, .cb = cb, .ud = ud };
+    if (!push(&r)) { free(buf); return false; }
+    return true;
+}
