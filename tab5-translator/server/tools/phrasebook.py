@@ -46,7 +46,7 @@ def rows(path):
     for ln in open(path, encoding="utf-8"):
         if not ln.strip() or ln.startswith("#"):
             continue
-        p = [x.strip() for x in ln.rstrip("\n").split(" | ")]
+        p = [x.strip() for x in ln.rstrip("\n").split("|")]   # "a | b | c |" -> trailing "" kept
         p += [""] * (5 - len(p))
         yield p[:5]
 

@@ -9,7 +9,13 @@ Self-contained: test speech comes from /tts itself. Prints one latency row per e
 """
 from __future__ import annotations
 
-import argparse, base64, io, json, sys, time, urllib.error, urllib.request, wave
+import argparse, base64, io, json, os, ssl, sys, time, urllib.error, urllib.request, wave
+
+# python.org macOS builds ship without a CA store ("Install Certificates.command" not run):
+# fall back to the system bundle so HTTPS (Cloud Run) verifies instead of failing with URLError.
+_CTX = ssl.create_default_context()
+if not _CTX.get_ca_certs() and os.path.exists("/etc/ssl/cert.pem"):
+    _CTX = ssl.create_default_context(cafile="/etc/ssl/cert.pem")
 
 def call(url, path, token, body=None, ctype="application/json", method="POST", timeout=90):
     data = json.dumps(body).encode() if isinstance(body, (dict, list)) else body
@@ -17,12 +23,12 @@ def call(url, path, token, body=None, ctype="application/json", method="POST", t
                                  headers={"Authorization": f"Bearer {token}", "Content-Type": ctype})
     t = time.perf_counter()
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with urllib.request.urlopen(req, timeout=timeout, context=_CTX) as r:
             raw, hdr, code = r.read(), {k.lower(): v for k, v in r.headers.items()}, r.status
     except urllib.error.HTTPError as e:
         raw, hdr, code = e.read(), {k.lower(): v for k, v in e.headers.items()}, e.code
     except Exception as e:  # noqa: BLE001
-        return None, {}, f"ERR {type(e).__name__}", round((time.perf_counter() - t) * 1000)
+        return None, {}, f"ERR {type(e).__name__}:{str(getattr(e, 'reason', ''))[:40]}", round((time.perf_counter() - t) * 1000)
     return raw, hdr, code, round((time.perf_counter() - t) * 1000)
 
 def pcm_of(wav_bytes):
