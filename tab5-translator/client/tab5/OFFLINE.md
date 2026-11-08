@@ -1,5 +1,7 @@
 # PAPP offline mode — options and recommendation (lane T5, 2026-11-07)
 
+> **11-07 update:** the MacBook offline brain (`tab5-translator/offline-brain/`, lane T5-B) now covers the no-internet case — same API, bearer and headers as cachy, e2e 1.7–1.9 s. The LLM630 plan below is optional (D-T5-3 on hold until Mon 9 Nov).
+
 **Today PAPP needs the internet for every live turn.** The Tab5 records and plays, cachy (or Cloud Run) relays,
 and speech recognition, translation and TTS run on NVIDIA's hosted models. The Tailscale and LAN paths reach
 cachy without internet, but cachy itself needs it. With no network, only demo mode works (5 built-in turns).

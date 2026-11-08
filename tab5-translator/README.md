@@ -99,3 +99,5 @@ whisper) into "Buenas noches" once — es→zh and en↔zh were correct.
 After 9 Nov (trial ends) this bills the Developer Program credits: expected ≈ 0 MXN/month
 idle; keep `min-instances 0`. To remove everything: delete service `papp`, repo `papp`,
 secret `papp-l4`, SA `papp-run` (Erick's go first).
+
+v2 endpoints and measured latency: [server/API.md](server/API.md).
