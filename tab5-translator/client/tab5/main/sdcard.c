@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <time.h>
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
@@ -94,6 +95,8 @@ void sd_log(const char *file, const char *line)
     char p[96]; snprintf(p, sizeof p, SD_ROOT "/%s", file);
     FILE *f = fopen(p, "a");
     if (!f) return;
-    fprintf(f, "%lld\t%s\n", (long long)(esp_timer_get_time() / 1000000), line);
+    time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
+    if (tm.tm_year + 1900 >= 2026) { char ts[24]; strftime(ts, sizeof ts, "%Y-%m-%d %H:%M:%S", &tm); fprintf(f, "%s\t%s\n", ts, line); }
+    else fprintf(f, "up%lld\t%s\n", (long long)(esp_timer_get_time() / 1000000), line);
     fclose(f);
 }

@@ -694,7 +694,7 @@ void home_kbd(const char *text, int sp)
         return;
     }
     bool ent = sp == KBD_ENTER || (text && text[0] == ' ');
-    if (cam_key(ent) || notes_key(ent) || conv_key(ent)) { if (sp == KBD_ESC) home_show(); return; }
+    if (cam_key(ent) || notes_key(ent, text) || conv_key(ent)) { if (sp == KBD_ESC) home_show(); return; }
     if (a == s_home && text) {          // shortcuts: t e f l c a p
         static const struct { char k; int id; } K[] = { {'t', A_TRANSLATE}, {'e', A_TYPE}, {'f', A_PHRASE},
                                                         {'l', A_PLACES}, {'c', A_CONV}, {'a', A_SETTINGS}, {'p', A_CAM}, {'n', A_NOTES}, {'d', A_DIALOG} };

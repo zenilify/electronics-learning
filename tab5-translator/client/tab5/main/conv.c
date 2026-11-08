@@ -104,6 +104,29 @@ static void tick(lv_timer_t *t)
 
 void conv_leave(void) { audio_vad_stop(); }
 
+static void on_hist(lv_event_t *e)        // past conversations from SD papp/conversation.tsv (newest last)
+{
+    audio_vad_stop();
+    FILE *f = fopen(SD_ROOT "/conversation.tsv", "r");
+    if (!f) { text_screen_show("Historial · 对话记录", "sin conversaciones todavía"); return; }
+    fseek(f, 0, SEEK_END); long n = ftell(f); long off = n > 16000 ? n - 16000 : 0; fseek(f, off, SEEK_SET);
+    char *raw = malloc(n - off + 1); if (!raw) { fclose(f); return; }
+    n = fread(raw, 1, n - off, f); raw[n] = 0; fclose(f);
+    char *out = malloc(n * 2 + 64), *w = out; *w = 0;
+    char *save, *ln = strtok_r(raw, "\n", &save);
+    if (off) ln = strtok_r(NULL, "\n", &save);                 // first line may be cut
+    while (ln) {                                               // "<when>\t<sl>><tl>\t<src>\t<tgt>"
+        char *when = ln, *dir = strchr(when, '\t'); if (!dir) break; *dir++ = 0;
+        char *src = strchr(dir, '\t'); if (!src) break; *src++ = 0;
+        char *tgt = strchr(src, '\t'); if (!tgt) break; *tgt++ = 0;
+        char sl[4] = "", tl[4] = ""; sscanf(dir, "%3[^>]>%3s", sl, tl);
+        w += sprintf(w, "%s   %s → %s\n%s\n→ %s\n\n", strlen(when) > 11 ? when + 11 : when, lang_lbl(sl), lang_lbl(tl), src, tgt);
+        ln = strtok_r(NULL, "\n", &save);
+    }
+    text_screen_show("Historial · 对话记录", out[0] ? out : "sin conversaciones todavía");
+    free(raw); free(out);
+}
+
 void conv_app_open(void)
 {
     if (!s_scr) {
@@ -119,7 +142,7 @@ void conv_app_open(void)
             lv_obj_add_event_cb(c_pair[i], on_pair, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         }
         c_go = lv_obj_create(left); plain(c_go, C_PANEL);
-        lv_obj_set_size(c_go, 200, 200); lv_obj_set_style_radius(c_go, 100, 0);
+        lv_obj_set_size(c_go, 170, 170); lv_obj_set_style_radius(c_go, 85, 0);
         lv_obj_add_flag(c_go, LV_OBJ_FLAG_CLICKABLE); lv_obj_remove_flag(c_go, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_add_event_cb(c_go, on_go, LV_EVENT_CLICKED, NULL);
         c_go_l = label(c_go, &lv_font_montserrat_40, C_TEXT, LV_SYMBOL_PLAY); lv_obj_center(c_go_l);
@@ -128,6 +151,8 @@ void conv_app_open(void)
         c_st = label(left, f24, C_DIM, "");
         lv_obj_set_width(c_st, 340); lv_label_set_long_mode(c_st, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_align(c_st, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_t *hb = pill(left, LV_SYMBOL_LIST "  Historial · 历史", C_PANEL, f24);
+        lv_obj_add_event_cb(hb, on_hist, LV_EVENT_CLICKED, NULL);
         lv_obj_t *hint = label(left, f18, C_LINE, "pon el Tab5 entre los dos · 放在两人中间");
         lv_obj_set_width(hint, 340); lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
         c_list = lv_obj_create(body); plain(c_list, C_BG);
