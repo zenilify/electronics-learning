@@ -18,6 +18,12 @@ static volatile bool s_rec, s_stop_play, s_playing;
 static volatile int s_side, s_level;
 static volatile int64_t s_rec_t0;
 static uint8_t *s_buf;                         // PSRAM: 44 + 30 s * 32 kB
+enum { MODE_PTT, MODE_NOTE, MODE_VAD };
+static volatile int s_mode = MODE_PTT, s_vad_state;
+static volatile bool s_vad_on, s_vad_paused;
+static int s_note_max;
+static audio_wav_cb_t s_cb;
+static void *s_cb_ud;
 static const size_t BUF_MAX = 44 + PAPP_MAX_SEC * PAPP_RATE * 2;
 
 void wav_header(uint8_t *h, size_t n, int rate)
@@ -55,11 +61,90 @@ bool wav_parse(const uint8_t *w, size_t len, const int16_t **pcm, size_t *sample
     return false;
 }
 
+static int chunk_peak_rms(const int16_t *p, int ns, int *rms)
+{
+    int pk = 0; double acc = 0;
+    for (int i = 0; i < ns; i++) { int v = abs(p[i]); if (v > pk) pk = v; acc += (double)p[i] * p[i]; }
+    *rms = (int)sqrt(acc / (ns ? ns : 1));
+    return pk;
+}
+
+static void rec_note(void)
+{
+    const size_t CH = PAPP_RATE / 50 * 2;
+    size_t cap = 44 + (size_t)s_note_max * PAPP_RATE * 2, n = 0;
+    uint8_t *buf = heap_caps_malloc(cap, MALLOC_CAP_SPIRAM);
+    if (!buf) { ESP_LOGE(TAG, "note: no PSRAM for %u kB", (unsigned)(cap / 1024)); s_rec = false; return; }
+    uint8_t junk[640];
+    for (int i = 0; i < 3; i++) esp_codec_dev_read(s_mic, junk, sizeof junk);
+    while (s_rec && 44 + n + CH <= cap) {
+        if (esp_codec_dev_read(s_mic, buf + 44 + n, CH) != ESP_CODEC_DEV_OK) { vTaskDelay(1); continue; }
+        int rms; s_level = chunk_peak_rms((int16_t *)(buf + 44 + n), CH / 2, &rms) * 100 / 32768;
+        n += CH;
+    }
+    s_rec = false; s_level = 0;
+    ESP_LOGI(TAG, "note recorded %.1f s", n / 2.0 / PAPP_RATE);
+    if (n < PAPP_RATE) { free(buf); return; }                  // < 0.5 s: accidental
+    wav_header(buf, n, PAPP_RATE);
+    if (s_cb) s_cb(buf, 44 + n, s_cb_ud); else free(buf);
+}
+
+static void rec_vad(void)
+{
+    enum { CH = PAPP_RATE / 50 * 2, PRE = 15, END_SIL = 40, MIN_SPEECH = 25, MAX_LEN = 15 * PAPP_RATE * 2 };
+    static uint8_t pre[PRE][CH];
+    uint8_t c[CH];
+    int pre_i = 0, pre_n = 0, sil = 0, speech = 0, above = 0;
+    size_t n = 0; float nf = 300;
+    bool in_utt = false;
+    for (int i = 0; i < 3; i++) esp_codec_dev_read(s_mic, c, sizeof c);
+    ESP_LOGI(TAG, "vad: listening");
+    while (s_vad_on) {
+        if (esp_codec_dev_read(s_mic, c, CH) != ESP_CODEC_DEV_OK) { vTaskDelay(1); continue; }
+        int rms; int pk = chunk_peak_rms((int16_t *)c, CH / 2, &rms);
+        s_level = pk * 100 / 32768;
+        if (s_vad_paused || s_playing) {                       // half duplex: never hear ourselves
+            in_utt = false; n = 0; sil = speech = above = 0; pre_n = 0; s_vad_state = 3; continue;
+        }
+        float thr = nf * 3.0f; if (thr < 450) thr = 450;
+        bool loud = rms > thr;
+        if (!in_utt) {
+            s_vad_state = 1;
+            memcpy(pre[pre_i], c, CH); pre_i = (pre_i + 1) % PRE; if (pre_n < PRE) pre_n++;
+            if (!loud) { nf = nf * 0.97f + rms * 0.03f; above = 0; continue; }
+            if (++above < 4) continue;                         // 80 ms above threshold = speech onset
+            in_utt = true; n = 0; sil = 0; speech = above;
+            for (int k = 0; k < pre_n; k++) { memcpy(s_buf + 44 + n, pre[(pre_i + PRE - pre_n + k) % PRE], CH); n += CH; }
+            s_vad_state = 2;
+            continue;
+        }
+        if (44 + n + CH <= BUF_MAX) { memcpy(s_buf + 44 + n, c, CH); n += CH; }
+        if (loud) { speech++; sil = 0; } else sil++;
+        if (sil >= END_SIL || n >= MAX_LEN) {
+            in_utt = false; above = 0; pre_n = 0;
+            if (speech >= MIN_SPEECH) {
+                size_t keep = n - (size_t)(sil > 10 ? sil - 10 : 0) * CH;   // trim most of the trailing silence
+                uint8_t *w = heap_caps_malloc(44 + keep, MALLOC_CAP_SPIRAM);
+                if (w) {
+                    wav_header(s_buf, keep, PAPP_RATE); memcpy(w, s_buf, 44 + keep);
+                    ESP_LOGI(TAG, "vad: utterance %.1f s (speech %d ms, floor %.0f)", keep / 2.0 / PAPP_RATE, speech * 20, nf);
+                    if (s_cb) s_cb(w, 44 + keep, s_cb_ud); else free(w);
+                }
+            } else ESP_LOGI(TAG, "vad: blip ignored (%d ms)", speech * 20);
+            n = 0;
+        }
+    }
+    s_vad_state = 0; s_level = 0;
+    ESP_LOGI(TAG, "vad: off");
+}
+
 static void rec_task(void *arg)
 {
     const size_t CH = PAPP_RATE / 50 * 2;  // 20 ms
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (s_mode == MODE_NOTE) { rec_note(); s_mode = MODE_PTT; continue; }
+        if (s_mode == MODE_VAD) { rec_vad(); s_mode = MODE_PTT; continue; }
         size_t n = 0;
         int side = s_side;
         // flush stale DMA data so the recording starts at the press
@@ -117,7 +202,7 @@ bool audio_init(void)
 
 void audio_rec_start(int side)
 {
-    if (s_rec || !s_rec_task) return;
+    if (s_rec || !s_rec_task || s_mode != MODE_PTT || s_vad_on) return;
     audio_play_stop();
     s_side = side; s_rec_t0 = esp_timer_get_time(); s_rec = true;
     xTaskNotifyGive(s_rec_task);
@@ -154,3 +239,25 @@ void audio_play(const int16_t *pcm, size_t samples, int rate)
     esp_codec_dev_write(s_spk, out, sizeof out);
     s_playing = false;
 }
+
+bool audio_note_start(int max_sec, audio_wav_cb_t cb, void *ud)
+{
+    if (s_rec || s_vad_on || !s_rec_task) return false;
+    audio_play_stop();
+    s_note_max = max_sec; s_cb = cb; s_cb_ud = ud; s_mode = MODE_NOTE;
+    s_rec_t0 = esp_timer_get_time(); s_rec = true;
+    xTaskNotifyGive(s_rec_task);
+    return true;
+}
+void audio_note_stop(void) { if (s_mode == MODE_NOTE) s_rec = false; }
+
+bool audio_vad_start(audio_wav_cb_t cb, void *ud)
+{
+    if (s_rec || s_vad_on || !s_rec_task) return false;
+    s_cb = cb; s_cb_ud = ud; s_mode = MODE_VAD; s_vad_paused = false; s_vad_on = true;
+    xTaskNotifyGive(s_rec_task);
+    return true;
+}
+void audio_vad_stop(void) { s_vad_on = false; }
+void audio_vad_pause(bool p) { s_vad_paused = p; }
+int audio_vad_state(void) { return s_vad_on ? s_vad_state : 0; }

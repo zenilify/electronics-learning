@@ -16,7 +16,9 @@
 #include "settings.h"
 #include "content.h"
 #include "kbd.h"
+#include "audio.h"
 #include "camera.h"
+#include "notes.h"
 
 static const char *TAG = "home";
 static lv_obj_t *s_home, *h_wifi, *h_batt, *h_ep, *h_sd;
@@ -26,7 +28,7 @@ static lv_font_t *f64;
 static void go_home(lv_event_t *e) { home_show(); }
 
 lv_obj_t *home_screen(void) { return s_home; }
-void home_show(void) { cam_stop(); lv_screen_load_anim(s_home, LV_SCREEN_LOAD_ANIM_FADE_IN, 200, 0, false); }
+void home_show(void) { cam_stop(); conv_leave(); audio_note_stop(); lv_screen_load_anim(s_home, LV_SCREEN_LOAD_ANIM_FADE_IN, 200, 0, false); }
 
 lv_obj_t *pill(lv_obj_t *p, const char *txt, uint32_t bg, const lv_font_t *f)
 {
@@ -537,7 +539,7 @@ static void open_soon(int i)
 }
 
 // ---------- home ----------
-typedef enum { A_TRANSLATE, A_TYPE, A_PHRASE, A_PLACES, A_CONV, A_SETTINGS, A_CAM, A_SOON0 } app_id_t;
+typedef enum { A_TRANSLATE, A_TYPE, A_PHRASE, A_PLACES, A_CONV, A_SETTINGS, A_CAM, A_NOTES, A_DIALOG, A_SOON0 } app_id_t;
 typedef struct { const char *icon, *name, *sub; uint32_t col; int id; } tile_t;
 static const tile_t TILES[] = {
     { LV_SYMBOL_AUDIO,     "Traductor",   "按住说话 · hold to talk",  C_TEAL,   A_TRANSLATE },
@@ -546,8 +548,8 @@ static const tile_t TILES[] = {
     { LV_SYMBOL_GPS,       "Llévame a",   "请带我去 · take me to",    C_PINK,   A_PLACES },
     { LV_SYMBOL_SHUFFLE,   "Convertir",   "换算 · ¥ $ km °C",        C_GREEN,  A_CONV },
     { LV_SYMBOL_IMAGE,     "Cámara",      "拍照翻译 · point",          C_VIOLET, A_CAM },
-    { LV_SYMBOL_EDIT,      "Notas",       "语音笔记 · voice notes",   C_VIOLET, A_SOON0 + 1 },
-    { LV_SYMBOL_LOOP,      "Diálogo",     "对话 · hands-free",        C_TEAL,   A_SOON0 + 2 },
+    { LV_SYMBOL_EDIT,      "Notas",       "语音笔记 · voice notes",   C_VIOLET, A_NOTES },
+    { LV_SYMBOL_LOOP,      "Diálogo",     "对话 · hands-free",        C_TEAL,   A_DIALOG },
     { LV_SYMBOL_EYE_OPEN,  "Subtítulos",  "实时字幕 · captions",       C_TEAL,   A_SOON0 + 3 },
     { LV_SYMBOL_BLUETOOTH, "Controles",   "Dial · StickS3",          C_BLUE,   A_SOON0 + 4 },
     { LV_SYMBOL_CHARGE,    "RS-485",      "Modbus · 工业",            C_AMBER,  A_SOON0 + 5 },
@@ -569,6 +571,8 @@ static void open_app(int id)
         if (fx_rate[0] == 0) svc_json("/fx", fx_done, NULL);
         break;
     case A_CAM:       cam_app_open(); break;
+    case A_NOTES:     notes_app_open(); break;
+    case A_DIALOG:    conv_app_open(); break;
     case A_SETTINGS:  if (!s_set) build_settings(); open_scr(s_set); net_request_scan(); set_refresh(NULL); break;
     default:          open_soon(id - A_SOON0); break;
     }
@@ -689,10 +693,11 @@ void home_kbd(const char *text, int sp)
         else if (sp == KBD_TAB) { lv_dropdown_set_selected(cv_dd, (lv_dropdown_get_selected(cv_dd) + 1) % FX_N); cv_update(); }
         return;
     }
-    if (cam_key(sp == KBD_ENTER || (text && text[0] == ' '))) { if (sp == KBD_ESC) home_show(); return; }
+    bool ent = sp == KBD_ENTER || (text && text[0] == ' ');
+    if (cam_key(ent) || notes_key(ent) || conv_key(ent)) { if (sp == KBD_ESC) home_show(); return; }
     if (a == s_home && text) {          // shortcuts: t e f l c a p
         static const struct { char k; int id; } K[] = { {'t', A_TRANSLATE}, {'e', A_TYPE}, {'f', A_PHRASE},
-                                                        {'l', A_PLACES}, {'c', A_CONV}, {'a', A_SETTINGS}, {'p', A_CAM} };
+                                                        {'l', A_PLACES}, {'c', A_CONV}, {'a', A_SETTINGS}, {'p', A_CAM}, {'n', A_NOTES}, {'d', A_DIALOG} };
         for (int i = 0; i < (int)(sizeof K / sizeof K[0]); i++)
             if (text[0] == K[i].k) open_app(K[i].id);
         return;

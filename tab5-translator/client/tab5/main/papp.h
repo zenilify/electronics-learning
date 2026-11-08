@@ -31,6 +31,7 @@ typedef struct {
     int http_status;          // 200 ok; <0 = transport error (no endpoint reachable)
     char *src_text, *tgt_text;  // URL-decoded UTF-8, heap (may be NULL)
     char asr_model[64];
+    char src_lang[4], tgt_lang[4];   // X-Papp-Src / X-Papp-Tgt (conversation mode: who spoke, what we answered in)
     int t_asr, t_nmt, t_tts, t_total;   // server timings (ms)
     int rtt_ms;               // release -> last byte of the reply, measured on the Tab5
     int endpoint;             // index into papp_endpoint_name()

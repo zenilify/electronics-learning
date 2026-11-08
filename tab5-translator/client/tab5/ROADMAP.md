@@ -23,13 +23,13 @@ Later (stretch, after 17 Nov only if green): dual-boot — shrink our factory to
 | 0 | Home/launcher + status bar + settings (Wi-Fi list, rotation, antenna, volume) | — | ✅ v0.2.0 flashed 11-07 (166be46) |
 | 1 | **Translator** (PTT, done) | — | ✅ |
 | 2 | **SD card** service: logs, history, phrase audio cache, screenshots | SDMMC slot 0 shared host w/ C6 SDIO | ✅ 977 GB mounted with Wi-Fi up (console `sd`, 11-07 21:3x) |
-| 3 | **Conversation mode** (no buttons, VAD, auto-language) | VAD on device + server `auto` src | 11 Nov |
+| 3 | **Conversation mode** ✅ v0.3 (11-08: VAD + pair=, es↔zh verified with clips; live voice test pending) (no buttons, VAD, auto-language) | VAD on device + server `auto` src | 11 Nov |
 | 4 | **Type & Translate** ✅ v0.2.0 (USB/Port keyboard + on-screen) → text + voice | server `/translate-text`, `/tts` | 11 Nov |
 | 5 | **Phrasebook** ✅ v0.2.0 (offline: pre-rendered zh audio on SD) | SD | 12 Nov |
 | 6 | **"Take me to" cards** ✅ v0.2.0 (big hanzi + pinyin, address, show taxi driver; NFC card tap) | SD + Unit NFC on Port A | 12 Nov |
 | 7 | **Converter** ✅ v0.2.0 (CNY⇄MXN⇄USD cached rates, units, sizes) | server `/fx` (cached daily) | 13 Nov |
-| 8 | **Voice notes → transcript + summary** (to SD + MD sync) | server `/summarize` | 13 Nov |
-| 9 | **Point & Translate** (camera → OCR → overlay) | server `/ocr-translate`, camera driver | 14 Nov |
+| 8 | **Voice notes → transcript + summary** ✅ v0.3 (11-08: 10 s note → SD WAV + summary .md in 2.8 s) (to SD + MD sync) | server `/summarize` | 13 Nov |
+| 9 | **Point & Translate** ✅ v0.3 (11-08: SC202CS, PPA preview 7.7 fps, HW JPEG, /ocr-translate; real-sign test pending) (camera → OCR → overlay) | server `/ocr-translate`, camera driver | 14 Nov |
 | 10 | **Live subtitles** (streamed chunks, big captions) | chunked ASR | 15 Nov |
 | 11 | **Remotes**: Dial knob = language/volume/PTT, StickS3 = PTT clicker, over ESP-NOW | §4 | 15 Nov |
 | 12 | **RS-485 demo** (Ext Port 2) + **HA panel** (lights/Casa from the old tab5-banco) | Modbus unit / HA token-less feed | 16 Nov |

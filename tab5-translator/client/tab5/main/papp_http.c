@@ -60,7 +60,7 @@ static char *url_decode(const char *s)   // urllib.parse.unquote semantics (no '
     *p = 0; return o;
 }
 
-typedef struct { char *src, *tgt, *tim, *asr; } hdrs_t;
+typedef struct { char *src, *tgt, *tim, *asr; char sl[4], tl[4]; } hdrs_t;
 
 static void app_hdr(char **dst, const char *v)
 {
@@ -78,6 +78,8 @@ static esp_err_t on_evt(esp_http_client_event_t *e)
         else if (!strcasecmp(e->header_key, "X-Papp-Tgt-Text")) app_hdr(&h->tgt, e->header_value);
         else if (!strcasecmp(e->header_key, "X-Papp-Timings")) app_hdr(&h->tim, e->header_value);
         else if (!strcasecmp(e->header_key, "X-Papp-Asr-Model")) app_hdr(&h->asr, e->header_value);
+        else if (!strcasecmp(e->header_key, "X-Papp-Src")) snprintf(h->sl, sizeof h->sl, "%s", e->header_value);
+        else if (!strcasecmp(e->header_key, "X-Papp-Tgt")) snprintf(h->tl, sizeof h->tl, "%s", e->header_value);
     }
     return ESP_OK;
 }
@@ -123,13 +125,13 @@ static int jint(const char *j, const char *k)
 
 // One POST to {BASE}{path}; reply = WAV (+ X-Papp-* headers) on 200.
 static int one_req(int ep, const char *path, const char *ctype, const uint8_t *body_out, size_t out_len,
-                   papp_result_t *r)
+                   papp_result_t *r, int timeout_ms)
 {
     char url[512], auth[128];
     snprintf(url, sizeof url, "%s%s", EP_URL[ep], path);
     snprintf(auth, sizeof auth, "Bearer %s", s_token);
     hdrs_t h = {0};
-    esp_http_client_handle_t c = mk(url, 30000, HTTP_METHOD_POST, &h);
+    esp_http_client_handle_t c = mk(url, timeout_ms, HTTP_METHOD_POST, &h);
     esp_http_client_set_header(c, "Content-Type", ctype);
     esp_http_client_set_header(c, "Authorization", auth);
     memset(auth, 0, sizeof auth);
@@ -179,11 +181,14 @@ static int one_req(int ep, const char *path, const char *ctype, const uint8_t *b
     if (h.src) r->src_text = url_decode(h.src);
     if (h.tgt) { free(r->tgt_text); r->tgt_text = url_decode(h.tgt); }
     if (h.asr) snprintf(r->asr_model, sizeof r->asr_model, "%s", h.asr);
+    memcpy(r->src_lang, h.sl, sizeof h.sl); memcpy(r->tgt_lang, h.tl, sizeof h.tl);
     r->t_asr = jint(h.tim, "asr"); r->t_nmt = jint(h.tim, "nmt"); r->t_tts = jint(h.tim, "tts"); r->t_total = jint(h.tim, "total");
     free(h.src); free(h.tgt); free(h.tim); free(h.asr);
     return status;
 }
 
+
+// Active endpoint, then re-probe once and retry on a transport error.
 static bool health_ok(int ep)
 {
     char url[128]; snprintf(url, sizeof url, "%.100s/health", EP_URL[ep]);
@@ -193,30 +198,58 @@ static bool health_ok(int ep)
     return ok;
 }
 
-// Active endpoint, then re-probe once and retry on a transport error.
-static void with_failover(const char *path, const char *ctype, const uint8_t *b, size_t n, papp_result_t *r)
+// Routes the offline brain answered 400/404/422 to (v2 extras it doesn't have yet): key = path up to the first '='.
+static char s_miss[8][32];
+static int s_alt = -1; static int64_t s_alt_t;        // last endpoint that served a brain-miss route (2 min)
+static void route_key(const char *path, char *k, size_t n) { size_t l = strcspn(path, "="); snprintf(k, n, "%.*s", (int)l, path); }
+static bool brain_misses(const char *k) { for (int i = 0; i < 8; i++) if (!strcmp(s_miss[i], k)) return true; return false; }
+static void brain_miss_add(const char *k) { static int w; if (!brain_misses(k)) { strlcpy(s_miss[w++ % 8], k, sizeof s_miss[0]); ESP_LOGI(TAG, "brain lacks %s -> cachy/cloud", k); } }
+
+static int alt_req(const char *path, const char *ctype, const uint8_t *b, size_t n, papp_result_t *r, int tmo)
+{
+    int64_t now = esp_timer_get_time();
+    if (s_alt > 0 && now - s_alt_t < 120000000LL) {
+        int st = one_req(s_alt, path, ctype, b, n, r, tmo);
+        if (st >= 0 && st != 404) { s_alt_t = now; return st; }
+        papp_result_free(r);
+    }
+    int st = -1;
+    for (int ep = 1; ep < PAPP_EP_COUNT; ep++) {
+        if (!EP_URL[ep][0] || !health_ok(ep)) continue;
+        st = one_req(ep, path, ctype, b, n, r, tmo);
+        if (st >= 0 && st != 404) { s_alt = ep; s_alt_t = now; return st; }
+        papp_result_free(r);
+    }
+    r->http_status = st; return st;
+}
+
+static void with_failover_t(const char *path, const char *ctype, const uint8_t *b, size_t n, papp_result_t *r, int tmo)
 {
     memset(r, 0, sizeof *r);
     r->http_status = -1; r->endpoint = -1;
     if (!s_token[0]) { r->http_status = 401; return; }
     if (s_active < 0) papp_probe(NULL);
     if (s_active < 0) return;
-    int st = one_req(s_active, path, ctype, b, n, r);
+    char key[32]; route_key(path, key, sizeof key);
+    if (s_active == 0 && brain_misses(key)) { alt_req(path, ctype, b, n, r, tmo); return; }
+    int st = one_req(s_active, path, ctype, b, n, r, tmo);
     if (st < 0) {
         int old = s_active;
         papp_result_free(r); r->http_status = -1; r->endpoint = -1;
-        if (papp_probe(NULL) >= 0 && s_active != old) st = one_req(s_active, path, ctype, b, n, r);
+        if (papp_probe(NULL) >= 0 && s_active != old) st = one_req(s_active, path, ctype, b, n, r, tmo);
     }
-    // 404/422 from the offline brain = a v2 route it doesn't have yet (T5-B contract): walk the other endpoints,
-    // each one only if its /health answers within 2 s (an unreachable one costs a full connect timeout otherwise)
-    if ((st == 404 || st == 422) && r->endpoint == 0) {
-        for (int ep = 1; ep < PAPP_EP_COUNT; ep++) {
-            if (!EP_URL[ep][0] || !health_ok(ep)) continue;
-            papp_result_free(r);
-            st = one_req(ep, path, ctype, b, n, r);
-            if (st >= 0 && st != 404) break;
-        }
+    // the offline brain answers 400/404/422 to v2 routes it doesn't have yet (T5-B contract): remember the route
+    // and serve it from the next healthy endpoint (cachy via LAN/Teleport, then Cloud Run)
+    if ((st == 404 || st == 422 || st == 400) && r->endpoint == 0) {
+        if (st != 400 || strstr(path, "pair=")) brain_miss_add(key);   // a plain 400 may just be bad input
+        papp_result_free(r);
+        alt_req(path, ctype, b, n, r, tmo);
     }
+}
+
+static void with_failover(const char *path, const char *ctype, const uint8_t *b, size_t n, papp_result_t *r)
+{
+    with_failover_t(path, ctype, b, n, r, 30000);
 }
 
 static char *json_text(const char *text)      // {"text": "<escaped>"}
@@ -321,5 +354,44 @@ int papp_get_file(const char *path, FILE *fp)
 
 void papp_post_bytes(const char *path, const char *ctype, const uint8_t *b, size_t n, papp_result_t *r)
 {
-    with_failover(path, ctype, b, n, r);
+    // long uploads (voice notes, up to minutes of audio) and long server work (/summarize) get 3 min
+    with_failover_t(path, ctype, b, n, r, n > 2 * 1024 * 1024 || strstr(path, "/summarize") ? 180000 : 30000);
+}
+
+// "key": "value" -> malloc'd UTF-8 with JSON escapes decoded (\n \t \" \\ \/ \uXXXX incl. surrogate pairs).
+char *json_str(const char *j, const char *key)
+{
+    if (!j) return NULL;
+    char pat[40]; snprintf(pat, sizeof pat, "\"%s\"", key);
+    const char *k = strstr(j, pat); if (!k) return NULL;
+    const char *v = k + strlen(pat);
+    while (*v == ' ' || *v == ':') v++;
+    if (*v != '"') return NULL;
+    v++;
+    size_t cap = strlen(v) + 1; char *o = malloc(cap), *w = o;
+    if (!o) return NULL;
+    while (*v && *v != '"') {
+        if (*v != '\\') { *w++ = *v++; continue; }
+        v++;
+        switch (*v) {
+        case 'n': *w++ = '\n'; v++; break;
+        case 't': *w++ = '\t'; v++; break;
+        case 'r': v++; break;
+        case 'u': {
+            unsigned cp = (unsigned)strtoul((char[5]){ v[1], v[2], v[3], v[4], 0 }, NULL, 16); v += 5;
+            if (cp >= 0xD800 && cp < 0xDC00 && v[0] == '\\' && v[1] == 'u') {
+                unsigned lo = (unsigned)strtoul((char[5]){ v[2], v[3], v[4], v[5], 0 }, NULL, 16); v += 6;
+                cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
+            }
+            if (cp < 0x80) *w++ = cp;
+            else if (cp < 0x800) { *w++ = 0xC0 | cp >> 6; *w++ = 0x80 | (cp & 63); }
+            else if (cp < 0x10000) { *w++ = 0xE0 | cp >> 12; *w++ = 0x80 | (cp >> 6 & 63); *w++ = 0x80 | (cp & 63); }
+            else { *w++ = 0xF0 | cp >> 18; *w++ = 0x80 | (cp >> 12 & 63); *w++ = 0x80 | (cp >> 6 & 63); *w++ = 0x80 | (cp & 63); }
+            break;
+        }
+        default: if (*v) *w++ = *v++;
+        }
+    }
+    *w = 0;
+    return o;
 }

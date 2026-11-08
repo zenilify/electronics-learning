@@ -4,6 +4,8 @@
 #include "settings.h"
 #include "c6ota.h"
 #include "mdns.h"
+#include "esp_netif_sntp.h"
+#include <time.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -42,6 +44,12 @@ static void on_wifi(void *a, esp_event_base_t base, int32_t id, void *data)
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *e = data;
         snprintf((char *)g_status.ip, sizeof g_status.ip, IPSTR, IP2STR(&e->ip_info.ip));
+        static bool sntp;                       // wall clock for file names (voice notes, photos)
+        if (!sntp) {
+            sntp = true;
+            esp_sntp_config_t sc = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+            esp_netif_sntp_init(&sc);
+        }
         g_status.wifi_up = true;
         xEventGroupSetBits(s_ev, EV_IP | EV_PROBE);
     }

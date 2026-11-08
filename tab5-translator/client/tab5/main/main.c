@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -24,6 +25,7 @@
 #include "svc.h"
 #include "kbd.h"
 #include "ui_priv.h"
+#include "notes.h"
 
 static const char *TAG = "papp";
 volatile papp_status_t g_status = { .endpoint = -1, .batt_v = -1 };
@@ -212,6 +214,10 @@ static void console_task(void *a)
             ESP_LOGI(TAG, "key '%s'", k);
             lock(); home_kbd(sp ? NULL : k, sp); unlock();
         }
+        else if (!strncmp(line, "convtest ", 9)) {     // convtest <1..5>: demo clip through the conversation path
+            int i = atoi(line + 9) - 1;
+            if (i >= 0 && i < DEMO_COUNT) conv_inject(CLIPS[i].ss, CLIPS[i].se - CLIPS[i].ss);
+        }
         else if (!strcmp(line, "sdsync")) { if (!svc_sd_sync(NULL, NULL)) ESP_LOGW(TAG, "svc busy"); }
         else if (!strcmp(line, "nets")) {
             net_known_t k[NET_SLOTS]; int n = net_known(k, NET_SLOTS, NULL);
@@ -241,6 +247,7 @@ void app_main(void)
 {
     ESP_LOGI(TAG, "PAPP Tab5 v%s", PAPP_VERSION);
     settings_init();
+    setenv("TZ", "CST6", 1); tzset();          // America/Mexico_City (no DST); China = CST-8 (Ajustes later)
     s_pair = (pair_t)settings_get_u8("pair", PAIR_ES_ZH);
     if (s_pair >= PAIR_COUNT) s_pair = PAIR_ES_ZH;
     papp_http_init();

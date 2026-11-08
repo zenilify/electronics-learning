@@ -18,14 +18,15 @@
 #include "linux/videodev2.h"
 #include "esp_video_device.h"
 #include "driver/jpeg_encode.h"
+#include "driver/ppa.h"
 #include "ui_priv.h"
 #include "papp.h"
 #include "svc.h"
 #include "sdcard.h"
 
 static const char *TAG = "cam";
-#define PW 640
-#define PH 360
+#define PW 960            // PPA scales 1280x720 by 12/16 (exact step) -> shown 1:1, no LVGL transform
+#define PH 540
 #define NBUF 2
 static lv_obj_t *s_scr, *c_img, *c_list, *c_st, *c_eng[2];
 static uint16_t *s_prev;                 // PW x PH RGB565 preview (PSRAM)
@@ -34,6 +35,8 @@ static volatile bool s_run, s_snap, s_task_alive, s_mirror = true;
 static int s_engine;                     // 0 = ocr (fast), 1 = vl (better)
 static bool s_cam_inited;
 static jpeg_encoder_handle_t s_jpeg;
+static ppa_client_handle_t s_ppa;
+static size_t s_prev_sz;
 
 // ---------- results ----------
 static char *jstr(const char *p, const char *key, char *out, size_t n)   // "key": "value" (minimal unescape)
@@ -189,18 +192,25 @@ static void cam_task(void *a)
             if (copy) { encode_and_send(copy, w, h); free(copy); }
             continue;
         }
-        // nearest-neighbour downscale to PW x PH (+ mirror for the front camera)
-        lock();
-        for (int y = 0; y < PH; y++) {
-            const uint16_t *row = src + (size_t)(y * h / PH) * w;
-            uint16_t *dst = s_prev + y * PW;
-            for (int x = 0; x < PW; x++) dst[x] = row[(s_mirror ? (PW - 1 - x) : x) * w / PW];
+        // hardware scale + mirror (PPA SRM): 1280x720 -> 960x540 in one DMA pass; CPU only invalidates
+        ppa_srm_oper_config_t op = {
+            .in = { .buffer = src, .pic_w = w, .pic_h = h, .block_w = w, .block_h = h, .srm_cm = PPA_SRM_COLOR_MODE_RGB565 },
+            .out = { .buffer = s_prev, .buffer_size = s_prev_sz, .pic_w = PW, .pic_h = PH, .srm_cm = PPA_SRM_COLOR_MODE_RGB565 },
+            .rotation_angle = PPA_SRM_ROTATION_ANGLE_0, .scale_x = (float)PW / w, .scale_y = (float)PH / h,
+            .mirror_x = s_mirror, .mode = PPA_TRANS_MODE_BLOCKING,
+        };
+        esp_err_t pe = s_ppa ? ppa_do_scale_rotate_mirror(s_ppa, &op) : ESP_FAIL;
+        if (pe != ESP_OK) {                      // fallback: CPU nearest-neighbour
+            for (int y = 0; y < PH; y++) {
+                const uint16_t *row = src + (size_t)(y * h / PH) * w;
+                uint16_t *dst = s_prev + y * PW;
+                for (int x = 0; x < PW; x++) dst[x] = row[(s_mirror ? (PW - 1 - x) : x) * w / PW];
+            }
         }
-        lv_obj_invalidate(c_img);
-        unlock();
+        lock(); lv_obj_invalidate(c_img); unlock();
         ioctl(fd, VIDIOC_QBUF, &b);
-        if (++frames == 60) { ESP_LOGI(TAG, "preview %.1f fps", 60e6 / (esp_timer_get_time() - t0)); }
-        vTaskDelay(pdMS_TO_TICKS(30));
+        if (++frames == 60) { ESP_LOGI(TAG, "preview %.1f fps (%s)", 60e6 / (esp_timer_get_time() - t0), s_ppa ? "PPA" : "CPU"); }
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
     ioctl(fd, VIDIOC_STREAMOFF, &type);
 out:
@@ -230,14 +240,17 @@ void cam_app_open(void)
 {
     if (!s_scr) {
         lv_obj_t *body = app_frame(&s_scr, "Señala y traduce  ·  拍照翻译", C_VIOLET);
-        s_prev = heap_caps_calloc(PW * PH, 2, MALLOC_CAP_SPIRAM);
+        s_prev_sz = (PW * PH * 2 + 127) & ~127;                 // PPA output: cache-line aligned + sized
+        s_prev = heap_caps_aligned_calloc(128, 1, s_prev_sz, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
+        if (!s_prev) s_prev = heap_caps_aligned_calloc(128, 1, s_prev_sz, MALLOC_CAP_SPIRAM);
+        ppa_client_config_t pc = { .oper_type = PPA_OPERATION_SRM, .max_pending_trans_num = 1 };
+        if (ppa_register_client(&pc, &s_ppa) != ESP_OK) { s_ppa = NULL; ESP_LOGW(TAG, "PPA client failed, CPU scaling"); }
         s_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
         s_dsc.header.cf = LV_COLOR_FORMAT_RGB565;
         s_dsc.header.w = PW; s_dsc.header.h = PH; s_dsc.header.stride = PW * 2;
         s_dsc.data = (const uint8_t *)s_prev; s_dsc.data_size = PW * PH * 2;
         c_img = lv_image_create(body);
         lv_image_set_src(c_img, &s_dsc);
-        lv_image_set_scale(c_img, 384);                          // 640x360 shown at 960x540
         lv_obj_set_size(c_img, 960, 540);
         lv_image_set_inner_align(c_img, LV_IMAGE_ALIGN_CENTER);
         lv_obj_align(c_img, LV_ALIGN_TOP_LEFT, 0, 0);

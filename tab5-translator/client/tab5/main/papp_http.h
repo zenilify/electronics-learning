@@ -23,3 +23,4 @@ int papp_get(const char *path, uint8_t **body, size_t *len);
 int papp_get_file(const char *path, FILE *fp);
 void papp_set_brain(const char *ipv4, int port);   // NULL/"" = forget it
 void papp_post_bytes(const char *path, const char *ctype, const uint8_t *b, size_t n, papp_result_t *r);  // JSON reply -> r->tgt_text
+char *json_str(const char *json, const char *key);   // malloc'd, JSON escapes decoded; NULL if absent
