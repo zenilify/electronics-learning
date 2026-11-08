@@ -39,7 +39,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from . import cache, lid, llm, ocr, stream
 from .config import load_settings
-from .pipeline import HOTWORDS, LANGS, BadAudio, PcmAudio, Pipeline, UpstreamError, read_wav, to_wav
+from .pipeline import HOTWORDS, LANGS, fix_terms, BadAudio, PcmAudio, Pipeline, UpstreamError, read_wav, to_wav
 
 log = logging.getLogger("papp")
 logging.basicConfig(level=os.environ.get("PAPP_LOG_LEVEL", "INFO"))
@@ -336,6 +336,7 @@ async def summarize(request: Request, lang: str = "auto", out: str = "es"):
             text, det = await run_in_threadpool(pipeline.asr_long, audio, lang)
         except UpstreamError as e:
             raise HTTPException(502, str(e)) from e
+        text = fix_terms(text)
     t1 = time.perf_counter()
     if not text:
         return {"lang": "", "transcript": "", "title": "", "summary": "", "bullets": [], "actions": [],

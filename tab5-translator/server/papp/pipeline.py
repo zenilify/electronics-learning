@@ -62,6 +62,20 @@ TTS_DEADLINE_S = 20.0
 COOLDOWN_S = 300.0
 
 
+# Deterministic spelling fixes for names/terms the ASR gets wrong in a known way (measured 11-08: whisper writes
+# "Eric" for Erick, "LM模块" for the LLM module; the summary LLM copied both despite the glossary). Latin-letter
+# boundaries (not \b: in "LM模块" there is no \b between M and 模). Override with PAPP_ASR_FIXES="a=b,c=d".
+ASR_FIXES = [tuple(x.split("=", 1)) for x in _os.environ.get("PAPP_ASR_FIXES", "Eric=Erick,Erik=Erick,LM=LLM").split(",")
+             if "=" in x]
+
+
+def fix_terms(text: str) -> str:
+    import re as _re
+    for a, b in ASR_FIXES:
+        text = _re.sub(rf"(?<![A-Za-z]){_re.escape(a)}(?![A-Za-z])", b, text)
+    return text
+
+
 _CJK_RE = __import__("re").compile(r"[\u3400-\u9fff\uf900-\ufaff]")
 
 
@@ -381,6 +395,7 @@ class Pipeline:
                 tgt = pair[1] if src == pair[0] else pair[0]
         else:
             src_text, asr_fn = self.asr(audio, src)
+        src_text = fix_terms(src_text)
         alt = ""
         if fut is not None:
             try:
