@@ -218,7 +218,7 @@ static bool jpeg_rgb(const uint8_t *j, size_t n, int *w, int *h, int *stride)
 }
 
 // letterboxed fit of src (w x h, stride px) into PW x PH, rotated rot x 90°. CPU nearest-neighbour on purpose:
-// the PPA here hung LVGL's own PPA rotation in the flush (task_wdt in wait_for_flushing, 11-08) — keep the PPA for
+// the PPA here hung LVGL's own PPA rotation in the flush (task_wdt in wait_for_flushing, 11-08 — landmine 326; commit 320c7aa says 323 by mistake) — keep the PPA for
 // the front camera only until that is understood. 720x540 output ~ 4 ms on the P4.
 static void fit_into(const uint16_t *src, int w, int h, int stride, int sh, uint16_t *dst, int rot)
 {
