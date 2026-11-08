@@ -60,3 +60,41 @@ Upstream notes: NVIDIA LLMs `nemotron-nano-3-30b-a3b`, `nemotron-3-super-120b-a1
 batch only. Gemini 3.x on Vertex answers only on `locations/global` (us-central1 = 404).
 Cloud Run calls Gemini with its attached SA `papp-run@espbuilder` (role `aiplatform.user` on papps-513907) —
 no key file anywhere; cachy has no Google credentials and forwards `engine=best` to Cloud Run.
+
+## v0.2.1 (lane T5-S, 2026-11-08) — conversation mode translates what people MEAN
+
+Additive only; every v1/v2 request the Tab5 sends is unchanged.
+
+| Change | Contract |
+|---|---|
+| `GET /health` | adds `"commit"` (git short hash baked at build) — compare cachy vs Cloud Run; `version` 0.2.1; features `mt-llm`, `asr-alt` |
+| `/translate?pair=…` (default `mt=llm`, T5 21c3754) | for **zh** speech a second recognition (NVIDIA canary-1b-asr) runs **in parallel** with whisper; the MT LLM (nemotron-3.5-super-vl) sees both + a glossary. JSON adds `asr_alt`, `mt`; `format=wav` adds headers `X-Papp-Mt`, `X-Papp-Asr-Alt` (URL-encoded) |
+| `/translate?…&nocache=1` | bench only: MT/TTS cache reads miss (writes kept). The Tab5 should never send it |
+| `/summarize` | transcript passes deterministic spelling fixes (`Eric/Erik→Erick`, `LM→LLM`, env `PAPP_ASR_FIXES`); super-vl first (glossary); one retry if a field is not in `out` |
+
+Why (measured on cachy, 11-08, `tools/probe_asr_zh.py`, `tools/probe_mt.py`):
+- whisper-large-v3 zh hears z16-2 as `这个开发版…你卖10个`; canary-1b-asr zh-CN hears `开发板…你买十个` but is worse on everything else
+  (m16 CER 0.35 vs whisper 0.12) → canary is only a hint. Whisper ignores `custom_configuration` prompts (identical output);
+  hosted `parakeet-ctc-0_6b-zh-cn` answers INVALID_ARGUMENT "Unavailable model" → no zh hotword boosting on NVCF today.
+- super-vl with one transcript: "Si me **vende** diez" 4/4; with both hypotheses: "placa de desarrollo… Si **compra(s)** diez" 2/2 (probe)
+  and in each server bench run where the first rep is printed (cachy ×2, Cloud Run ×1). lightning given two hypotheses echoed "ASR A/B" or "Soy un modelo de
+  lenguaje" → lightning only ever gets the single-transcript prompt, and `_mt_sane()` rejects echoed/annotated replies.
+
+### A/B — `/translate?pair=es,zh&format=wav&nocache=1`, 9 clips (z16-1..4 zh, demo d1..d5) × 3, `tools/bench_v2.py --clip`
+
+| Target | mt | client median | p90 | server median asr · mt · tts |
+|---|---|---|---|---|
+| cachy LAN 192.168.1.5 (from the MacBook) | **llm** | **1851 ms** | 2963 | 541 · 706 · 642 |
+| cachy LAN | nmt | 1467 ms | 1618 | 528 · 330 · 584 |
+| Cloud Run (from cachy, 7 clips × 2) | **llm** | **1875 ms** | 2165 | 407 · 524 · 536 |
+| Cloud Run | nmt | 1539 ms | 1771 | 379 · 314 · 484 |
+
+mt=llm costs ~0.35–0.4 s median over NMT and fixes meaning: z16-2 nmt "¿Cuánto cuesta vender 10 copias de este producto?" →
+llm "¿Cuánto cuesta esta placa de desarrollo? Si compra diez, puedo darle un descuento."
+
+### `/summarize?out=es` acceptance (`tools/eval_summarize.py`) — m16 (1:45 zh meeting) + EN note + DE note (Magpie voices)
+
+Before (cachy 21c3754): 0/3 — "Eric"/"Erik", "módulo LM", German title on the DE note. After (3e51ffe): **3/3 PASS on cachy and on Cloud Run** —
+no CJK, no German/English sentence, actions plain strings with deadlines as said ("Erick: enviar documentación técnica antes del 5 de
+diciembre", "…12 de diciembre a las 3 p. m. hora de Beijing"), "Erick"/"LLM" right. Residual: the DE note's ASR heard "OEE-Auswertung"
+as "UE-Auswertung", and the title keeps that German compound.
