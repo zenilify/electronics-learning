@@ -2,6 +2,7 @@
 #include "papp.h"
 #include "papp_http.h"
 #include "settings.h"
+#include "c6ota.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -74,9 +75,15 @@ static bool try_connect(int idx)
 static int visible_slots(int *order)
 {
     int n = 0, rssi[NET_SLOTS];
-    uint16_t na = 30; wifi_ap_record_t *r = calloc(na, sizeof *r);
+    uint16_t na = 0; wifi_ap_record_t *r = NULL;
     wifi_scan_config_t sc = { .show_hidden = false, .scan_type = WIFI_SCAN_TYPE_ACTIVE };
-    bool scanned = r && esp_wifi_scan_start(&sc, true) == ESP_OK && esp_wifi_scan_get_ap_records(&na, r) == ESP_OK;
+    bool scanned = esp_wifi_scan_start(&sc, true) == ESP_OK && esp_wifi_scan_get_ap_num(&na) == ESP_OK;
+    if (scanned && na) {
+        if (na > 30) na = 30;
+        r = calloc(na, sizeof *r);
+        scanned = r && esp_wifi_scan_get_ap_records(&na, r) == ESP_OK;
+        if (!scanned) na = 0;
+    } else if (scanned) esp_wifi_clear_ap_list();
     for (int i = 0; i < NET_SLOTS; i++) {
         char ssid[33], pw[65];
         if (!settings_get_wifi(i, ssid, sizeof ssid, pw, sizeof pw)) continue;
@@ -238,5 +245,9 @@ void net_start(void)
     // mid-turn and then 201 (no AP found) for ~25 s (bench 2026-11-07). A demo unit on USB/battery can afford it.
     esp_err_t ps = esp_wifi_set_ps(WIFI_PS_NONE);
     ESP_LOGI(TAG, "wifi power save off: %s", esp_err_to_name(ps));
+    // All esp_hosted RPCs from ONE task: an Ajustes refresh calling c6_version() on the LVGL task while the net task
+    // scanned crashed in rpc_wifi_scan_get_ap_records (memcpy from NULL, 11-08). The UI reads this cached copy.
+    uint32_t v[3];
+    if (c6_version(&v[0], &v[1], &v[2])) { memcpy((void *)g_status.c6v, v, sizeof v); g_status.c6v_ok = true; }
     xTaskCreatePinnedToCore(net_task, "net", 8192, NULL, 4, NULL, 0);
 }

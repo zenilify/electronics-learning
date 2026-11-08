@@ -432,7 +432,7 @@ static void set_refresh(lv_timer_t *t)
 {
     if (lv_screen_active() != s_set) return;
     uint32_t tot, fr; sd_info(&tot, &fr);
-    uint32_t a = 0, b = 0, c = 0; bool c6 = c6_version(&a, &b, &c);
+    uint32_t a = g_status.c6v[0], b = g_status.c6v[1], c = g_status.c6v[2]; bool c6 = g_status.c6v_ok;
     char s[700];
     snprintf(s, sizeof s,
              "PAPP OS v%s  ·  ESP32-P4 rev1.3 + ESP32-C6 (esp-hosted %s%lu.%lu.%lu)\n"

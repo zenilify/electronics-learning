@@ -23,6 +23,7 @@
 #include "sdcard.h"
 #include "svc.h"
 #include "kbd.h"
+#include "ui_priv.h"
 
 static const char *TAG = "papp";
 volatile papp_status_t g_status = { .endpoint = -1, .batt_v = -1 };
@@ -205,6 +206,11 @@ static void console_task(void *a)
             int slot = !strcmp(line + 5, "auto") ? -1 : atoi(line + 5);
             ESP_LOGI(TAG, "picker (console): %s", slot < 0 ? "auto" : line + 5);
             net_join(slot);
+        }
+        else if (!strncmp(line, "key ", 4)) {           // inject a keyboard key: key a | key esc | key enter
+            const char *k = line + 4; int sp = !strcmp(k, "esc") ? KBD_ESC : !strcmp(k, "enter") ? KBD_ENTER : 0;
+            ESP_LOGI(TAG, "key '%s'", k);
+            lock(); home_kbd(sp ? NULL : k, sp); unlock();
         }
         else if (!strcmp(line, "nets")) {
             net_known_t k[NET_SLOTS]; int n = net_known(k, NET_SLOTS, NULL);
