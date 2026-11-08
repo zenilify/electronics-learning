@@ -3,6 +3,7 @@
 #include "papp_http.h"
 #include "settings.h"
 #include "c6ota.h"
+#include "mdns.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -121,6 +122,21 @@ static int visible_slots(int *order)
     return n;
 }
 
+// MacBook offline brain (T5-B): _papp._tcp, IPv4 A record (IPv6-first cost ~2.8 s on cachy). ~1.5 s per lookup.
+static void brain_lookup(void)
+{
+    static bool inited;
+    if (!inited) { inited = mdns_init() == ESP_OK; if (!inited) return; }
+    mdns_result_t *res = NULL;
+    if (mdns_query_ptr("_papp", "_tcp", 1500, 4, &res) != ESP_OK || !res) { papp_set_brain(NULL, 0); return; }
+    char ip[16] = ""; int port = 0;
+    for (mdns_result_t *r = res; r && !ip[0]; r = r->next)
+        for (mdns_ip_addr_t *a = r->addr; a; a = a->next)
+            if (a->addr.type == ESP_IPADDR_TYPE_V4) { snprintf(ip, sizeof ip, IPSTR, IP2STR(&a->addr.u_addr.ip4)); port = r->port; break; }
+    mdns_query_results_free(res);
+    papp_set_brain(ip, port);
+}
+
 static void net_task(void *arg)
 {
     int64_t last_probe = 0;
@@ -167,6 +183,7 @@ static void net_task(void *arg)
                     (g_status.endpoint < 0 && now - last_probe > 20000) || now - last_probe > 120000;
         if (want) {
             xEventGroupClearBits(s_ev, EV_PROBE);
+            brain_lookup();
             int ms = 0, ep = papp_probe(&ms);
             g_status.endpoint = ep; g_status.health_ms = ms; last_probe = now;
         }

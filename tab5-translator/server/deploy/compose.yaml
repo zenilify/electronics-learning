@@ -16,6 +16,7 @@ services:
       - ${HOME}/.config/zenilify/nvidia_build.env:/run/secrets/nvidia_build.env:ro
       - ${HOME}/.config/zenilify/papp_token:/run/secrets/papp_token:ro
       - ${HOME}/papp/cache:/cache
+      - ${HOME}/papp/phrasebook-pack-v2/papp:/sdpack:ro   # /sd/index + /sd/file (Tab5 SD sync)
     ports:
       - "192.168.1.5:8787:8080"     # LAN (Toluca)
       - "100.69.244.21:8787:8080"   # Tailscale (cachy) — the path from China

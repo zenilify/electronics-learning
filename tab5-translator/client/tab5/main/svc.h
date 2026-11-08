@@ -12,3 +12,6 @@ bool svc_json(const char *path, svc_cb_t cb, void *ud);               // r->tgt_
 // Fill the SD speech cache for n texts in `lang` (no playback); progress(i, n) after each item.
 typedef void (*svc_progress_t)(int i, int n, int ok, void *ud);
 bool svc_prefetch(lang_t lang, const char *const *texts, int n, svc_progress_t prog, void *ud);
+// Mirror the server's SD pack (GET /sd/index, /sd/file) into /sdcard/papp/. Files with the same size are kept.
+// prog(i, n, ok) per file; ok: 1 downloaded, 2 already there, 0 failed. Final call has i == n.
+bool svc_sd_sync(svc_progress_t prog, void *ud);

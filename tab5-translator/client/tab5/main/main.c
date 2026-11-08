@@ -212,6 +212,7 @@ static void console_task(void *a)
             ESP_LOGI(TAG, "key '%s'", k);
             lock(); home_kbd(sp ? NULL : k, sp); unlock();
         }
+        else if (!strcmp(line, "sdsync")) { if (!svc_sd_sync(NULL, NULL)) ESP_LOGW(TAG, "svc busy"); }
         else if (!strcmp(line, "nets")) {
             net_known_t k[NET_SLOTS]; int n = net_known(k, NET_SLOTS, NULL);
             for (int i = 0; i < n; i++) ESP_LOGI(TAG, "wifi%d %-20s %4d dBm%s%s", k[i].slot, k[i].ssid, k[i].rssi,

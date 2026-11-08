@@ -392,7 +392,7 @@ static void build_conv(void)
 }
 
 // ---------- Settings / about ----------
-static lv_obj_t *s_set, *set_info, *set_nets;
+static lv_obj_t *s_set, *set_info, *set_nets, *set_sync;
 static unsigned set_gen = ~0u;
 static char set_cur[33];
 static int set_prefv = -2;
@@ -458,6 +458,20 @@ static void on_bright(lv_event_t *e)
     settings_set_u8("bri", (uint8_t)v);
 }
 static void on_reprobe(lv_event_t *e) { net_reprobe(); }
+static void sync_prog(int i, int n, int ok, void *ud)
+{
+    char b[96];
+    if (n == 0) snprintf(b, sizeof b, LV_SYMBOL_WARNING " sin servidor / sin paquete");
+    else if (i < n) snprintf(b, sizeof b, LV_SYMBOL_DOWNLOAD " %d / %d", i, n);
+    else snprintf(b, sizeof b, "%s %d archivos en la SD", ok ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, n);
+    lock(); lv_label_set_text(set_sync, b); unlock();
+}
+static void on_sync(lv_event_t *e)
+{
+    if (!sd_ok()) { lv_label_set_text(set_sync, LV_SYMBOL_WARNING " sin tarjeta SD"); return; }
+    if (svc_sd_sync(sync_prog, NULL)) lv_label_set_text(set_sync, LV_SYMBOL_DOWNLOAD " …");
+    else lv_label_set_text(set_sync, "ocupado, intenta de nuevo");
+}
 static void build_settings(void)
 {
     lv_obj_t *body = app_frame(&s_set, "Ajustes  ·  设置", C_DIM);
@@ -480,6 +494,9 @@ static void build_settings(void)
     lv_obj_add_event_cb(r, on_logo_long, LV_EVENT_CLICKED, NULL);
     lv_obj_t *p = pill(row, LV_SYMBOL_REFRESH " Buscar servidor", C_PANEL, f24);
     lv_obj_add_event_cb(p, on_reprobe, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *sy = pill(row, LV_SYMBOL_DOWNLOAD " Paquete de frases → SD", C_PANEL, f24);
+    lv_obj_add_event_cb(sy, on_sync, LV_EVENT_CLICKED, NULL);
+    set_sync = label(row, f18, C_DIM, "");
     label(body, f24, C_DIM, LV_SYMBOL_IMAGE " Brillo");
     lv_obj_t *lb = lv_obj_get_child(body, -1);
     lv_obj_align(lb, LV_ALIGN_BOTTOM_LEFT, 0, -40);

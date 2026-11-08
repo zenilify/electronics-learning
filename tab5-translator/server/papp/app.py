@@ -442,3 +442,43 @@ async def stream_stop(request: Request, sid: str):
     out = await _stream_feed(request, sid, True)
     stream.drop(sid)
     return out
+
+
+# ---- SD sync (T5, 11-08; asked of T5-S, built by the integrator while T5-S was closed) -------------------
+# The Tab5's card stays in the device: the firmware mirrors PAPP_SD_ROOT (the phrasebook pack, card layout
+# `papp/...` stripped) into /sdcard/papp/. Index is computed once per mtime of the root and cached.
+_SD_ROOT = os.environ.get("PAPP_SD_ROOT", "/sdpack")
+_SD_IDX: dict = {}
+
+
+def _sd_index() -> list:
+    import hashlib
+    root = os.path.realpath(_SD_ROOT)
+    if not os.path.isdir(root):
+        raise HTTPException(404, "no SD pack mounted")
+    stamp = max((os.stat(os.path.join(d, f)).st_mtime for d, _, fs in os.walk(root) for f in fs), default=0)
+    if _SD_IDX.get("stamp") != stamp:
+        items = []
+        for d, _, fs in os.walk(root):
+            for f in sorted(fs):
+                p = os.path.join(d, f)
+                h = hashlib.sha256(open(p, "rb").read()).hexdigest()
+                items.append({"path": os.path.relpath(p, root), "size": os.path.getsize(p), "sha256": h})
+        _SD_IDX.update(stamp=stamp, items=sorted(items, key=lambda x: x["path"]))
+    return _SD_IDX["items"]
+
+
+@app.get("/sd/index", dependencies=[Depends(auth)])
+async def sd_index() -> dict:
+    items = await run_in_threadpool(_sd_index)
+    return {"root": "papp", "count": len(items), "bytes": sum(i["size"] for i in items), "items": items}
+
+
+@app.get("/sd/file", dependencies=[Depends(auth)])
+async def sd_file(path: str) -> Response:
+    root = os.path.realpath(_SD_ROOT)
+    p = os.path.realpath(os.path.join(root, path))
+    if not p.startswith(root + os.sep) or not os.path.isfile(p):
+        raise HTTPException(404, "not in the SD pack")
+    from fastapi.responses import FileResponse
+    return FileResponse(p, media_type="application/octet-stream")

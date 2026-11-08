@@ -16,12 +16,20 @@
 #include "audio.h"
 
 static const char *TAG = "papp_http";
-static const char *EP_URL[PAPP_EP_COUNT] = {
-    "http://100.69.244.21:8787",                         // cachy over Tailscale (the China path, via a tailnet router)
-    "http://192.168.1.5:8787",                           // cachy on the Toluca LAN
+static char EP_URL[PAPP_EP_COUNT][96] = {
+    "",                                                  // 0 MacBook offline brain — filled by mDNS (_papp._tcp), see net.c
+    "http://100.69.244.21:8787",                         // cachy over Tailscale
+    "http://192.168.1.5:8787",                           // cachy on the Toluca LAN (also via UTR Teleport)
     "https://papp-138753081869.us-central1.run.app",     // Cloud Run (outside mainland China)
 };
-static const char *EP_NAME[PAPP_EP_COUNT] = { "Tailscale", "LAN", "Cloud Run" };
+static const char *EP_NAME[PAPP_EP_COUNT] = { "MacBook", "Tailscale", "LAN", "Cloud Run" };
+
+void papp_set_brain(const char *ipv4, int port)
+{
+    char u[96] = "";
+    if (ipv4 && ipv4[0]) snprintf(u, sizeof u, "http://%s:%d", ipv4, port);
+    if (strcmp(u, EP_URL[0])) { ESP_LOGI(TAG, "offline brain: %s", u[0] ? u : "gone"); strlcpy(EP_URL[0], u, sizeof EP_URL[0]); }
+}
 static char s_token[96];
 static int s_active = -1;
 
@@ -90,7 +98,8 @@ static esp_http_client_handle_t mk(const char *url, int timeout_ms, esp_http_cli
 int papp_probe(int *health_ms)
 {
     for (int i = 0; i < PAPP_EP_COUNT; i++) {
-        char url[128]; snprintf(url, sizeof url, "%s/health", EP_URL[i]);
+        if (!EP_URL[i][0]) continue;
+        char url[128]; snprintf(url, sizeof url, "%.100s/health", EP_URL[i]);
         esp_http_client_handle_t c = mk(url, 2000, HTTP_METHOD_GET, NULL);
         int64_t t0 = esp_timer_get_time();
         esp_err_t e = esp_http_client_perform(c);
@@ -187,7 +196,14 @@ static void with_failover(const char *path, const char *ctype, const uint8_t *b,
     if (st < 0) {
         int old = s_active;
         papp_result_free(r); r->http_status = -1; r->endpoint = -1;
-        if (papp_probe(NULL) >= 0 && s_active != old) one_req(s_active, path, ctype, b, n, r);
+        if (papp_probe(NULL) >= 0 && s_active != old) st = one_req(s_active, path, ctype, b, n, r);
+    }
+    // 404/422 from the offline brain = a v2 route it doesn't have yet (T5-B contract): try the next endpoints once
+    for (int ep = r->endpoint + 1; (st == 404 || st == 422) && r->endpoint == 0 && ep < PAPP_EP_COUNT; ep++) {
+        if (!EP_URL[ep][0]) continue;
+        papp_result_free(r);
+        st = one_req(ep, path, ctype, b, n, r);
+        if (st < 0) st = 404;          // unreachable: keep walking
     }
 }
 
@@ -233,4 +249,60 @@ void papp_translate(const papp_job_t *job, papp_result_t *r)
     char path[96]; snprintf(path, sizeof path, "/translate?src=%s&tgt=%s&format=wav&rate=%d",
                             lang_code(job->src), lang_code(job->tgt), PAPP_RATE);
     with_failover(path, "audio/wav", job->wav, job->wav_len, r);
+}
+
+// ---- GET helpers (SD sync) -------------------------------------------------------------------
+// GET {BASE}{path} -> body in PSRAM (NUL-terminated) or streamed into `fp`. Returns HTTP status (<0 transport).
+static int one_get(int ep, const char *path, uint8_t **body, size_t *len, FILE *fp)
+{
+    char url[512], auth[128];
+    snprintf(url, sizeof url, "%s%s", EP_URL[ep], path);
+    snprintf(auth, sizeof auth, "Bearer %s", s_token);
+    esp_http_client_handle_t c = mk(url, 30000, HTTP_METHOD_GET, NULL);
+    esp_http_client_set_header(c, "Authorization", auth);
+    memset(auth, 0, sizeof auth);
+    int status = -1; size_t n = 0;
+    if (esp_http_client_open(c, 0) == ESP_OK) {
+        int64_t cl = esp_http_client_fetch_headers(c);
+        status = esp_http_client_get_status_code(c);
+        size_t cap = cl > 0 ? (size_t)cl : 64 * 1024;
+        uint8_t *b = heap_caps_malloc(fp ? 16384 : cap + 1, MALLOC_CAP_SPIRAM);
+        while (b) {
+            if (fp) {
+                int r = esp_http_client_read(c, (char *)b, 16384);
+                if (r <= 0) break;
+                if (status == 200 && fwrite(b, 1, r, fp) != (size_t)r) { status = -2; break; }
+                n += r;
+            } else {
+                if (n == cap) { uint8_t *nb = heap_caps_realloc(b, cap * 2 + 1, MALLOC_CAP_SPIRAM); if (!nb) break; b = nb; cap *= 2; }
+                int r = esp_http_client_read(c, (char *)b + n, cap - n);
+                if (r <= 0) break;
+                n += r;
+            }
+        }
+        if (cl > 0 && (int64_t)n != cl && status == 200) status = -3;       // short read
+        if (!fp && b) { b[n] = 0; *body = b; *len = n; } else free(b);
+    }
+    esp_http_client_close(c);
+    esp_http_client_cleanup(c);
+    return status;
+}
+
+int papp_get(const char *path, uint8_t **body, size_t *len)
+{
+    *body = NULL; *len = 0;
+    if (!s_token[0]) return 401;
+    if (s_active < 0) papp_probe(NULL);
+    if (s_active < 0) return -1;
+    int st = one_get(s_active, path, body, len, NULL);
+    if (st < 0 && papp_probe(NULL) >= 0) { free(*body); *body = NULL; st = one_get(s_active, path, body, len, NULL); }
+    return st;
+}
+
+int papp_get_file(const char *path, FILE *fp)
+{
+    if (!s_token[0]) return 401;
+    if (s_active < 0) papp_probe(NULL);
+    if (s_active < 0) return -1;
+    return one_get(s_active, path, NULL, NULL, fp);
 }
