@@ -17,6 +17,12 @@ import riva.client
 from riva.client.proto import riva_asr_pb2, riva_nmt_pb2, riva_tts_pb2
 
 from . import cache, lid
+import os as _os
+
+# speech-aware MT for conversation mode: 11-08 A/B on Erick's dev-board clip — super-vl fixed 版→板 (placa) and
+# punctuation in 0.6 s; lightning kept "versión de desarrollo". Override with PAPP_MT_MODELS.
+MT_MODELS = _os.environ.get("PAPP_MT_MODELS",
+                            "nvidia/nemotron-3.5-super-vl-120b-a12b,nvidia/nemotron-3.5-lightning-30b-a3b").split(",")
 from .nvcf import resolve
 
 # (function-name fragment, language code). riva-translate-1_6b only accepts regional
@@ -189,6 +195,35 @@ class Pipeline:
         cache.put_json("nmt", k, {"t": out, "src": src, "tgt": tgt, "s": text})
         return out
 
+    def translate_llm(self, text: str, src: str, tgt: str) -> str:  # noqa: C901
+        """Speech-aware MT (T5, 11-08): the input is an ASR transcript, so let the LLM repair obvious
+        recognition errors from context first (homophones, tones: 开发版→开发板, 卖↔买, missing punctuation)
+        and then translate. Erick's dev-board clip: Riva NMT gave '¿Cuánto cuesta vender 10 copias de este
+        producto?' for '这个开发版多少钱如果你卖10个…'. Falls back to Riva NMT on any LLM failure."""
+        from . import llm
+        names = {"es": "Spanish", "en": "English", "zh": "Simplified Chinese"}
+        k = cache.key("llmmt2", ",".join(MT_MODELS), src, tgt, text)   # bump on prompt/model change
+        hit = cache.get_json("nmt", k)
+        if hit is not None:
+            return hit["t"]
+        msgs = [{"role": "system", "content":
+                 "You are the interpreter in a face-to-face conversation between a foreign visitor and local "
+                 f"people (shops, electronics markets, taxis, business meetings). Translate spoken {names[src]} "
+                 f"into natural spoken {names[tgt]}. The input is a speech-recognition transcript and often has "
+                 "recognition errors: homophones (板/版), wrong tones (买 buy / 卖 sell — pick what fits who is "
+                 "speaking), missing punctuation. Silently repair the transcript from context, then translate the "
+                 "meaning faithfully, keeping numbers, prices and names. Reply with ONLY the translation."},
+                {"role": "user", "content": text}]
+        try:
+            out, _model = llm.nv_chat(self.api_key, msgs, 300, 15, models=MT_MODELS)
+            out = out.strip().strip('"').strip()
+            if not out:
+                raise ValueError("empty")
+        except Exception:  # noqa: BLE001 — never lose a turn to the LLM
+            return self.translate(text, src, tgt)
+        cache.put_json("nmt", k, {"t": out, "src": src, "tgt": tgt, "s": text, "mt": "llm"})
+        return out
+
     def translate_many(self, texts: list[str], src: str, tgt: str) -> list[str]:
         """One NMT request for many lines (riva TranslateText takes a list); per-line cache."""
         out: list[str | None] = []
@@ -253,7 +288,7 @@ class Pipeline:
 
     # --- end to end -------------------------------------------------------
     def run(self, wav: bytes, src: str, tgt: str, out_rate: int = 16000,
-            pair: tuple[str, str] | None = None) -> dict:
+            pair: tuple[str, str] | None = None, mt: str = "nmt") -> dict:
         """src="auto": detect es/en/zh; with pair=(a, b) the target is the other one of the pair
         (conversation mode), else tgt. detected == tgt -> no translation, text echoed."""
         t0 = time.perf_counter()
@@ -274,7 +309,8 @@ class Pipeline:
                     "asr_model": asr_fn, "audio_in_s": round(len(audio.pcm) / 2 / audio.rate, 2),
                     "timings_ms": {"asr": round((t1 - t0) * 1000), "nmt": 0, "tts": 0,
                                    "total": round((t3 - t0) * 1000)}, "wav": b""}
-        tgt_text = self.translate(src_text, src, tgt) if src_text else ""
+        tr = self.translate_llm if mt == "llm" else self.translate
+        tgt_text = tr(src_text, src, tgt) if src_text else ""
         t2 = time.perf_counter()
         pcm = self.tts(tgt_text, tgt, out_rate) if tgt_text else b""
         t3 = time.perf_counter()

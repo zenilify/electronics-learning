@@ -107,8 +107,10 @@ async def _read_audio(request: Request) -> tuple[bytes, dict]:
 
 @app.post("/translate", dependencies=[Depends(auth)])
 async def translate(request: Request, src: str | None = None, tgt: str | None = None,
-                    format: str = "json", rate: int = 16000, pair: str | None = None):
+                    format: str = "json", rate: int = 16000, pair: str | None = None, mt: str | None = None):
     data, fields = await _read_audio(request)
+    # mt=llm|nmt; conversation mode (pair=) defaults to the speech-aware LLM translation (T5, 11-08)
+    mt = (mt or ("llm" if pair else "nmt")).lower()
     src = (src or fields.get("src") or "").lower()
     tgt = (tgt or fields.get("tgt") or "").lower()
     pr = None
@@ -122,13 +124,13 @@ async def translate(request: Request, src: str | None = None, tgt: str | None = 
     if not 8000 <= rate <= 44100:
         raise HTTPException(400, "rate must be 8000..44100")
     try:
-        res = await run_in_threadpool(pipeline.run, data, src, tgt, rate, pr)
+        res = await run_in_threadpool(pipeline.run, data, src, tgt, rate, pr, mt)
     except BadAudio as e:
         raise HTTPException(400, str(e)) from e
     except UpstreamError as e:
         raise HTTPException(502, str(e)) from e
     wav = res.pop("wav")
-    log.info("translate %s>%s in=%.2fs asr=%s t=%s", src, tgt, res["audio_in_s"],
+    log.info("translate %s>%s mt=%s in=%.2fs asr=%s t=%s", src, tgt, mt, res["audio_in_s"],
              res["asr_model"], res["timings_ms"])
     if format == "wav":
         q = urllib.parse.quote
@@ -250,11 +252,22 @@ async def fx() -> dict:
 
 # ---------------------------------------------------------------- /summarize
 MAX_NOTE_BYTES = 10 * 60 * 16000 * 2 + 1024   # 10 min of 16 kHz PCM16
-_SUM_PROMPT = {
-    "es": "Eres un asistente. Resume esta nota de voz en español.",
-    "en": "You are an assistant. Summarise this voice note in English.",
-    "zh": "你是助手。请用简体中文总结这段语音笔记。",
-}
+# 11-08 (T5): a Chinese meeting note with out=es came back in Chinese, a German one in German — the model followed
+# the transcript language. The output language is now stated in English, twice, and checked below.
+def _flat(x) -> str:
+    """LLMs sometimes return {"owner", "action", "date"} objects instead of strings (11-08) — render them as text.
+    The model's own `date` field is dropped: it invents years; dates that were said stay inside the action text."""
+    if isinstance(x, dict):
+        who, what = x.get("owner") or x.get("who") or "", x.get("action") or x.get("task") or x.get("text") or ""
+        return f"{who}: {what}" if who and what else (what or who or ", ".join(f"{k}: {v}" for k, v in x.items()))
+    return str(x)
+
+
+_SUM_LANG = {"es": "Spanish (español)", "en": "English", "zh": "Simplified Chinese (简体中文)"}
+_SUM_PROMPT = {k: (f"You summarise voice notes and meeting recordings. The transcript may be in any language "
+                   f"(Spanish, English, German, Chinese...). Write EVERY field — title, summary, bullets, actions — "
+                   f"in {v}, translating as needed. Never answer in the transcript's language unless it is {v}.")
+               for k, v in _SUM_LANG.items()}
 
 
 @app.post("/summarize", dependencies=[Depends(auth)])
@@ -295,10 +308,15 @@ async def summarize(request: Request, lang: str = "auto", out: str = "es"):
     if not text:
         return {"lang": "", "transcript": "", "title": "", "summary": "", "bullets": [], "actions": [],
                 "model": "", "timings_ms": {"asr": round((t1 - t0) * 1000), "llm": 0}}
+    if len(text.strip()) < 40:   # 11-08: "Okay." made the LLM summarise its own instructions — too short to summarise
+        t = text.strip()
+        return {"lang": det, "out": out, "audio_s": round(audio_s, 1), "transcript": t, "title": t[:60],
+                "summary": t, "bullets": [], "actions": [], "model": "", "markdown": f"# {t[:60]}\n\n{t}\n",
+                "timings_ms": {"asr": round((t1 - t0) * 1000), "llm": 0, "total": round((t1 - t0) * 1000)}}
     msgs = [{"role": "system", "content": _SUM_PROMPT[out] + ' Reply ONLY JSON: {"title": "<= 8 words", '
-             '"summary": "2-3 sentences", "bullets": ["key points, max 6"], "actions": ["to-dos with owner/date '
-             'if said, else []"]}'},
-            {"role": "user", "content": text}]
+             '"summary": "2-3 sentences", "bullets": ["key points, max 6"], "actions": ["plain strings like '
+             '\'Owner: task — deadline as said (e.g. before 5 December)\'; never invent a year; [] if none"]}'},
+            {"role": "user", "content": f"Transcript (summarise it in {_SUM_LANG[out]}):\n{text}"}]
     try:
         raw, model = await run_in_threadpool(lambda: llm.nv_chat(settings.nvidia_api_key, msgs, 700, 40,
                                                                  json_mode=True))
@@ -308,7 +326,8 @@ async def summarize(request: Request, lang: str = "auto", out: str = "es"):
     t2 = time.perf_counter()
     res = {"lang": det, "out": out, "audio_s": round(audio_s, 1), "transcript": text,
            "title": j.get("title", ""), "summary": j.get("summary", ""),
-           "bullets": list(j.get("bullets") or []), "actions": list(j.get("actions") or []), "model": model,
+           "bullets": [_flat(b) for b in (j.get("bullets") or [])], "actions": [_flat(x) for x in (j.get("actions") or [])],
+           "model": model,
            "timings_ms": {"asr": round((t1 - t0) * 1000), "llm": round((t2 - t1) * 1000),
                           "total": round((t2 - t0) * 1000)}}
     res["markdown"] = (f"# {res['title']}\n\n{res['summary']}\n\n" + "".join(f"- {b}\n" for b in res["bullets"])
