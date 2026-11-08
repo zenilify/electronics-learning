@@ -275,6 +275,10 @@ _SUM_PROMPT = {k: (f"You summarise voice notes and meeting recordings. The trans
 _SUM_GLOSS = (f" Names and terms that may appear (spell them exactly like this even if the transcript misspells "
               f"them, e.g. Eric -> Erick): {HOTWORDS}, OEE. Start each action with its owner's name when one was "
               f"said (\"Erick: …\").")
+# 11-08 probe_sum.py on m16/en/de: super-vl followed the glossary (Erick, OEE) 2/3 PASS (m16: transcript says "LM"
+# -> glossary hint added); lightning ignored it 0/3 (Eric/Erik, German title). Override with PAPP_SUM_MODELS.
+SUM_MODELS = os.environ.get("PAPP_SUM_MODELS", "nvidia/nemotron-3.5-super-vl-120b-a12b,"
+                                               "nvidia/nemotron-3.5-lightning-30b-a3b").split(",")
 _STOP = {"de": set("der die das und ist nicht wir ich sie ein eine mit für auf zu den dem bis wird werden soll".split()),
          "en": set("the and is are we will should must to of for with by this that next have be".split()),
          "es": set("el la los las de y que en un una para con por se del al es son debe hasta".split())}
@@ -291,6 +295,8 @@ def _wrong_lang(fields: list[str], out: str) -> str:
         w = _re.findall(r"[a-záéíóúüñäöß]+", v.lower())
         if out in ("es", "en") and len(w) >= 4:
             sc = {k: sum(x in st for x in w) for k, st in _STOP.items()}
+            sc["de"] += 2 * len(_re.findall(r"[äöüß]", v.lower()))
+            sc["es"] += 2 * len(_re.findall(r"[áéíóúñ¿¡]", v.lower()))
             if max(sc, key=sc.get) != out and sc[max(sc, key=sc.get)] >= 2 + sc[out]:
                 return max(sc, key=sc.get)
     return ""
@@ -344,8 +350,8 @@ async def summarize(request: Request, lang: str = "auto", out: str = "es"):
              '\'Owner: task — deadline as said (e.g. before 5 December)\'; never invent a year; [] if none"]}'},
             {"role": "user", "content": f"Transcript (summarise it in {_SUM_LANG[out]}):\n{text}"}]
     try:
-        raw, model = await run_in_threadpool(lambda: llm.nv_chat(settings.nvidia_api_key, msgs, 700, 40,
-                                                                 json_mode=True))
+        raw, model = await run_in_threadpool(lambda: llm.nv_chat(settings.nvidia_api_key, msgs, 900, 40,
+                                                                 models=SUM_MODELS, json_mode=True))
         j = llm.parse_json(raw)
         flat = [_flat(j.get("title", "")), _flat(j.get("summary", ""))] + [_flat(x) for x in (j.get("bullets") or [])] \
             + [_flat(x) for x in (j.get("actions") or [])]
@@ -355,8 +361,8 @@ async def summarize(request: Request, lang: str = "auto", out: str = "es"):
             msgs2 = msgs + [{"role": "assistant", "content": raw},
                             {"role": "user", "content": f"Some fields are not in {_SUM_LANG[out]} ({why}). Rewrite the "
                              f"same JSON with EVERY field in {_SUM_LANG[out]}."}]
-            raw2, model2 = await run_in_threadpool(lambda: llm.nv_chat(settings.nvidia_api_key, msgs2, 700, 40,
-                                                                       json_mode=True))
+            raw2, model2 = await run_in_threadpool(lambda: llm.nv_chat(settings.nvidia_api_key, msgs2, 900, 40,
+                                                                       models=SUM_MODELS, json_mode=True))
             j2 = llm.parse_json(raw2)
             flat2 = [_flat(j2.get("title", "")), _flat(j2.get("summary", ""))] + \
                 [_flat(x) for x in (j2.get("bullets") or [])] + [_flat(x) for x in (j2.get("actions") or [])]

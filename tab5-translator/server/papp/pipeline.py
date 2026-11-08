@@ -53,7 +53,7 @@ ALT_ASR_LANGS = tuple(x for x in _os.environ.get("PAPP_ALT_ASR_LANGS", "zh").spl
 ALT_DEADLINE_S = 4.0
 # Names and product terms the speakers use (MT guard + summaries). Override with PAPP_HOTWORDS (comma list).
 HOTWORDS = _os.environ.get("PAPP_HOTWORDS", "开发板 (dev board / placa de desarrollo), M5Stack, 明栈 (M5Stack), Tab5, "
-                           "Erick, LLM, ESP32, ESP32-P4, 深圳 (Shenzhen), 华强北 (Huaqiangbei), NVIDIA, Zenilify")
+                           "Erick (ASR writes Eric/Erik), LLM (ASR writes LM), ESP32, ESP32-P4, 深圳 (Shenzhen), 华强北 (Huaqiangbei), NVIDIA, Zenilify")
 NMT_FN = "riva-translate-1_6b"
 TTS_FN = "magpie-tts-multilingual"
 ASR_DEADLINE_S = 8.0
