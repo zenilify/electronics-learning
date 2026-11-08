@@ -11,7 +11,8 @@ export PATH="$(dirname "$G"):$PATH"
 P=espbuilder; R=us-central1; REPO=papp; SVC=papp; SECRET=papp-l4
 SA=papp-run@$P.iam.gserviceaccount.com
 IMG=$R-docker.pkg.dev/$P/$REPO/papp:${TAG:-$(date +%Y%m%d-%H%M)}
-LABELS=lane=l4,owner=erick
+LABELS=lane=l4,lane2=t5-s,owner=erick
+GEMINI_PROJECT=${GEMINI_PROJECT:-papps-513907}   # Vertex enabled there; Gemini 3.x answers on locations/global
 step=${1:-all}
 
 if [[ $step == all || $step == infra ]]; then
@@ -26,6 +27,9 @@ if [[ $step == all || $step == infra ]]; then
   # LANDMINE 312: grant only what Cloud Run needs — accessor on this one secret.
   $G secrets add-iam-policy-binding $SECRET --project $P --member serviceAccount:$SA \
     --role roles/secretmanager.secretAccessor --quiet >/dev/null
+  # v2 (T5-S): Gemini for /ocr-translate engine=best — the attached SA's token, no key file.
+  $G projects add-iam-policy-binding $GEMINI_PROJECT --member serviceAccount:$SA \
+    --role roles/aiplatform.user --condition=None --quiet >/dev/null
 fi
 
 if [[ $step == all || $step == secret ]]; then
@@ -47,10 +51,10 @@ fi
 if [[ $step == all || $step == deploy ]]; then
   IMG=${IMG_OVERRIDE:-$(cat /tmp/papp_last_image)}
   $G run deploy $SVC --project $P --region $R --image "$IMG" --service-account $SA \
-    --min-instances 0 --max-instances 1 --concurrency 4 --cpu 1 --memory 512Mi \
+    --min-instances 0 --max-instances 1 --concurrency 8 --cpu 1 --memory 1Gi \
     --timeout 120 --cpu-throttling --no-cpu-boost --execution-environment gen2 \
     --set-secrets /secrets/papp/papp.env=$SECRET:latest \
-    --set-env-vars PAPP_SECRETS_FILE=/secrets/papp/papp.env \
+    --set-env-vars PAPP_SECRETS_FILE=/secrets/papp/papp.env,PAPP_CACHE_DIR=/tmp/papp-cache,PAPP_GEMINI_PROJECT=$GEMINI_PROJECT \
     --labels $LABELS --allow-unauthenticated --quiet
   $G run services describe $SVC --project $P --region $R --format 'value(status.url)'
 fi

@@ -1,0 +1,344 @@
+# PAPP phrasebook source (lane T5-S, 2026-11-07). Format: cat | es | en | zh | pinyin(optional)
+# Empty pinyin = generated with pypinyin (tone marks, tone sandhi on). The first 40 rows are the
+# Tab5 built-in PHRASES (client/tab5/main/content.h) verbatim, so their SD cache keys match.
+# Chinese written by the lane; 🔎 review by a native speaker before 17 Nov is recommended.
+basico | Hola | Hello | 你好 | nǐ hǎo
+basico | Gracias | Thank you | 谢谢 | xièxie
+basico | Disculpe | Excuse me | 不好意思 | bù hǎo yìsi
+basico | Lo siento | Sorry | 对不起 | duìbuqǐ
+basico | No hablo chino | I don't speak Chinese | 我不会说中文 | wǒ bú huì shuō zhōngwén
+basico | ¿Puede repetirlo? | Please say it again | 请再说一遍 | qǐng zài shuō yí biàn
+basico | Más despacio, por favor | Please speak slowly | 请说慢一点 | qǐng shuō màn yìdiǎn
+basico | Soy mexicano | I'm Mexican | 我是墨西哥人 | wǒ shì mòxīgē rén
+comida | Quiero esto | I'd like this | 我要这个 | wǒ yào zhège
+comida | Sin picante | Not spicy | 不要辣 | bú yào là
+comida | Poco picante | Mildly spicy | 微辣 | wēi là
+comida | El menú, por favor | The menu, please | 请给我菜单 | qǐng gěi wǒ càidān
+comida | La cuenta, por favor | The bill, please | 买单 | mǎidān
+comida | ¿Hay comida vegetariana? | Any vegetarian food? | 有素食吗？ | yǒu sùshí ma?
+comida | Una botella de agua | A bottle of water | 一瓶水 | yì píng shuǐ
+comida | ¡Delicioso! | Delicious! | 好吃！ | hǎochī!
+transporte | Lléveme a esta dirección | Please take me to this address | 请带我去这个地址 | qǐng dài wǒ qù zhège dìzhǐ
+transporte | ¿Dónde está el metro? | Where is the metro station? | 地铁站在哪里？ | dìtiězhàn zài nǎlǐ?
+transporte | ¿Cuánto cuesta? | How much is it? | 多少钱？ | duōshao qián?
+transporte | Pare aquí, por favor | Please stop here | 请在这里停车 | qǐng zài zhèlǐ tíngchē
+transporte | ¿Dónde está el baño? | Where is the restroom? | 洗手间在哪里？ | xǐshǒujiān zài nǎlǐ?
+hotel | Tengo una reservación | I have a reservation | 我有预订 | wǒ yǒu yùdìng
+hotel | La contraseña del Wi-Fi, por favor | The Wi-Fi password, please | 请给我无线网密码 | qǐng gěi wǒ wúxiànwǎng mìmǎ
+hotel | Pídame un taxi, por favor | Please call me a taxi | 请帮我叫一辆出租车 | qǐng bāng wǒ jiào yí liàng chūzūchē
+compras | Está muy caro | Too expensive | 太贵了 | tài guì le
+compras | ¿Me hace descuento? | Can you make it cheaper? | 可以便宜一点吗？ | kěyǐ piányi yìdiǎn ma?
+compras | ¿Puedo pagar con WeChat Pay? | Can I pay with WeChat Pay? | 可以用微信支付吗？ | kěyǐ yòng wēixìn zhīfù ma?
+compras | Solo estoy viendo | Just looking | 我只是看看 | wǒ zhǐshì kànkan
+compras | ¿Tiene cable de carga? | Do you have a charging cable? | 有充电线吗？ | yǒu chōngdiàn xiàn ma?
+emergencia | ¡Ayuda! | Help! | 救命！ | jiùmìng!
+emergencia | Llame una ambulancia | Please call an ambulance | 请叫救护车 | qǐng jiào jiùhùchē
+emergencia | Necesito un médico | I need a doctor | 我需要医生 | wǒ xūyào yīshēng
+emergencia | Estoy perdido | I'm lost | 我迷路了 | wǒ mílù le
+emergencia | Perdí mi pasaporte | I lost my passport | 我的护照丢了 | wǒ de hùzhào diū le
+negocios | Mucho gusto | Nice to meet you | 很高兴认识你 | hěn gāoxìng rènshi nǐ
+negocios | Este es un traductor que hice con la Tab5 | This is a translator I built on the Tab5 | 这是我用 Tab5 做的翻译器 | zhè shì wǒ yòng Tab5 zuò de fānyìqì
+negocios | Corre en el ESP32-P4 | It runs on the ESP32-P4 | 它在 ESP32-P4 上运行 | tā zài ESP32-P4 shàng yùnxíng
+negocios | ¿Podemos colaborar? | Can we work together? | 我们可以合作吗？ | wǒmen kěyǐ hézuò ma?
+negocios | ¿Nos agregamos en WeChat? | Shall we add each other on WeChat? | 可以加个微信吗？ | kěyǐ jiā ge wēixìn ma?
+negocios | ¡Salud! | Cheers! | 干杯！ | gānbēi!
+basico | Sí | Yes | 是的 |
+basico | No | No | 不是 |
+basico | Está bien / De acuerdo | OK | 好的 |
+basico | No entiendo | I don't understand | 我听不懂 |
+basico | Entiendo | I understand | 我明白了 |
+basico | ¿Habla inglés? | Do you speak English? | 你会说英语吗？ |
+basico | Buenos días | Good morning | 早上好 |
+basico | Buenas noches | Good evening | 晚上好 |
+basico | Adiós | Goodbye | 再见 |
+basico | Hasta mañana | See you tomorrow | 明天见 |
+basico | De nada | You're welcome | 不客气 |
+basico | No hay problema | No problem | 没问题 |
+basico | Un momento, por favor | One moment, please | 请稍等 |
+basico | ¿Cómo se dice esto en chino? | How do you say this in Chinese? | 这个用中文怎么说？ |
+basico | ¿Puede escribirlo? | Can you write it down? | 你可以写下来吗？ |
+basico | Me llamo Erick | My name is Erick | 我叫埃里克 |
+basico | Soy de México | I'm from Mexico | 我来自墨西哥 |
+basico | Vivo en México | I live in Mexico | 我住在墨西哥 |
+basico | Hablo español, inglés y alemán | I speak Spanish, English and German | 我会说西班牙语、英语和德语 |
+basico | Uso esta tableta para traducir | I use this tablet to translate | 我用这个平板电脑来翻译 |
+basico | Hable a este aparato, por favor | Please speak into this device | 请对着这个设备说话 |
+basico | ¿Me puede ayudar? | Can you help me? | 你能帮我吗？ |
+basico | Muchas gracias por su ayuda | Thank you very much for your help | 非常感谢你的帮助 |
+basico | Con permiso | Excuse me, coming through | 借过一下 |
+basico | ¿Qué es esto? | What is this? | 这是什么？ |
+basico | ¿Dónde está…? | Where is…? | ……在哪里？ |
+comida | Una mesa para dos, por favor | A table for two, please | 两位，谢谢 |
+comida | Una mesa para cuatro, por favor | A table for four, please | 四位，谢谢 |
+comida | ¿Qué me recomienda? | What do you recommend? | 你推荐什么菜？ |
+comida | ¿Cuál es el plato típico de aquí? | What is the local specialty? | 这里的特色菜是什么？ |
+comida | No como cerdo | I don't eat pork | 我不吃猪肉 |
+comida | Soy alérgico a los mariscos | I'm allergic to seafood | 我对海鲜过敏 |
+comida | Soy alérgico a los cacahuates | I'm allergic to peanuts | 我对花生过敏 |
+comida | Sin cilantro, por favor | No coriander, please | 不要香菜 |
+comida | Sin glutamato (MSG), por favor | No MSG, please | 不要味精 |
+comida | Un poco más picante | A little spicier | 再辣一点 |
+comida | Arroz, por favor | Rice, please | 请给我米饭 |
+comida | Fideos | Noodles | 面条 |
+comida | Dumplings (jiaozi) | Dumplings | 饺子 |
+comida | Pato laqueado | Peking duck | 北京烤鸭 |
+comida | Dim sum | Dim sum | 点心 |
+comida | Pollo | Chicken | 鸡肉 |
+comida | Res | Beef | 牛肉 |
+comida | Pescado | Fish | 鱼 |
+comida | Verduras | Vegetables | 蔬菜 |
+comida | Tofu | Tofu | 豆腐 |
+comida | Huevo | Egg | 鸡蛋 |
+comida | Palillos, por favor | Chopsticks, please | 请给我筷子 |
+comida | Un tenedor, por favor | A fork, please | 请给我一把叉子 |
+comida | Una cuchara, por favor | A spoon, please | 请给我一个勺子 |
+comida | Para llevar | To go, please | 打包带走 |
+comida | ¿Me lo empaca? | Can you pack this for me? | 可以帮我打包吗？ |
+comida | Otra porción, por favor | One more serving, please | 再来一份 |
+comida | Ya estoy lleno | I'm full | 我吃饱了 |
+comida | Estuvo muy rico, gracias | It was delicious, thank you | 很好吃，谢谢 |
+comida | ¿Aceptan tarjeta? | Do you accept cards? | 可以刷卡吗？ |
+comida | ¿Puedo pagar en efectivo? | Can I pay in cash? | 可以付现金吗？ |
+comida | Desayuno | Breakfast | 早餐 |
+comida | Comida (almuerzo) | Lunch | 午餐 |
+comida | Cena | Dinner | 晚餐 |
+comida | Tengo hambre | I'm hungry | 我饿了 |
+bebidas | Agua caliente | Hot water | 热水 |
+bebidas | Agua fría, por favor | Cold water, please | 请给我冰水 |
+bebidas | Té verde | Green tea | 绿茶 |
+bebidas | Té de jazmín | Jasmine tea | 茉莉花茶 |
+bebidas | Un café, por favor | A coffee, please | 请给我一杯咖啡 |
+bebidas | Café americano | Americano | 美式咖啡 |
+bebidas | Café con leche | Latte | 拿铁 |
+bebidas | Sin azúcar | No sugar | 不加糖 |
+bebidas | Con hielo | With ice | 加冰 |
+bebidas | Sin hielo | No ice | 不加冰 |
+bebidas | Una cerveza, por favor | A beer, please | 请给我一瓶啤酒 |
+bebidas | Una cerveza fría | A cold beer | 一瓶冰啤酒 |
+bebidas | Vino tinto | Red wine | 红酒 |
+bebidas | Jugo de naranja | Orange juice | 橙汁 |
+bebidas | No tomo alcohol | I don't drink alcohol | 我不喝酒 |
+bebidas | Solo un poco | Just a little | 只要一点点 |
+transporte | Al aeropuerto, por favor | To the airport, please | 请去机场 |
+transporte | A la estación de tren, por favor | To the train station, please | 请去火车站 |
+transporte | Al hotel, por favor | To the hotel, please | 请去酒店 |
+transporte | Siga derecho | Go straight | 一直往前走 |
+transporte | Dé vuelta a la izquierda | Turn left | 左转 |
+transporte | Dé vuelta a la derecha | Turn right | 右转 |
+transporte | ¿Cuánto tiempo tarda? | How long does it take? | 要多长时间？ |
+transporte | ¿Está lejos? | Is it far? | 远吗？ |
+transporte | ¿Está cerca? | Is it near? | 近吗？ |
+transporte | Tengo prisa | I'm in a hurry | 我赶时间 |
+transporte | Por favor use el taxímetro | Please use the meter | 请打表 |
+transporte | Necesito un recibo | I need a receipt | 我需要发票 |
+transporte | ¿Puede abrir la cajuela? | Can you open the trunk? | 可以开一下后备箱吗？ |
+transporte | Por favor espere aquí | Please wait here | 请在这里等一下 |
+transporte | Un boleto a Shenzhen, por favor | A ticket to Shenzhen, please | 一张去深圳的票 |
+transporte | Un boleto a Shanghai, por favor | A ticket to Shanghai, please | 一张去上海的票 |
+transporte | ¿De qué andén sale el tren? | Which platform does the train leave from? | 火车从几号站台出发？ |
+transporte | ¿A qué hora sale? | What time does it leave? | 几点出发？ |
+transporte | ¿Es este el tren a Shenzhen? | Is this the train to Shenzhen? | 这是去深圳的火车吗？ |
+transporte | ¿Dónde se documenta? | Where is check-in? | 在哪里办理登机手续？ |
+transporte | ¿Dónde está la puerta de embarque? | Where is the boarding gate? | 登机口在哪里？ |
+transporte | Mi vuelo sale a las diez | My flight leaves at ten | 我的航班十点起飞 |
+transporte | ¿Dónde está la parada del autobús? | Where is the bus stop? | 公交车站在哪里？ |
+transporte | ¿Qué línea del metro tomo? | Which metro line should I take? | 我应该坐几号线？ |
+transporte | ¿En qué estación me bajo? | Which station do I get off at? | 我应该在哪一站下车？ |
+transporte | Salida | Exit | 出口 |
+transporte | Entrada | Entrance | 入口 |
+transporte | Muéstreme en el mapa, por favor | Please show me on the map | 请在地图上指给我看 |
+transporte | Pidamos un DiDi | Let's order a DiDi | 我们叫个滴滴吧 |
+hotel | Me voy a registrar | I'd like to check in | 我要办理入住 |
+hotel | Quiero hacer el check-out | I'd like to check out | 我要退房 |
+hotel | A nombre de Erick Zenil | Under the name Erick Zenil | 名字是埃里克·泽尼尔 |
+hotel | ¿A qué hora es el desayuno? | What time is breakfast? | 早餐几点开始？ |
+hotel | ¿Dónde está el desayuno? | Where is breakfast served? | 早餐在哪里吃？ |
+hotel | Mi habitación es la 1208 | My room is 1208 | 我的房间是一二零八 |
+hotel | La llave no funciona | The key card doesn't work | 房卡不能用 |
+hotel | No hay agua caliente | There is no hot water | 没有热水 |
+hotel | El aire acondicionado no funciona | The air conditioning doesn't work | 空调坏了 |
+hotel | Necesito más toallas | I need more towels | 我需要更多毛巾 |
+hotel | ¿Me pueden lavar esta ropa? | Can you wash these clothes? | 可以帮我洗衣服吗？ |
+hotel | ¿Pueden guardar mi equipaje? | Can you keep my luggage? | 可以帮我寄存行李吗？ |
+hotel | Despiértenme a las seis, por favor | Please wake me up at six | 请六点叫醒我 |
+hotel | ¿Hay un adaptador de corriente? | Is there a power adapter? | 有电源转换插头吗？ |
+hotel | ¿Dónde está el gimnasio? | Where is the gym? | 健身房在哪里？ |
+hotel | Quisiera una habitación más silenciosa | I'd like a quieter room | 我想换一个安静一点的房间 |
+hotel | Soy miembro Marriott Bonvoy | I'm a Marriott Bonvoy member | 我是万豪旅享家会员 |
+hotel | ¿Hay salida tarde? | Is late check-out possible? | 可以延迟退房吗？ |
+compras | ¿Cuánto cuesta esto? | How much is this? | 这个多少钱？ |
+compras | ¿Tiene otro color? | Do you have another color? | 有别的颜色吗？ |
+compras | ¿Tiene una talla más grande? | Do you have a bigger size? | 有大一号的吗？ |
+compras | ¿Tiene una talla más chica? | Do you have a smaller size? | 有小一号的吗？ |
+compras | ¿Me lo puedo probar? | Can I try it on? | 可以试一下吗？ |
+compras | Me lo llevo | I'll take it | 我买了 |
+compras | Lo voy a pensar | I'll think about it | 我再考虑一下 |
+compras | Es mi último precio | That's my final price | 这是我的最低价 |
+compras | ¿Cuánto si compro diez? | How much if I buy ten? | 买十个多少钱？ |
+compras | ¿Es original? | Is it genuine? | 这是正品吗？ |
+compras | ¿Tiene garantía? | Does it have a warranty? | 有保修吗？ |
+compras | ¿Me da una bolsa? | Can I have a bag? | 可以给我一个袋子吗？ |
+compras | ¿Me da factura? | Can I have an invoice? | 可以开发票吗？ |
+compras | ¿Puedo pagar con Alipay? | Can I pay with Alipay? | 可以用支付宝吗？ |
+compras | ¿Aceptan Visa o Mastercard? | Do you accept Visa or Mastercard? | 可以用维萨卡或万事达卡吗？ |
+compras | Escanee mi código, por favor | Please scan my code | 请扫我的码 |
+compras | Yo escaneo su código | I'll scan your code | 我扫你的码 |
+compras | ¿Dónde hay un cajero automático? | Where is an ATM? | 哪里有取款机？ |
+compras | ¿Dónde puedo cambiar dinero? | Where can I exchange money? | 在哪里可以换钱？ |
+electronica | Busco un cable USB-C | I'm looking for a USB-C cable | 我在找USB-C数据线 |
+electronica | ¿Tiene baterías 18650? | Do you have 18650 batteries? | 有18650电池吗？ |
+electronica | ¿Tiene módulos ESP32? | Do you have ESP32 modules? | 有ESP32模块吗？ |
+electronica | ¿Tiene productos M5Stack? | Do you sell M5Stack products? | 有M5Stack的产品吗？ |
+electronica | Busco una tarjeta microSD | I'm looking for a microSD card | 我在找TF卡 |
+electronica | ¿Cuál es el voltaje? | What is the voltage? | 电压是多少？ |
+electronica | ¿Lo puedo probar aquí? | Can I test it here? | 可以在这里测试吗？ |
+electronica | ¿Tiene hoja de datos? | Do you have a datasheet? | 有规格书吗？ |
+electronica | ¿Cuál es el pedido mínimo? | What is the minimum order? | 最小起订量是多少？ |
+electronica | ¿Precio por mayoreo? | Wholesale price? | 批发价多少？ |
+electronica | ¿Lo pueden enviar a México? | Can you ship to Mexico? | 可以寄到墨西哥吗？ |
+electronica | ¿Cuánto tarda el envío? | How long does shipping take? | 运输需要多长时间？ |
+electronica | Necesito un cargador de 65 W | I need a 65 W charger | 我需要一个65瓦的充电器 |
+electronica | ¿Tiene un adaptador de enchufe? | Do you have a plug adapter? | 有转换插头吗？ |
+electronica | ¿Esto funciona con 110 V? | Does this work with 110 V? | 这个能用110伏吗？ |
+salud | Me siento mal | I don't feel well | 我不舒服 |
+salud | Me duele la cabeza | I have a headache | 我头疼 |
+salud | Me duele el estómago | I have a stomachache | 我肚子疼 |
+salud | Tengo fiebre | I have a fever | 我发烧了 |
+salud | Tengo diarrea | I have diarrhea | 我拉肚子 |
+salud | ¿Dónde hay una farmacia? | Where is a pharmacy? | 哪里有药店？ |
+salud | ¿Dónde está el hospital? | Where is the hospital? | 医院在哪里？ |
+salud | Soy alérgico a la penicilina | I'm allergic to penicillin | 我对青霉素过敏 |
+salud | Necesito medicina para la gripa | I need cold medicine | 我需要感冒药 |
+salud | Tengo seguro de viaje | I have travel insurance | 我有旅行保险 |
+salud | Me corté | I cut myself | 我割伤了 |
+salud | Me torcí el tobillo | I twisted my ankle | 我扭伤了脚踝 |
+emergencia | Llame a la policía | Call the police | 请报警 |
+emergencia | Me robaron la cartera | My wallet was stolen | 我的钱包被偷了 |
+emergencia | Perdí mi teléfono | I lost my phone | 我的手机丢了 |
+emergencia | ¿Dónde está el consulado de México? | Where is the Mexican consulate? | 墨西哥领事馆在哪里？ |
+emergencia | Necesito ayuda urgente | I need urgent help | 我需要紧急帮助 |
+emergencia | Es una emergencia | It's an emergency | 这是紧急情况 |
+emergencia | ¡Cuidado! | Watch out! | 小心！ |
+emergencia | ¡Fuego! | Fire! | 着火了！ |
+emergencia | Por favor llame a este número | Please call this number | 请打这个电话 |
+emergencia | Mi teléfono no tiene batería | My phone's battery is dead | 我的手机没电了 |
+emergencia | ¿Me presta un cargador? | Can I borrow a charger? | 可以借我一个充电器吗？ |
+tiempo | ¿Qué hora es? | What time is it? | 现在几点？ |
+tiempo | Hoy | Today | 今天 |
+tiempo | Mañana | Tomorrow | 明天 |
+tiempo | Ayer | Yesterday | 昨天 |
+tiempo | Esta mañana | This morning | 今天上午 |
+tiempo | Esta tarde | This afternoon | 今天下午 |
+tiempo | Esta noche | Tonight | 今天晚上 |
+tiempo | A las nueve de la mañana | At nine in the morning | 上午九点 |
+tiempo | A las dos de la tarde | At two in the afternoon | 下午两点 |
+tiempo | En cinco minutos | In five minutes | 五分钟后 |
+tiempo | Lunes | Monday | 星期一 |
+tiempo | Martes | Tuesday | 星期二 |
+tiempo | Miércoles | Wednesday | 星期三 |
+tiempo | Jueves | Thursday | 星期四 |
+tiempo | Viernes | Friday | 星期五 |
+tiempo | Sábado | Saturday | 星期六 |
+tiempo | Domingo | Sunday | 星期天 |
+tiempo | Uno, dos, tres | One, two, three | 一、二、三 |
+tiempo | Diez | Ten | 十 |
+tiempo | Cien | One hundred | 一百 |
+tiempo | Mil | One thousand | 一千 |
+tiempo | Diez mil | Ten thousand | 一万 |
+reuniones | Gracias por recibirnos | Thank you for having us | 感谢您的接待 |
+reuniones | Esta es mi tarjeta de presentación | Here is my business card | 这是我的名片 |
+reuniones | ¿Me da su tarjeta? | May I have your card? | 可以给我您的名片吗？ |
+reuniones | Soy fundador de Zenilify | I'm the founder of Zenilify | 我是Zenilify的创始人 |
+reuniones | Somos una consultora de manufactura esbelta e IA | We are a lean manufacturing and AI consultancy | 我们是一家精益制造和人工智能咨询公司 |
+reuniones | Trabajo con fábricas en México | I work with factories in Mexico | 我和墨西哥的工厂合作 |
+reuniones | Empecemos | Let's begin | 我们开始吧 |
+reuniones | ¿Cuánto tiempo tenemos? | How much time do we have? | 我们有多少时间？ |
+reuniones | Tengo una pregunta | I have a question | 我有一个问题 |
+reuniones | ¿Puede explicarlo otra vez? | Can you explain it again? | 您能再解释一下吗？ |
+reuniones | Estoy de acuerdo | I agree | 我同意 |
+reuniones | Lo tengo que pensar | I need to think about it | 我需要考虑一下 |
+reuniones | Lo voy a consultar con mi equipo | I'll check with my team | 我会和我的团队商量 |
+reuniones | ¿Cuál es el siguiente paso? | What is the next step? | 下一步是什么？ |
+reuniones | Le envío un correo mañana | I'll send you an email tomorrow | 我明天给您发邮件 |
+reuniones | ¿Cuál es su correo? | What is your email address? | 您的邮箱是什么？ |
+reuniones | Mándeme la cotización, por favor | Please send me the quotation | 请把报价单发给我 |
+reuniones | ¿Cuál es el tiempo de entrega? | What is the lead time? | 交货期是多久？ |
+reuniones | ¿Ofrecen muestras? | Do you offer samples? | 可以提供样品吗？ |
+reuniones | Me interesa una alianza a largo plazo | I'm interested in a long-term partnership | 我对长期合作很感兴趣 |
+reuniones | ¿Podemos tomar una foto juntos? | Can we take a photo together? | 我们可以一起拍张照吗？ |
+reuniones | Fue un placer | It was a pleasure | 很荣幸认识您 |
+reuniones | Espero verlos en México | I hope to see you in Mexico | 希望在墨西哥见到你们 |
+reuniones | Muchas gracias por su tiempo | Thank you very much for your time | 非常感谢您抽出时间 |
+fabrica | ¿Podemos ver la línea de producción? | Can we see the production line? | 我们可以参观生产线吗？ |
+fabrica | ¿Cuántos empleados tienen? | How many employees do you have? | 你们有多少员工？ |
+fabrica | ¿Cuál es su capacidad mensual? | What is your monthly capacity? | 你们每月的产能是多少？ |
+fabrica | ¿Cuál es su OEE? | What is your OEE? | 你们的设备综合效率是多少？ |
+fabrica | ¿Cómo controlan la calidad? | How do you control quality? | 你们怎么控制质量？ |
+fabrica | ¿Cuál es su tasa de defectos? | What is your defect rate? | 你们的不良率是多少？ |
+fabrica | ¿Usan Lean o Kaizen? | Do you use Lean or Kaizen? | 你们用精益生产或者改善吗？ |
+fabrica | ¿Puedo tomar fotos? | May I take photos? | 可以拍照吗？ |
+fabrica | ¿Dónde me pongo el equipo de seguridad? | Where do I put on safety gear? | 在哪里穿戴安全装备？ |
+fabrica | ¿Cuántos turnos trabajan? | How many shifts do you run? | 你们有几个班次？ |
+fabrica | ¿Qué tan automatizada está la línea? | How automated is the line? | 这条生产线的自动化程度怎么样？ |
+fabrica | ¿Qué certificaciones tienen? | What certifications do you have? | 你们有哪些认证？ |
+fabrica | ¿Hacen SMT aquí? | Do you do SMT here? | 你们这里做贴片吗？ |
+fabrica | Muy ordenado y limpio | Very tidy and clean | 非常整洁干净 |
+fabrica | Impresionante | Impressive | 太厉害了 |
+fabrica | ¿Cómo miden el tiempo de ciclo? | How do you measure cycle time? | 你们怎么测量节拍时间？ |
+fabrica | ¿Tienen tableros Andon? | Do you have Andon boards? | 你们有安灯看板吗？ |
+fabrica | Medimos el OEE con sensores M5Stack | We measure OEE with M5Stack sensors | 我们用M5Stack传感器测量设备综合效率 |
+demo | Hola, soy Erick de México | Hi, I'm Erick from Mexico | 你好，我是来自墨西哥的埃里克 |
+demo | Les quiero mostrar algo que construí | I want to show you something I built | 我想给你们看看我做的东西 |
+demo | Todo está hecho con productos M5Stack | Everything is built with M5Stack products | 全部都是用M5Stack的产品做的 |
+demo | Hable en chino y yo le contesto en español | Speak Chinese and I'll answer in Spanish | 你说中文，我用西班牙语回答 |
+demo | Presione el botón y hable | Press the button and speak | 按住按钮说话 |
+demo | La traducción tarda unos dos segundos | The translation takes about two seconds | 翻译大约需要两秒钟 |
+demo | Usa los modelos de voz de NVIDIA | It uses NVIDIA speech models | 它使用英伟达的语音模型 |
+demo | También funciona sin internet | It also works without internet | 没有网络也可以用 |
+demo | La pantalla es de cinco pulgadas | The screen is five inches | 屏幕是五英寸的 |
+demo | Tiene cámara para traducir letreros | It has a camera to translate signs | 它有摄像头可以翻译标牌 |
+demo | Este es el control remoto con el Dial | This is the remote control with the Dial | 这是用Dial做的遥控器 |
+demo | El código es abierto | The code is open source | 代码是开源的 |
+demo | Me encantaría publicarlo con ustedes | I'd love to publish it with you | 我很想和你们一起发布 |
+demo | ¿Qué les parece? | What do you think? | 你们觉得怎么样？ |
+demo | ¿Pueden ayudarme con la Tab5? | Can you help me with the Tab5? | 你们能帮我看看Tab5吗？ |
+demo | Usé la cámara, el micrófono y el teclado | I used the camera, microphone and keyboard | 我用了摄像头、麦克风和键盘 |
+demo | El ESP32-P4 es muy rápido | The ESP32-P4 is very fast | ESP32-P4非常快 |
+demo | Gracias por hacer productos tan buenos | Thank you for making such great products | 谢谢你们做出这么好的产品 |
+charla | ¿Cómo está? | How are you? | 你好吗？ |
+charla | Muy bien, gracias | Very well, thanks | 很好，谢谢 |
+charla | Es mi primera vez en China | It's my first time in China | 这是我第一次来中国 |
+charla | China es muy bonita | China is very beautiful | 中国很漂亮 |
+charla | Me gusta mucho la comida china | I really like Chinese food | 我很喜欢中国菜 |
+charla | ¿De dónde es usted? | Where are you from? | 你是哪里人？ |
+charla | ¿Ha estado en México? | Have you been to Mexico? | 你去过墨西哥吗？ |
+charla | México tiene tacos muy buenos | Mexico has very good tacos | 墨西哥的塔可很好吃 |
+charla | Tengo una perrita pug | I have a pug | 我有一只巴哥犬 |
+charla | Mi esposa es abogada | My wife is a lawyer | 我太太是律师 |
+charla | ¿Qué me recomienda visitar? | What do you recommend I visit? | 你推荐我去哪里玩？ |
+charla | Hace mucho calor | It's very hot | 天气很热 |
+charla | Hace frío | It's cold | 天气很冷 |
+charla | ¿Va a llover hoy? | Will it rain today? | 今天会下雨吗？ |
+charla | Que tenga un buen día | Have a nice day | 祝你今天愉快 |
+charla | Buen viaje | Have a good trip | 一路顺风 |
+lugares | Lléveme a esta dirección, por favor | Please take me here | 请带我去这里 |
+lugares | JW Marriott Shanghai Tomorrow Square | JW Marriott Shanghai at Tomorrow Square | 上海明天广场JW万豪酒店 |
+lugares | Aeropuerto de Shanghai Pudong | Shanghai Pudong International Airport | 上海浦东国际机场 |
+lugares | Estación Shanghai Hongqiao | Shanghai Hongqiao Railway Station | 上海虹桥站 |
+lugares | El Bund | The Bund | 外滩 |
+lugares | JW Marriott Shenzhen Bao'an | JW Marriott Shenzhen Bao'an | 深圳宝安JW万豪酒店 |
+lugares | Aeropuerto de Shenzhen Bao'an | Shenzhen Bao'an International Airport | 深圳宝安国际机场 |
+lugares | Estación Shenzhen Norte | Shenzhen North Railway Station | 深圳北站 |
+lugares | Huaqiangbei (mercado de electrónica) | Huaqiangbei electronics market | 华强北 |
+lugares | Centro de convenciones Shenzhen World | Shenzhen World Exhibition & Convention Center | 深圳国际会展中心 |
+lugares | Oficina de M5Stack | M5Stack office | 明栈信息科技（M5Stack） |
+lugares | Lléveme al JW Marriott de Tomorrow Square | Take me to the JW Marriott Tomorrow Square | 请带我去上海明天广场JW万豪酒店 |
+lugares | Lléveme al aeropuerto de Pudong | Take me to Pudong airport | 请带我去上海浦东国际机场 |
+lugares | Lléveme a la estación Hongqiao | Take me to Hongqiao station | 请带我去上海虹桥站 |
+lugares | Lléveme al Bund | Take me to the Bund | 请带我去外滩 |
+lugares | Lléveme al JW Marriott Bao'an | Take me to the JW Marriott Bao'an | 请带我去深圳宝安JW万豪酒店 |
+lugares | Lléveme al aeropuerto de Bao'an | Take me to Bao'an airport | 请带我去深圳宝安国际机场 |
+lugares | Lléveme a la estación Shenzhen Norte | Take me to Shenzhen North station | 请带我去深圳北站 |
+lugares | Lléveme a Huaqiangbei | Take me to Huaqiangbei | 请带我去华强北 |
+lugares | Lléveme a Shenzhen World | Take me to Shenzhen World | 请带我去深圳国际会展中心 |
+lugares | Lléveme a la oficina de M5Stack | Take me to the M5Stack office | 请带我去明栈信息科技（M5Stack） |

@@ -8,6 +8,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 COPY papp/ papp/
+# files edited through some sync paths arrive 0600; the app runs as uid 1000 -> make them readable
+RUN chmod -R a+rX /app
 
 # uid 1000 so a 0600 file owned by cachy (uid 1000) is readable when bind-mounted.
 RUN useradd -u 1000 -m papp

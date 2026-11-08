@@ -10,16 +10,19 @@ services:
     environment:
       NVIDIA_KEY_FILE: /run/secrets/nvidia_build.env
       PAPP_TOKEN_FILE: /run/secrets/papp_token
+      PAPP_CACHE_DIR: /cache                     # TTS/NMT/fx cache (phrasebook pre-render warms it)
+      PAPP_PEER_URL: ${PAPP_PEER_URL:-}           # Cloud Run URL: cachy forwards ocr engine=best there
     volumes:
       - ${HOME}/.config/zenilify/nvidia_build.env:/run/secrets/nvidia_build.env:ro
       - ${HOME}/.config/zenilify/papp_token:/run/secrets/papp_token:ro
+      - ${HOME}/papp/cache:/cache
     ports:
       - "192.168.1.5:8787:8080"     # LAN (Toluca)
       - "100.69.244.21:8787:8080"   # Tailscale (cachy) — the path from China
     read_only: true
     tmpfs: [/tmp]
     labels:
-      lane: l4
+      lane: l4,t5-s
       owner: erick
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3)"]
