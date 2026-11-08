@@ -112,25 +112,26 @@ static int jint(const char *j, const char *k)
     p = strchr(p + strlen(pat), ':'); return p ? atoi(p + 1) : -1;
 }
 
-static int one_try(int ep, const papp_job_t *job, papp_result_t *r)
+// One POST to {BASE}{path}; reply = WAV (+ X-Papp-* headers) on 200.
+static int one_req(int ep, const char *path, const char *ctype, const uint8_t *body_out, size_t out_len,
+                   papp_result_t *r)
 {
-    char url[200], auth[128];
-    snprintf(url, sizeof url, "%s/translate?src=%s&tgt=%s&format=wav&rate=%d",
-             EP_URL[ep], lang_code(job->src), lang_code(job->tgt), PAPP_RATE);
+    char url[512], auth[128];
+    snprintf(url, sizeof url, "%s%s", EP_URL[ep], path);
     snprintf(auth, sizeof auth, "Bearer %s", s_token);
     hdrs_t h = {0};
     esp_http_client_handle_t c = mk(url, 30000, HTTP_METHOD_POST, &h);
-    esp_http_client_set_header(c, "Content-Type", "audio/wav");
+    esp_http_client_set_header(c, "Content-Type", ctype);
     esp_http_client_set_header(c, "Authorization", auth);
     memset(auth, 0, sizeof auth);
     int64_t t0 = esp_timer_get_time();
     int status = -1;
-    esp_err_t e = esp_http_client_open(c, job->wav_len);
+    esp_err_t e = esp_http_client_open(c, out_len);
     if (e == ESP_OK) {
         size_t off = 0;
-        while (off < job->wav_len) {
-            int n = esp_http_client_write(c, (const char *)job->wav + off,
-                                          job->wav_len - off > 4096 ? 4096 : job->wav_len - off);
+        while (off < out_len) {
+            int n = esp_http_client_write(c, (const char *)body_out + off,
+                                          out_len - off > 4096 ? 4096 : out_len - off);
             if (n <= 0) { e = ESP_FAIL; break; }
             off += n;
         }
@@ -139,9 +140,9 @@ static int one_try(int ep, const papp_job_t *job, papp_result_t *r)
         int64_t cl = esp_http_client_fetch_headers(c);
         status = esp_http_client_get_status_code(c);
         size_t cap = cl > 0 ? (size_t)cl : 256 * 1024, len = 0;
-        uint8_t *body = heap_caps_malloc(cap, MALLOC_CAP_SPIRAM);
+        uint8_t *body = heap_caps_malloc(cap + 1, MALLOC_CAP_SPIRAM);
         while (body) {
-            if (len == cap) { uint8_t *nb = heap_caps_realloc(body, cap * 2, MALLOC_CAP_SPIRAM); if (!nb) break; body = nb; cap *= 2; }
+            if (len == cap) { uint8_t *nb = heap_caps_realloc(body, cap * 2 + 1, MALLOC_CAP_SPIRAM); if (!nb) break; body = nb; cap *= 2; }
             int n = esp_http_client_read(c, (char *)body + len, cap - len);
             if (n <= 0) break;
             len += n;
@@ -152,7 +153,10 @@ static int one_try(int ep, const papp_job_t *job, papp_result_t *r)
             if (wav_parse(body, len, &pcm, &ns, &rate)) {
                 r->pcm = heap_caps_malloc(ns * 2, MALLOC_CAP_SPIRAM);
                 if (r->pcm) { memcpy(r->pcm, pcm, ns * 2); r->samples = ns; r->rate = rate; }
-            } else ESP_LOGW(TAG, "reply is not a PCM16 mono WAV (%u B)", (unsigned)len);
+            } else {                       // non-audio 200 (JSON): hand the text back in tgt_text
+                body[len] = 0;
+                r->tgt_text = strdup((char *)body);
+            }
         } else if (body && len) {
             ESP_LOGW(TAG, "HTTP %d: %.*s", status, (int)(len > 160 ? 160 : len), (char *)body);
         }
@@ -164,24 +168,69 @@ static int one_try(int ep, const papp_job_t *job, papp_result_t *r)
     esp_http_client_cleanup(c);
     r->http_status = status; r->endpoint = ep;
     if (h.src) r->src_text = url_decode(h.src);
-    if (h.tgt) r->tgt_text = url_decode(h.tgt);
+    if (h.tgt) { free(r->tgt_text); r->tgt_text = url_decode(h.tgt); }
     if (h.asr) snprintf(r->asr_model, sizeof r->asr_model, "%s", h.asr);
     r->t_asr = jint(h.tim, "asr"); r->t_nmt = jint(h.tim, "nmt"); r->t_tts = jint(h.tim, "tts"); r->t_total = jint(h.tim, "total");
     free(h.src); free(h.tgt); free(h.tim); free(h.asr);
     return status;
 }
 
-void papp_translate(const papp_job_t *job, papp_result_t *r)
+// Active endpoint, then re-probe once and retry on a transport error.
+static void with_failover(const char *path, const char *ctype, const uint8_t *b, size_t n, papp_result_t *r)
 {
     memset(r, 0, sizeof *r);
     r->http_status = -1; r->endpoint = -1;
     if (!s_token[0]) { r->http_status = 401; return; }
     if (s_active < 0) papp_probe(NULL);
     if (s_active < 0) return;
-    int st = one_try(s_active, job, r);
-    if (st < 0) {                       // transport error: endpoint gone -> re-probe, retry once
+    int st = one_req(s_active, path, ctype, b, n, r);
+    if (st < 0) {
         int old = s_active;
         papp_result_free(r); r->http_status = -1; r->endpoint = -1;
-        if (papp_probe(NULL) >= 0 && s_active != old) one_try(s_active, job, r);
+        if (papp_probe(NULL) >= 0 && s_active != old) one_req(s_active, path, ctype, b, n, r);
     }
+}
+
+static char *json_text(const char *text)      // {"text": "<escaped>"}
+{
+    size_t n = strlen(text);
+    char *o = malloc(n * 6 + 16), *p = o;
+    p += sprintf(p, "{\"text\": \"");
+    for (const unsigned char *s = (const unsigned char *)text; *s; s++) {
+        if (*s == '"' || *s == '\\') { *p++ = '\\'; *p++ = *s; }
+        else if (*s == '\n') { *p++ = '\\'; *p++ = 'n'; }
+        else if (*s < 0x20) p += sprintf(p, "\\u%04x", *s);
+        else *p++ = *s;
+    }
+    strcpy(p, "\"}");
+    return o;
+}
+
+void papp_text_translate(lang_t src, lang_t tgt, const char *text, papp_result_t *r)
+{
+    char path[96]; snprintf(path, sizeof path, "/translate-text?src=%s&tgt=%s&format=wav&rate=%d",
+                            lang_code(src), lang_code(tgt), PAPP_RATE);
+    char *j = json_text(text);
+    with_failover(path, "application/json", (uint8_t *)j, strlen(j), r);
+    free(j);
+}
+
+void papp_tts(lang_t lang, const char *text, papp_result_t *r)
+{
+    char path[64]; snprintf(path, sizeof path, "/tts?lang=%s&rate=%d", lang_code(lang), PAPP_RATE);
+    char *j = json_text(text);
+    with_failover(path, "application/json", (uint8_t *)j, strlen(j), r);
+    free(j);
+}
+
+void papp_get_json(const char *path, papp_result_t *r)   // e.g. /fx -> r->tgt_text = JSON body
+{
+    with_failover(path, "application/json", (const uint8_t *)"{}", 2, r);
+}
+
+void papp_translate(const papp_job_t *job, papp_result_t *r)
+{
+    char path[96]; snprintf(path, sizeof path, "/translate?src=%s&tgt=%s&format=wav&rate=%d",
+                            lang_code(job->src), lang_code(job->tgt), PAPP_RATE);
+    with_failover(path, "audio/wav", job->wav, job->wav_len, r);
 }

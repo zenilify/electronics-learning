@@ -20,6 +20,8 @@
 #include "settings.h"
 #include "demo_data.h"
 #include "c6ota.h"
+#include "sdcard.h"
+#include "svc.h"
 
 static const char *TAG = "papp";
 volatile papp_status_t g_status = { .endpoint = -1, .batt_v = -1 };
@@ -114,6 +116,12 @@ static void run_job(papp_job_t *job)
         r.http_status = 422;                      // server answered but heard nothing usable
     }
     if (r.http_status == 200) {
+        char *ln = malloc(strlen(r.src_text ? r.src_text : "") + strlen(r.tgt_text) + 48);
+        if (ln) {
+            sprintf(ln, "%s>%s\t%d ms\t%s\t%s", lang_code(job->src), lang_code(job->tgt), r.rtt_ms,
+                    r.src_text ? r.src_text : "", r.tgt_text);
+            sd_log("history.tsv", ln); free(ln);
+        }
         int16_t *pcm = r.pcm; size_t n = r.samples; int rate = r.rate;
         ui_add_turn(job, &r, offline);           // bubble now owns pcm
         ui_busy(NULL, NULL);
@@ -192,6 +200,11 @@ static void console_task(void *a)
             vTaskDelay(pdMS_TO_TICKS(300)); esp_restart();
         }
         else if (!strcmp(line, "scan")) net_scan_log();
+        else if (!strcmp(line, "sd")) {
+            uint32_t t, f; bool ok = sd_mount(); sd_info(&t, &f);
+            ESP_LOGI(TAG, "sd %s card=%s total=%lu MB free=%lu MB", ok ? "OK" : "FAIL", sd_card_name(),
+                     (unsigned long)t, (unsigned long)f);
+        }
         else if (!strcmp(line, "c6ver")) {
             uint32_t a, b, c;
             if (c6_version(&a, &b, &c)) ESP_LOGI(TAG, "C6 esp-hosted fw %lu.%lu.%lu", (unsigned long)a, (unsigned long)b, (unsigned long)c);
@@ -228,7 +241,7 @@ void app_main(void)
     uint8_t rot = settings_get_u8("rot", LV_DISPLAY_ROTATION_90);
     bsp_display_rotate(disp, rot == LV_DISPLAY_ROTATION_270 ? LV_DISPLAY_ROTATION_270 : LV_DISPLAY_ROTATION_90);
     bsp_display_backlight_on();
-    bsp_display_brightness_set(85);
+    bsp_display_brightness_set(settings_get_u8("bri", 85));
 
     s_q = xQueueCreate(2, sizeof(msg_t));
     ui_init(disp);
@@ -236,6 +249,8 @@ void app_main(void)
     battery_start();
     xTaskCreatePinnedToCore(worker, "worker", 8192, NULL, 5, NULL, 0);
     net_start();
+    svc_start();
+    sd_mount();                       // after the C6 (slot 1) so both slots share one initialised host
     xTaskCreate(console_task, "console", 4096, NULL, 2, NULL);
     ESP_LOGI(TAG, "up: free internal %u kB, PSRAM %u kB",
              (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),

@@ -11,23 +11,15 @@
 #include <stdlib.h>
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "ui_priv.h"
 
-#define C_BG     0x0B0F14
-#define C_PANEL  0x151C25
-#define C_LINE   0x243041
-#define C_TEXT   0xE6EDF3
-#define C_DIM    0x8B98A5
-#define C_TEAL   0x14B8A6
-#define C_AMBER  0xF59E0B
-#define C_RED    0xEF4444
-#define C_GREEN  0x22C55E
 #define MAX_TURNS 24
 
 extern const uint8_t cjk_start[] asm("_binary_papp_cjk_ttf_start");
 extern const uint8_t cjk_end[]   asm("_binary_papp_cjk_ttf_end");
 
 static lv_display_t *s_disp;
-static lv_font_t *f18, *f24, *f30, *f40, *f_logo;
+lv_font_t *f18, *f24, *f30, *f40, *f_logo;
 static lv_obj_t *scr, *chat, *lbl_ep, *lbl_wifi, *lbl_batt, *btn_demo, *lbl_demo, *spin, *lbl_status;
 static lv_obj_t *pairbtn[PAIR_COUNT];
 static lv_obj_t *ptt[2], *ptt_lang[2], *ptt_hint[2], *ptt_bar[2];
@@ -35,11 +27,9 @@ static int64_t s_busy_t0;
 static bool s_busy;
 static char s_busy_msg[96];
 
-static inline bool lock(void) { return bsp_display_lock(0); }
-static inline void unlock(void) { bsp_display_unlock(); }
 static uint32_t side_color(int side) { return side ? C_AMBER : C_TEAL; }
 
-static lv_font_t *mkfont(int px)
+lv_font_t *mkfont(int px)
 {
     lv_font_t *f = lv_tiny_ttf_create_data(cjk_start, cjk_end - cjk_start, px);
     if (!f) return (lv_font_t *)&lv_font_montserrat_24;
@@ -47,7 +37,7 @@ static lv_font_t *mkfont(int px)
     return f;
 }
 
-static lv_obj_t *label(lv_obj_t *p, const lv_font_t *f, uint32_t col, const char *t)
+lv_obj_t *label(lv_obj_t *p, const lv_font_t *f, uint32_t col, const char *t)
 {
     lv_obj_t *l = lv_label_create(p);
     lv_obj_set_style_text_font(l, f, 0);
@@ -56,7 +46,7 @@ static lv_obj_t *label(lv_obj_t *p, const lv_font_t *f, uint32_t col, const char
     return l;
 }
 
-static void plain(lv_obj_t *o, uint32_t bg)
+void plain(lv_obj_t *o, uint32_t bg)
 {
     lv_obj_remove_style_all(o);
     lv_obj_set_style_bg_color(o, lv_color_hex(bg), 0);
@@ -327,7 +317,11 @@ static void on_demo(lv_event_t *e)
     papp_demo_toggle(lv_event_get_code(e) == LV_EVENT_LONG_PRESSED);
 }
 
-static void on_logo_long(lv_event_t *e)
+static void on_logo_home(lv_event_t *e) { home_show(); }
+lv_obj_t *ui_translator_screen(void) { return scr; }
+lv_display_t *ui_display(void) { return s_disp; }
+
+void on_logo_long(lv_event_t *e)
 {
     // flip the screen 180° for the other hand / USB side; remembered in NVS
     lv_display_rotation_t r = lv_display_get_rotation(s_disp) == LV_DISPLAY_ROTATION_90 ? LV_DISPLAY_ROTATION_270 : LV_DISPLAY_ROTATION_90;
@@ -340,7 +334,7 @@ static void bar_anim(void *o, int32_t v) { lv_obj_set_height(o, v); }
 static void splash_done(lv_timer_t *t)
 {
     lv_obj_t *sp = lv_timer_get_user_data(t);
-    lv_screen_load_anim(scr, LV_SCREEN_LOAD_ANIM_FADE_IN, 400, 0, true);
+    lv_screen_load_anim(home_screen(), LV_SCREEN_LOAD_ANIM_FADE_IN, 400, 0, true);
     (void)sp;
     lv_timer_delete(t);
 }
@@ -400,10 +394,11 @@ void ui_init(lv_display_t *disp)
     lv_obj_set_flex_align(top, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(top, 14, 0);
     lv_obj_remove_flag(top, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_t *logo = label(top, f30, C_TEXT, "PAPP");
+    lv_obj_t *logo = label(top, f30, C_TEXT, LV_SYMBOL_LEFT " PAPP");
     lv_obj_set_style_text_letter_space(logo, 6, 0);
     lv_obj_add_flag(logo, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(logo, on_logo_long, LV_EVENT_LONG_PRESSED, NULL);
+    lv_obj_add_event_cb(logo, on_logo_home, LV_EVENT_SHORT_CLICKED, NULL);
     static const char *pair_txt[PAIR_COUNT] = { "ES ⇄ 中文", "EN ⇄ 中文", "ES ⇄ EN" };
     for (int i = 0; i < PAIR_COUNT; i++) {
         pairbtn[i] = lv_obj_create(top);
@@ -468,6 +463,7 @@ void ui_init(lv_display_t *disp)
 
     refresh_ptt_labels();
     lv_timer_create(tick, 100, NULL);
+    home_init();
     splash();
     unlock();
 }
