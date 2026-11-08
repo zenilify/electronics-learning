@@ -1,0 +1,24 @@
+{
+ "engine": "qwen25",
+ "load_s": 2.8,
+ "es>zh": {
+  "chrF": 51.5,
+  "lat_ms_median": 611,
+  "lat_ms_max": 2009
+ },
+ "zh>es": {
+  "chrF": 63.1,
+  "lat_ms_median": 713,
+  "lat_ms_max": 1016
+ },
+ "en>zh": {
+  "chrF": 48.9,
+  "lat_ms_median": 643,
+  "lat_ms_max": 947
+ },
+ "zh>en": {
+  "chrF": 72.0,
+  "lat_ms_median": 649,
+  "lat_ms_max": 950
+ }
+}

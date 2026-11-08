@@ -1,0 +1,24 @@
+{
+ "engine": "nllb",
+ "load_s": 11.5,
+ "es>zh": {
+  "chrF": 30.9,
+  "lat_ms_median": 370,
+  "lat_ms_max": 1037
+ },
+ "zh>es": {
+  "chrF": 56.6,
+  "lat_ms_median": 390,
+  "lat_ms_max": 767
+ },
+ "en>zh": {
+  "chrF": 39.2,
+  "lat_ms_median": 344,
+  "lat_ms_max": 824
+ },
+ "zh>en": {
+  "chrF": 62.1,
+  "lat_ms_median": 378,
+  "lat_ms_max": 1003
+ }
+}

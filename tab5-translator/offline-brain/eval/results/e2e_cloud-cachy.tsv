@@ -1,0 +1,61 @@
+tag	dir	id	rtt_ms	asr_text	translation	reference	asr_model
+cloud-cachy	es>zh	1	10295	Buenos días, cómo¿ está usted?	你好,你好吗?	早上好，您好吗？	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	2	1344	Dónde¿ está la estación de metro más cercana?	最近的地铁站在哪里?	最近的地铁站在哪里？	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	3	1282	Por favor, lléveme a este hotel.	请带我去这家酒店。	请带我去这家酒店。	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	4	1218	Cuánto¿ cuesta esto?	什么是“我”的意思?	这个多少钱？	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	5	1405	Es demasiado caro. Me¿ puede hacer un descuento?	价格太贵了,你能给我折扣吗?	太贵了，能便宜一点吗？	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	6	1124	No como carne de cerdo.	不是猪肉。	我不吃猪肉。	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	7	1361	Puede¿ recomendarme un plato que no sea picante?	你能推荐一道不太辛辣的菜吗?	您能推荐一道不辣的菜吗？	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	8	1217	La cuenta, por favor.	账户,请。	请给我账单。	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	9	1250	Aceptan pago con tarjeta de crédito.	接受信用卡付款。	可以用信用卡付款吗？	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	10	1338	Tengo una reservación a nombre de Eric.	我有一个名字的预订埃里克。	我有一个以埃里克名字预订的房间。	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	11	1239	A¿ qué hora es el desayuno?	早餐是什么时候?	早餐几点开始？	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	12	1629	Necesito un taxi al aeropuerto Ma Ana a las siete	我需要一辆出租车到马安娜机场在七点钟	我明天七点需要一辆去机场的出租车。	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	13	1308	Me perdí. Me¿ puede ayudar?	我错过了。你能帮我吗?	我迷路了，您能帮帮我吗？	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	14	1105	Dónde¿ está el baño?	浴室在哪里?	洗手间在哪里？	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	15	1666	mucho gusto. Soy fundador de Cenilify, una consultora de México.	我是 Cenilify 的创始人,这是一家墨西哥的咨询公司。	很高兴认识您，我是来自墨西哥的咨询公司Zenilify的创始人。	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	16	1661	Me interesa mucho su nuevea tableta con el chip Sp.	我对你的新平板电脑非常感兴趣,带有 Sp 芯片。	我对你们搭载ESP32-P4芯片的新平板电脑非常感兴趣。	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	17	1268	Cuál¿ es la cantidad mínima de pedido?	什么是最低订单数量?	最低起订量是多少？	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	18	1363	Cuánto¿ tarda el envío a México?	运送到墨西哥需要多长时间?	发货到墨西哥需要多长时间？	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	19	1451	Este traductor funciona sin internet.	这个翻译器在没有互联网的情况下工作。	这个翻译器不需要网络也能用。	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	20	1252	Podemos¿ tomarnos una foto juntos?	我们可以一起拍照吗?	我们可以一起拍张照片吗？	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	21	1264	Muchas gracias por su hospitalidad.	非常感谢您的好客。	非常感谢您的热情款待。	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	22	1390	Hable más de espacio, por favor.	更多关于空间的信息,请。	请说慢一点。	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	23	1295	No entiendo. Puede¿ repetirlo?	我不明白,你能重复吗?	我听不懂，您能再说一遍吗？	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	24	1227	Soy alérgico a los cacahuates.	我对花生过敏。	我对花生过敏。	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	25	1240	Hay¿ una farmacia cerca de aquí?	附近有药店吗?	这附近有药店吗？	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	26	1288	Quisiera cambiar dólares a yuanes.	我想把美元换成人民币。	我想把美元换成人民币。	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	27	1453	El tren de alta velocidad a Shenzhen sale a las diez.	深圳的高铁十点钟就要开了。	去深圳的高铁十点出发。	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	28	1537	Nuestra fábrica redujo los defectos un treinta por ciento.	我们的工厂减少了三十% 的缺陷。	我们的工厂把缺陷减少了百分之三十。	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	29	1577	Le enviaré la propuesta por correo electrónico esta semana.	我会在本周通过电子邮件发送给你。	我这周会通过电子邮件把方案发给您。	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	es>zh	30	1373	Fue un placer. Nos vemos en la feria.	很高兴在展会上见到你。	很荣幸，展会上见！	parakeet-1_1b-rnnt-multilingual-asr
+cloud-cachy	zh>es	1	2674	早上好 您好吗	-Buenas noches, ¿cómo estás?	Buenos días, ¿cómo está usted?	whisper-large-v3
+cloud-cachy	zh>es	2	1212	最近的地铁站在哪里	¿Dónde está la estación de metro más cercana?	¿Dónde está la estación de metro más cercana?	whisper-large-v3
+cloud-cachy	zh>es	3	1117	请带我去这家酒店	Por favor, llévame al hotel.	Por favor, lléveme a este hotel.	whisper-large-v3
+cloud-cachy	zh>es	4	866	这个多少钱	¿Cuánto es esto?	¿Cuánto cuesta esto?	whisper-large-v3
+cloud-cachy	zh>es	5	1179	太贵了,能便宜一点吗?	Es caro, ¿puede ser más barato?	Es demasiado caro, ¿me puede hacer un descuento?	whisper-large-v3
+cloud-cachy	zh>es	6	933	我不吃猪肉	No comemos carne de cerdo.	No como carne de cerdo.	whisper-large-v3
+cloud-cachy	zh>es	7	1207	您能推荐一道不辣的菜吗?	¿Puedes recomendar un plato de comida sin picar?	¿Puede recomendarme un plato que no sea picante?	whisper-large-v3
+cloud-cachy	zh>es	8	1028	请给我账单	Por favor, envíeme la factura.	La cuenta, por favor.	whisper-large-v3
+cloud-cachy	zh>es	9	1130	可以用信用卡付款吗?	¿Puedo pagar con tarjeta de crédito?	¿Aceptan pago con tarjeta de crédito?	whisper-large-v3
+cloud-cachy	zh>es	10	1771	我有一个以埃里克名字预定的房间	Tengo una habitación reservada con el nombre de Eric.	Tengo una reservación a nombre de Erick.	whisper-large-v3
+cloud-cachy	zh>es	11	1753	早餐几点开始	¿A qué hora comienza el desayuno?	¿A qué hora es el desayuno?	whisper-large-v3
+cloud-cachy	zh>es	12	2079	我明天7点需要一辆去机场的出租车	Necesito un taxi para el aeropuerto mañana a las 7.	Necesito un taxi al aeropuerto mañana a las siete.	whisper-large-v3
+cloud-cachy	zh>es	13	1522	我迷路了,您能帮帮我吗?	Estoy perdido, ¿me puedes ayudar?	Me perdí, ¿me puede ayudar?	whisper-large-v3
+cloud-cachy	zh>es	14	1470	洗手间在哪里?	¿Dónde está el baño?	¿Dónde está el baño?	whisper-large-v3
+cloud-cachy	zh>es	15	2064	很高兴认识您我是来自墨西哥的咨询公司Zenilify的创始人	Es un placer conocerte Soy el fundador de la consultora Zenilify de México.	Mucho gusto, soy fundador de Zenilify, una consultora de México.	whisper-large-v3
+cloud-cachy	zh>es	16	1909	我对你们搭载ES32博茨瓦那普拉4博茨瓦那普拉芯片的新平板电脑非常感兴趣	Estoy muy interesado en su nueva tableta con ES32 Botswana Pula 4 Botswana Pula chip.	Me interesa mucho su nueva tableta con el chip ESP32-P4.	whisper-large-v3
+cloud-cachy	zh>es	17	1125	最低启定量是多少。	¿Cuál es la cantidad mínima de inicio?	¿Cuál es la cantidad mínima de pedido?	whisper-large-v3
+cloud-cachy	zh>es	18	1135	发货到墨西哥需要多长时间	¿Cuánto tiempo tarda en llegar a México?	¿Cuánto tarda el envío a México?	whisper-large-v3
+cloud-cachy	zh>es	19	1118	这个翻译器不需要网络也能用。	Este traductor no requiere una red.	Este traductor funciona sin internet.	whisper-large-v3
+cloud-cachy	zh>es	20	1078	我们可以一起拍张照片吗?	¿Podemos tomar una foto juntos?	¿Podemos tomarnos una foto juntos?	whisper-large-v3
+cloud-cachy	zh>es	21	1045	非常感谢您的热情款待	Gracias por su hospitalidad.	Muchas gracias por su hospitalidad.	whisper-large-v3
+cloud-cachy	zh>es	22	995	请说慢一点	Por favor, habla despacio.	Hable más despacio, por favor.	whisper-large-v3
+cloud-cachy	zh>es	23	1165	我听不懂,您能再说一遍吗?	No lo entiendo, ¿puedes decirlo de nuevo?	No entiendo, ¿puede repetirlo?	whisper-large-v3
+cloud-cachy	zh>es	24	1120	我对花生过敏	Soy alérgico a los cacahuetes.	Soy alérgico a los cacahuates.	whisper-large-v3
+cloud-cachy	zh>es	25	1059	这附近有药店吗?	¿Hay una farmacia cerca?	¿Hay una farmacia cerca de aquí?	whisper-large-v3
+cloud-cachy	zh>es	26	1079	我想把美元换成人民币	Quiero cambiar mi dólar por RMB	Quisiera cambiar dólares a yuanes.	whisper-large-v3
+cloud-cachy	zh>es	27	1346	去深圳的高铁10点出发	Salida de trenes de alta velocidad a Shenzhen a las 10 am.	El tren de alta velocidad a Shenzhen sale a las diez.	whisper-large-v3
+cloud-cachy	zh>es	28	2144	我们的工厂把缺陷减少了30%	Nuestra fábrica redujo los defectos en un 30%	Nuestra fábrica redujo los defectos un treinta por ciento.	whisper-large-v3
+cloud-cachy	zh>es	29	1766	我这周会通过电子邮件把方案发给您。	Le enviaré el programa por correo electrónico esta semana.	Le enviaré la propuesta por correo electrónico esta semana.	whisper-large-v3
+cloud-cachy	zh>es	30	1514	很荣幸展会上见	Es un honor verlo en la exposición.	Fue un placer, ¡nos vemos en la feria!	whisper-large-v3

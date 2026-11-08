@@ -1,0 +1,24 @@
+{
+ "tag": "brain-say",
+ "url": "http://127.0.0.1:8787",
+ "es>zh": {
+  "n": 30,
+  "rtt_ms_median": 2816,
+  "rtt_ms_max": 3713,
+  "asr_ms": 294,
+  "nmt_ms": 426,
+  "tts_ms": 2034,
+  "asr_cer_mean": 0.023,
+  "chrF": 44.9
+ },
+ "zh>es": {
+  "n": 30,
+  "rtt_ms_median": 3091,
+  "rtt_ms_max": 3806,
+  "asr_ms": 308,
+  "nmt_ms": 518,
+  "tts_ms": 2204,
+  "asr_cer_mean": 0.042,
+  "chrF": 66.7
+ }
+}

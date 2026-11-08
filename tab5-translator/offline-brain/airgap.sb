@@ -1,0 +1,8 @@
+(version 1)
+; PAPP offline brain — airgap profile for `sandbox-exec -f airgap.sb ./start.sh` (no sudo needed).
+; Every outbound IP connection is refused except loopback; inbound (the Tab5 / cachy calling
+; :8787) and the unix socket to mDNSResponder (dns-sd -R) keep working.
+; This proves the PROCESS needs no internet; it is not a link-level test (see README §Offline proof).
+(allow default)
+(deny network-outbound (remote ip "*:*"))
+(allow network-outbound (remote ip "localhost:*"))

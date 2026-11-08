@@ -1,0 +1,24 @@
+{
+ "engine": "cloud",
+ "load_s": 0.0,
+ "es>zh": {
+  "chrF": 42.0,
+  "lat_ms_median": 282,
+  "lat_ms_max": 844
+ },
+ "zh>es": {
+  "chrF": 66.5,
+  "lat_ms_median": 282,
+  "lat_ms_max": 399
+ },
+ "en>zh": {
+  "chrF": 47.7,
+  "lat_ms_median": 264,
+  "lat_ms_max": 421
+ },
+ "zh>en": {
+  "chrF": 71.2,
+  "lat_ms_median": 264,
+  "lat_ms_max": 451
+ }
+}

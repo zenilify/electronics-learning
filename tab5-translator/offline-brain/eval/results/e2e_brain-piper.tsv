@@ -1,0 +1,61 @@
+tag	dir	id	rtt_ms	asr_text	translation	reference	asr_model
+brain-piper	es>zh	1	612	Buenos días. ¿Cómo está usted?	早上好。您好吗？	早上好，您好吗？	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	2	3122	¿Dónde está la estación de metro más cercana?	最近的地铁站在哪里？	最近的地铁站在哪里？	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	3	1048	Por favor, lléveme a este hotel.	请带我去这家酒店。	请带我去这家酒店。	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	4	1317	¿Cuánto cuesta esto?	这要多少钱？	这个多少钱？	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	5	1771	Es demasiado caro. ¿Me puede hacer un descuento?	这太贵了。您能给我打折吗？	太贵了，能便宜一点吗？	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	6	1399	no como carne de cerdo.	不是猪肉。	我不吃猪肉。	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	7	1484	¿Puede recomendarme un plato que no sea picante?	您可以推荐一道不辣的菜吗？	您能推荐一道不辣的菜吗？	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	8	1521	La cuenta, por favor.	请结账。	请给我账单。	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	9	2040	¿Aceptan pago con tarjeta de crédito?	你们接受信用卡支付吗？	可以用信用卡付款吗？	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	10	1615	Tengo una reservación a nombre de Eric.	我的预订是埃里克的名字。	我有一个以埃里克名字预订的房间。	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	11	1596	¿A qué hora es el desayuno?	早餐几点？	早餐几点开始？	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	12	1891	Necesito un taxi al aeropuerto mañana a las 7.	我明天早上7点需要一辆出租车去机场。	我明天七点需要一辆去机场的出租车。	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	13	1274	Me perdí. ¿Me puede ayudar?	我迷路了，能帮帮我吗？	我迷路了，您能帮帮我吗？	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	14	1420	¿Dónde está el baño?	洗手间在哪里？	洗手间在哪里？	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	15	2194	Mucho gusto, soy fundador de Zenilify, una consultora de México.	很高兴见到您，我是Zenilify的创始人，我们是一家墨西哥的咨询公司。	很高兴认识您，我是来自墨西哥的咨询公司Zenilify的创始人。	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	16	1662	Me interesa mucho su nueva tableta con el chip Speed.	我对你们新推出的配备Speed芯片的平板电脑很感兴趣。	我对你们搭载ESP32-P4芯片的新平板电脑非常感兴趣。	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	17	1811	¿Cuál es la cantidad mínima de pedido?	最低订购数量是多少？	最低起订量是多少？	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	18	1435	¿Cuánto tarda el envío a México?	发货到墨西哥需要多长时间？	发货到墨西哥需要多长时间？	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	19	2154	Este traductor funciona sin internet.	此翻译器无需联网即可使用。	这个翻译器不需要网络也能用。	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	20	1736	¿Podemos tomarnos una foto juntos?	我们可以一起合影吗？	我们可以一起拍张照片吗？	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	21	1826	Muchas gracias por su hospitalidad.	谢谢您的款待。	非常感谢您的热情款待。	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	22	1351	Hable más despacio, por favor.	请说得慢一点，好吗？	请说慢一点。	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	23	2085	No entiendo, ¿puede repetirlo?	我不太明白，您能再说一遍吗？	我听不懂，您能再说一遍吗？	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	24	1391	Soy alérgico a los cacahuates.	我对花生过敏。	我对花生过敏。	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	25	1682	¿Hay una farmacia cerca de aquí?	这里附近有药店吗？	这附近有药店吗？	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	26	1986	Quisiera cambiar dólares a yuanes.	我想把美元换成人民币。	我想把美元换成人民币。	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	27	2056	El tren de alta velocidad a Shenzhen sale a las 10.	从高铁站到深圳的列车于10点出发。	去深圳的高铁十点出发。	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	28	2098	Nuestra fábrica redujo los defectos un 30%.	我们工厂将缺陷率降低了30%。	我们的工厂把缺陷减少了百分之三十。	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	29	1831	Le enviaré la propuesta por correo electrónico esta semana.	本周我会通过电子邮件发送给您提案。	我这周会通过电子邮件把方案发给您。	mlx-whisper-large-v3-turbo
+brain-piper	es>zh	30	1548	Fue un placer. Nos vemos en la feria.	很高兴见到您。展会见。	很荣幸，展会上见！	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	1	1862	早上好,您好吗?	Buenos días, ¿cómo está usted?	Buenos días, ¿cómo está usted?	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	2	1795	最近的地铁站在哪里?	¿Dónde está la estación de metro más cercana?	¿Dónde está la estación de metro más cercana?	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	3	1811	请带我去这家酒店。	Por favor, lleve a este hotel.	Por favor, lléveme a este hotel.	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	4	1797	这个多少钱?	¿Cuánto cuesta esto?	¿Cuánto cuesta esto?	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	5	2039	太贵了,能便宜一点吗?	¿Es muy caro? ¿Puedes hacerlo un poco más barato?	Es demasiado caro, ¿me puede hacer un descuento?	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	6	1546	我不吃猪肉。	No como carne de cerdo.	No como carne de cerdo.	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	7	2280	您能推荐一道不辣的菜吗?	¿Puede recomendarme un plato que no sea picante?	¿Puede recomendarme un plato que no sea picante?	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	8	1834	请给我账单。	¿Me puede dar la factura, por favor?	La cuenta, por favor.	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	9	1380	可以用信用卡付款吗?	¿Puedo pagar con tarjeta de crédito?	¿Aceptan pago con tarjeta de crédito?	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	10	1963	我有一个以埃里克名字预定的房间。	Tengo una habitación reservada con el nombre de Erik.	Tengo una reservación a nombre de Erick.	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	11	2450	早餐几点开始。	¿A qué hora comienza el desayuno?	¿A qué hora es el desayuno?	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	12	3002	我明天七点需要一辆去机场的出租车。	Necesito un taxi para ir al aeropuerto a las siete de la mañana.	Necesito un taxi al aeropuerto mañana a las siete.	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	13	2052	我迷路了,您能帮帮我吗?	Me he perdido, ¿me puede ayudar?	Me perdí, ¿me puede ayudar?	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	14	1421	洗手间在哪里?	¿Dónde está el baño?	¿Dónde está el baño?	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	15	2667	很高兴认识您我是来自墨西哥的咨询公司Zenilify的创始人。	Es un placer conocerte. Soy la fundadora de la empresa consultora Zenilify, de México.	Mucho gusto, soy fundador de Zenilify, una consultora de México.	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	16	3162	我对你们搭载ES32波茨瓦那普拉4波茨瓦那普拉芯片的新平板电脑,非常感兴趣。	Me interesa mucho su nuevo tableta con el chip ES32 de la serie Pocophone 4 de Pocophone.	Me interesa mucho su nueva tableta con el chip ESP32-P4.	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	17	1841	最低启定量是多少?	¿Cuál es el menor volumen de pedido?	¿Cuál es la cantidad mínima de pedido?	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	18	1838	发货到墨西哥需要多长时间。	¿Cuánto tiempo tarda en enviar a México?	¿Cuánto tarda el envío a México?	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	19	2227	这个翻译器不需要网络也能用。	Este traductor puede utilizarse sin necesidad de conexión a internet.	Este traductor funciona sin internet.	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	20	1393	我们可以一起拍张照片吗?	¿Podríamos hacer una foto juntos?	¿Podemos tomarnos una foto juntos?	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	21	1686	非常感谢您的热情款待。	Gracias por su cálida hospitalidad.	Muchas gracias por su hospitalidad.	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	22	1820	请说慢一点。	Por favor, habla más despacio.	Hable más despacio, por favor.	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	23	1484	我听不懂,您能再说一遍吗?	No he entendido, ¿podría repetirlo?	No entiendo, ¿puede repetirlo?	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	24	2380	我对花生过敏。	Tengo alergia al maní.	Soy alérgico a los cacahuates.	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	25	1610	这附近有药店吗?	¿Hay una farmacia cerca?	¿Hay una farmacia cerca de aquí?	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	26	2547	我想把美元换成人民币。	Quiero cambiar dólares estadounidenses por yuanes chinos.	Quisiera cambiar dólares a yuanes.	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	27	2898	去深圳的高铁十点出发。	El tren de alta velocidad a Shenzhen sale a las diez.	El tren de alta velocidad a Shenzhen sale a las diez.	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	28	3035	我们的工厂把缺陷减少了30%。	Nuestra fábrica redujo los defectos en un 30%.	Nuestra fábrica redujo los defectos un treinta por ciento.	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	29	2640	我这周会通过电子邮件把方案发给您。	Le enviaré el plan por correo electrónico esta semana.	Le enviaré la propuesta por correo electrónico esta semana.	mlx-whisper-large-v3-turbo
+brain-piper	zh>es	30	2006	很荣幸,展会尚见。	Es un placer, aún se puede ver la exposición.	Fue un placer, ¡nos vemos en la feria!	mlx-whisper-large-v3-turbo

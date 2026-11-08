@@ -1,0 +1,121 @@
+id	dir	source	hypothesis	reference
+1	es>zh	Buenos días, ¿cómo está usted?	早上好，您好吗？	早上好，您好吗？
+2	es>zh	¿Dónde está la estación de metro más cercana?	最近的地铁站在哪里？	最近的地铁站在哪里？
+3	es>zh	Por favor, lléveme a este hotel.	请带我去这家酒店。	请带我去这家酒店。
+4	es>zh	¿Cuánto cuesta esto?	这要多少钱？	这个多少钱？
+5	es>zh	Es demasiado caro, ¿me puede hacer un descuento?	太贵了，你能给我打折吗？	太贵了，能便宜一点吗？
+6	es>zh	No como carne de cerdo.	我不吃猪肉。	我不吃猪肉。
+7	es>zh	¿Puede recomendarme un plato que no sea picante?	可以推荐一个不辣的菜吗？	您能推荐一道不辣的菜吗？
+8	es>zh	La cuenta, por favor.	请结账。	请给我账单。
+9	es>zh	¿Aceptan pago con tarjeta de crédito?	他们接受信用卡支付吗？	可以用信用卡付款吗？
+10	es>zh	Tengo una reservación a nombre de Erick.	我预订的名字是埃里克。	我有一个以埃里克名字预订的房间。
+11	es>zh	¿A qué hora es el desayuno?	早餐是什么时间呢？	早餐几点开始？
+12	es>zh	Necesito un taxi al aeropuerto mañana a las siete.	我明天早上七点需要打车去机场。	我明天七点需要一辆去机场的出租车。
+13	es>zh	Me perdí, ¿me puede ayudar?	我迷路了，你能帮我吗？	我迷路了，您能帮帮我吗？
+14	es>zh	¿Dónde está el baño?	洗手间在哪里？	洗手间在哪里？
+15	es>zh	Mucho gusto, soy fundador de Zenilify, una consultora de México.	很高兴认识您，我是Zenilify的创始人，我们是一家来自墨西哥的咨询公司。	很高兴认识您，我是来自墨西哥的咨询公司Zenilify的创始人。
+16	es>zh	Me interesa mucho su nueva tableta con el chip ESP32-P4.	我对你们的新带ESP32-P4芯片的平板很感兴趣。	我对你们搭载ESP32-P4芯片的新平板电脑非常感兴趣。
+17	es>zh	¿Cuál es la cantidad mínima de pedido?	最低订购量是多少？	最低起订量是多少？
+18	es>zh	¿Cuánto tarda el envío a México?	墨西哥的发货需要多久？	发货到墨西哥需要多长时间？
+19	es>zh	Este traductor funciona sin internet.	这个翻译器不需要网络。	这个翻译器不需要网络也能用。
+20	es>zh	¿Podemos tomarnos una foto juntos?	我们可以一起拍张照片吗？	我们可以一起拍张照片吗？
+21	es>zh	Muchas gracias por su hospitalidad.	谢谢您的款待。	非常感谢您的热情款待。
+22	es>zh	Hable más despacio, por favor.	请慢一点说。	请说慢一点。
+23	es>zh	No entiendo, ¿puede repetirlo?	我不明白，您可以再说一遍吗？	我听不懂，您能再说一遍吗？
+24	es>zh	Soy alérgico a los cacahuates.	我对花生过敏。	我对花生过敏。
+25	es>zh	¿Hay una farmacia cerca de aquí?	附近有药店吗？	这附近有药店吗？
+26	es>zh	Quisiera cambiar dólares a yuanes.	我想把美元换成人民币。	我想把美元换成人民币。
+27	es>zh	El tren de alta velocidad a Shenzhen sale a las diez.	高铁去深圳的车十点发车。	去深圳的高铁十点出发。
+28	es>zh	Nuestra fábrica redujo los defectos un treinta por ciento.	我们的工厂将缺陷率降低了百分之三十。	我们的工厂把缺陷减少了百分之三十。
+29	es>zh	Le enviaré la propuesta por correo electrónico esta semana.	我会在这周通过电子邮件发送给您我们的提案。	我这周会通过电子邮件把方案发给您。
+30	es>zh	Fue un placer, ¡nos vemos en la feria!	很高兴遇见您，我们在展览会上见！	很荣幸，展会上见！
+1	zh>es	早上好，您好吗？	Buenos días, ¿está bien?	Buenos días, ¿cómo está usted?
+2	zh>es	最近的地铁站在哪里？	¿Dónde está la estación más cercana del metro?	¿Dónde está la estación de metro más cercana?
+3	zh>es	请带我去这家酒店。	Por favor, lleva a mí a este hotel.	Por favor, lléveme a este hotel.
+4	zh>es	这个多少钱？	¿Cuánto cuesta este?	¿Cuánto cuesta esto?
+5	zh>es	太贵了，能便宜一点吗？	Es muy caro, ¿podría ser un poco más barato?	Es demasiado caro, ¿me puede hacer un descuento?
+6	zh>es	我不吃猪肉。	No como cerdo.	No como carne de cerdo.
+7	zh>es	您能推荐一道不辣的菜吗？	Puedo recomendarte un plato no picante.	¿Puede recomendarme un plato que no sea picante?
+8	zh>es	请给我账单。	Por favor, dame la cuenta.	La cuenta, por favor.
+9	zh>es	可以用信用卡付款吗？	¿Puedo pagar con tarjeta de crédito?	¿Aceptan pago con tarjeta de crédito?
+10	zh>es	我有一个以埃里克名字预订的房间。	Tengo una habitación reservada en nombre de Eric.	Tengo una reservación a nombre de Erick.
+11	zh>es	早餐几点开始？	A qué hora comienza el desayuno?	¿A qué hora es el desayuno?
+12	zh>es	我明天七点需要一辆去机场的出租车。	Necesito un taxi para el aeropuerto para las siete mañana.	Necesito un taxi al aeropuerto mañana a las siete.
+13	zh>es	我迷路了，您能帮帮我吗？	Estoy perdido, ¿me podrías ayudar?	Me perdí, ¿me puede ayudar?
+14	zh>es	洗手间在哪里？	¿Dónde está el baño?	¿Dónde está el baño?
+15	zh>es	很高兴认识您，我是来自墨西哥的咨询公司Zenilify的创始人。	Mucho gusto conocerte, soy el fundador de la empresa de consultoría Zenilify en México.	Mucho gusto, soy fundador de Zenilify, una consultora de México.
+16	zh>es	我对你们搭载ESP32-P4芯片的新平板电脑非常感兴趣。	Estoy muy interesado en su nueva tableta que lleva el chip ESP32-P4.	Me interesa mucho su nueva tableta con el chip ESP32-P4.
+17	zh>es	最低起订量是多少？	¿Cuál es la cantidad mínima de pedido?	¿Cuál es la cantidad mínima de pedido?
+18	zh>es	发货到墨西哥需要多长时间？	¿Cuánto tiempo tarda el envío a México?	¿Cuánto tarda el envío a México?
+19	zh>es	这个翻译器不需要网络也能用。	Este traductor no necesita internet para funcionar.	Este traductor funciona sin internet.
+20	zh>es	我们可以一起拍张照片吗？	Podríamos hacer una foto juntos, ¿no?	¿Podemos tomarnos una foto juntos?
+21	zh>es	非常感谢您的热情款待。	Muy agradecido por su cálida hospitalidad.	Muchas gracias por su hospitalidad.
+22	zh>es	请说慢一点。	Por favor, habla más lentamente.	Hable más despacio, por favor.
+23	zh>es	我听不懂，您能再说一遍吗？	No entendí, ¿podrías repetirlo por favor?	No entiendo, ¿puede repetirlo?
+24	zh>es	我对花生过敏。	Estoy alérgico a los almendros.	Soy alérgico a los cacahuates.
+25	zh>es	这附近有药店吗？	¿Hay una farmacia por aquí?	¿Hay una farmacia cerca de aquí?
+26	zh>es	我想把美元换成人民币。	Quiero cambiar dólares por yuanes.	Quisiera cambiar dólares a yuanes.
+27	zh>es	去深圳的高铁十点出发。	El tren a Shenzhen sale a las diez.	El tren de alta velocidad a Shenzhen sale a las diez.
+28	zh>es	我们的工厂把缺陷减少了百分之三十。	Nuestra fábrica redujo el defecto en un treinta por ciento.	Nuestra fábrica redujo los defectos un treinta por ciento.
+29	zh>es	我这周会通过电子邮件把方案发给您。	Esta semana enviaré el plan por correo electrónico.	Le enviaré la propuesta por correo electrónico esta semana.
+30	zh>es	很荣幸，展会上见！	Es un placer, nos vemos en la feria!	Fue un placer, ¡nos vemos en la feria!
+1	en>zh	Good morning, how are you?	早上好，你好吗？	早上好，您好吗？
+2	en>zh	Where is the nearest metro station?	最近的地铁站在哪里？	最近的地铁站在哪里？
+3	en>zh	Please take me to this hotel.	请带我去这家酒店。	请带我去这家酒店。
+4	en>zh	How much does this cost?	这个多少钱？	这个多少钱？
+5	en>zh	It is too expensive, can you give me a discount?	它太贵了，你能给我打个折吗？	太贵了，能便宜一点吗？
+6	en>zh	I do not eat pork.	我不吃猪肉。	我不吃猪肉。
+7	en>zh	Can you recommend a dish that is not spicy?	你能推荐一道不辣的菜吗？	您能推荐一道不辣的菜吗？
+8	en>zh	The bill, please.	账单请来了。	请给我账单。
+9	en>zh	Do you accept credit cards?	你们接受信用卡支付吗？	可以用信用卡付款吗？
+10	en>zh	I have a reservation under the name Erick.	我预订的名字是Erick。	我有一个以埃里克名字预订的房间。
+11	en>zh	What time is breakfast?	早餐是什么时间？	早餐几点开始？
+12	en>zh	I need a taxi to the airport tomorrow at seven.	我明天七点需要打车去机场。	我明天七点需要一辆去机场的出租车。
+13	en>zh	I am lost, can you help me?	我迷路了，你能帮我吗？	我迷路了，您能帮帮我吗？
+14	en>zh	Where is the bathroom?	洗手间在哪里？	洗手间在哪里？
+15	en>zh	Nice to meet you, I am the founder of Zenilify, a consulting firm from Mexico.	很高兴见到您，我来自墨西哥的Zenilify咨询公司，我是这家公司的创始人。	很高兴认识您，我是来自墨西哥的咨询公司Zenilify的创始人。
+16	en>zh	I am very interested in your new tablet with the ESP32-P4 chip.	我对你们的新平板配有ESP32-P4芯片非常感兴趣。	我对你们搭载ESP32-P4芯片的新平板电脑非常感兴趣。
+17	en>zh	What is the minimum order quantity?	最低的订单数量是多少？	最低起订量是多少？
+18	en>zh	How long does shipping to Mexico take?	墨西哥的发货需要多久呢？	发货到墨西哥需要多长时间？
+19	en>zh	This translator works without internet.	这个翻译器不需要网络就可以使用。	这个翻译器不需要网络也能用。
+20	en>zh	Can we take a photo together?	我们可以一起拍张照片吗？	我们可以一起拍张照片吗？
+21	en>zh	Thank you very much for your hospitality.	非常感谢您的款待。	非常感谢您的热情款待。
+22	en>zh	Please speak more slowly.	请说得慢一些。	请说慢一点。
+23	en>zh	I do not understand, can you repeat it?	我不明白，你能再说一遍吗？	我听不懂，您能再说一遍吗？
+24	en>zh	I am allergic to peanuts.	我对花生过敏。	我对花生过敏。
+25	en>zh	Is there a pharmacy near here?	附近有药房吗？	这附近有药店吗？
+26	en>zh	I would like to exchange dollars for yuan.	我想兑换美元换成人民币。	我想把美元换成人民币。
+27	en>zh	The high-speed train to Shenzhen leaves at ten.	去深圳的高速列车十点发车。	去深圳的高铁十点出发。
+28	en>zh	Our factory reduced defects by thirty percent.	我们工厂将缺陷率降低了百分之三十。	我们的工厂把缺陷减少了百分之三十。
+29	en>zh	I will send you the proposal by email this week.	我会在这周通过电子邮件发给你提案。	我这周会通过电子邮件把方案发给您。
+30	en>zh	It was a pleasure, see you at the fair!	很高兴遇见你，下次在展览会上见！	很荣幸，展会上见！
+1	zh>en	早上好，您好吗？	Good morning, how are you?	Good morning, how are you?
+2	zh>en	最近的地铁站在哪里？	Where is the nearest subway station?	Where is the nearest metro station?
+3	zh>en	请带我去这家酒店。	Please take me to this hotel.	Please take me to this hotel.
+4	zh>en	这个多少钱？	How much is this?	How much does this cost?
+5	zh>en	太贵了，能便宜一点吗？	It's too expensive. Can you make it a little cheaper?	It is too expensive, can you give me a discount?
+6	zh>en	我不吃猪肉。	I don't eat pork.	I do not eat pork.
+7	zh>en	您能推荐一道不辣的菜吗？	Could you recommend a dish that isn't spicy?	Can you recommend a dish that is not spicy?
+8	zh>en	请给我账单。	Please give me the bill.	The bill, please.
+9	zh>en	可以用信用卡付款吗？	Can we pay with a credit card?	Do you accept credit cards?
+10	zh>en	我有一个以埃里克名字预订的房间。	I have a room reserved in Eric's name.	I have a reservation under the name Erick.
+11	zh>en	早餐几点开始？	What time does breakfast start?	What time is breakfast?
+12	zh>en	我明天七点需要一辆去机场的出租车。	I need a taxi to the airport tomorrow at seven o'clock.	I need a taxi to the airport tomorrow at seven.
+13	zh>en	我迷路了，您能帮帮我吗？	I'm lost, could you help me?	I am lost, can you help me?
+14	zh>en	洗手间在哪里？	Where is the restroom?	Where is the bathroom?
+15	zh>en	很高兴认识您，我是来自墨西哥的咨询公司Zenilify的创始人。	Nice to meet you! I am the founder of Zenilify, a consulting company from Mexico.	Nice to meet you, I am the founder of Zenilify, a consulting firm from Mexico.
+16	zh>en	我对你们搭载ESP32-P4芯片的新平板电脑非常感兴趣。	I'm very interested in your new tablet that is equipped with the ESP32-P4 chip.	I am very interested in your new tablet with the ESP32-P4 chip.
+17	zh>en	最低起订量是多少？	What is the minimum order quantity?	What is the minimum order quantity?
+18	zh>en	发货到墨西哥需要多长时间？	How long does shipping to Mexico take?	How long does shipping to Mexico take?
+19	zh>en	这个翻译器不需要网络也能用。	This interpreter doesn't need the internet to be used.	This translator works without internet.
+20	zh>en	我们可以一起拍张照片吗？	Can we take a photo together?	Can we take a photo together?
+21	zh>en	非常感谢您的热情款待。	Thank you very much for your warm hospitality.	Thank you very much for your hospitality.
+22	zh>en	请说慢一点。	Please speak slower.	Please speak more slowly.
+23	zh>en	我听不懂，您能再说一遍吗？	I don't understand. Could you say it again?	I do not understand, can you repeat it?
+24	zh>en	我对花生过敏。	I am allergic to peanuts.	I am allergic to peanuts.
+25	zh>en	这附近有药店吗？	Is there a pharmacy nearby?	Is there a pharmacy near here?
+26	zh>en	我想把美元换成人民币。	I want to exchange my US dollars for Chinese yuan.	I would like to exchange dollars for yuan.
+27	zh>en	去深圳的高铁十点出发。	The high-speed train to Shenzhen departs at 10 o'clock.	The high-speed train to Shenzhen leaves at ten.
+28	zh>en	我们的工厂把缺陷减少了百分之三十。	Our factory has reduced defects by thirty percent.	Our factory reduced defects by thirty percent.
+29	zh>en	我这周会通过电子邮件把方案发给您。	I will send you the proposal via email this week.	I will send you the proposal by email this week.
+30	zh>en	很荣幸，展会上见！	It's a pleasure to meet you at the exhibition!	It was a pleasure, see you at the fair!

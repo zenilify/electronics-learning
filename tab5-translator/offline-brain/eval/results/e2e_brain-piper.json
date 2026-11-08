@@ -1,0 +1,24 @@
+{
+ "tag": "brain-piper",
+ "url": "http://127.0.0.1:8787",
+ "es>zh": {
+  "n": 30,
+  "rtt_ms_median": 1672,
+  "rtt_ms_max": 3122,
+  "asr_ms": 497,
+  "nmt_ms": 634,
+  "tts_ms": 439,
+  "asr_cer_mean": 0.023,
+  "chrF": 44.9
+ },
+ "zh>es": {
+  "n": 30,
+  "rtt_ms_median": 1913,
+  "rtt_ms_max": 3162,
+  "asr_ms": 420,
+  "nmt_ms": 767,
+  "tts_ms": 763,
+  "asr_cer_mean": 0.042,
+  "chrF": 66.7
+ }
+}

@@ -1,0 +1,24 @@
+{
+ "tag": "cloud-cachy",
+ "url": "http://100.69.244.21:8787",
+ "es>zh": {
+  "n": 30,
+  "rtt_ms_median": 1323,
+  "rtt_ms_max": 10295,
+  "asr_ms": 437,
+  "nmt_ms": 278,
+  "tts_ms": 576,
+  "asr_cer_mean": 0.008,
+  "chrF": 38.0
+ },
+ "zh>es": {
+  "n": 30,
+  "rtt_ms_median": 1172,
+  "rtt_ms_max": 2674,
+  "asr_ms": 418,
+  "nmt_ms": 282,
+  "tts_ms": 430,
+  "asr_cer_mean": 0.046,
+  "chrF": 61.3
+ }
+}

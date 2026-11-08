@@ -1,0 +1,15 @@
+# PAPP offline brain (Apple Silicon, Python 3.12) — versions measured working 2026-11-07
+mlx==0.32.4
+mlx-lm==0.32.2
+mlx-whisper==0.4.3
+numpy==2.5.4
+fastapi==0.162.2
+uvicorn[standard]==0.54.0
+huggingface-hub==2.4.0
+# NLLB candidate + eval only
+torch==2.15.0
+transformers==5.22.2
+sentencepiece==0.2.3
+sacrebleu==2.6.0
+piper-tts==1.8.0
+requests==2.34.2
