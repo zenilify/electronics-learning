@@ -485,7 +485,7 @@ static const tile_t TILES[] = {
     { LV_SYMBOL_SHUFFLE,   "Convertir",   "换算 · ¥ $ km °C",        C_GREEN,  A_CONV },
     { LV_SYMBOL_IMAGE,     "Cámara",      "拍照翻译 · point",          C_VIOLET, A_SOON0 + 0 },
     { LV_SYMBOL_EDIT,      "Notas",       "语音笔记 · voice notes",   C_VIOLET, A_SOON0 + 1 },
-    { LV_SYMBOL_LOOP,      "Conversación","对话 · hands-free",        C_TEAL,   A_SOON0 + 2 },
+    { LV_SYMBOL_LOOP,      "Diálogo",     "对话 · hands-free",        C_TEAL,   A_SOON0 + 2 },
     { LV_SYMBOL_EYE_OPEN,  "Subtítulos",  "实时字幕 · captions",       C_TEAL,   A_SOON0 + 3 },
     { LV_SYMBOL_BLUETOOTH, "Controles",   "Dial · StickS3",          C_BLUE,   A_SOON0 + 4 },
     { LV_SYMBOL_CHARGE,    "RS-485",      "Modbus · 工业",            C_AMBER,  A_SOON0 + 5 },
@@ -573,22 +573,26 @@ void home_init(void)
         lv_obj_set_style_transform_scale(t, 240, LV_STATE_PRESSED);
         lv_obj_add_flag(t, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_remove_flag(t, LV_OBJ_FLAG_SCROLLABLE);
+        // flex column: icon / spacer / name / sub — nothing absolute, so wrapped text can't overlap
+        lv_obj_set_flex_flow(t, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_row(t, 4, 0);
         lv_obj_t *ic = lv_obj_create(t);
         plain(ic, TILES[i].col);
         lv_obj_set_size(ic, 84, 84);
         lv_obj_set_style_radius(ic, 24, 0);
-        lv_obj_align(ic, LV_ALIGN_TOP_LEFT, 0, 4);
         lv_obj_remove_flag(ic, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_t *il = label(ic, &lv_font_montserrat_40, 0x0B0F14, TILES[i].icon);
         lv_obj_center(il);
-        lv_obj_t *n = label(t, f30, C_TEXT, TILES[i].name);
-        lv_obj_align(n, LV_ALIGN_BOTTOM_LEFT, 0, -36);
+        lv_obj_t *gap = lv_obj_create(t); lv_obj_remove_style_all(gap); lv_obj_set_flex_grow(gap, 1);
+        lv_obj_t *n = label(t, f24, C_TEXT, TILES[i].name);
+        lv_obj_set_size(n, LV_PCT(100), lv_font_get_line_height(f24));
+        lv_label_set_long_mode(n, LV_LABEL_LONG_DOT);
         lv_obj_t *s = label(t, f18, C_DIM, TILES[i].sub);
-        lv_obj_set_width(s, w - 32);
-        lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
-        lv_obj_align(s, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+        lv_obj_set_width(s, LV_PCT(100));
+        lv_label_set_long_mode(s, LV_LABEL_LONG_WRAP);
         if (TILES[i].id >= A_SOON0) {
             lv_obj_t *bd = label(t, f18, C_DIM, "next");
+            lv_obj_add_flag(bd, LV_OBJ_FLAG_IGNORE_LAYOUT);
             lv_obj_align(bd, LV_ALIGN_TOP_RIGHT, 0, 0);
         }
         lv_obj_add_event_cb(t, on_tile, LV_EVENT_CLICKED, (void *)(intptr_t)TILES[i].id);
