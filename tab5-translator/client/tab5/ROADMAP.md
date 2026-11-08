@@ -20,14 +20,14 @@ Later (stretch, after 17 Nov only if green): dual-boot — shrink our factory to
 
 | # | App | Needs | Target |
 |---|---|---|---|
-| 0 | Home/launcher + status bar + settings (Wi-Fi list, rotation, antenna, volume) | — | 9 Nov |
+| 0 | Home/launcher + status bar + settings (Wi-Fi list, rotation, antenna, volume) | — | ✅ v0.2.0 flashed 11-07 (166be46) |
 | 1 | **Translator** (PTT, done) | — | ✅ |
-| 2 | **SD card** service: logs, history, phrase audio cache, screenshots | SDMMC slot 0 shared host w/ C6 SDIO → test both | 9 Nov |
+| 2 | **SD card** service: logs, history, phrase audio cache, screenshots | SDMMC slot 0 shared host w/ C6 SDIO | ✅ 977 GB mounted with Wi-Fi up (console `sd`, 11-07 21:3x) |
 | 3 | **Conversation mode** (no buttons, VAD, auto-language) | VAD on device + server `auto` src | 11 Nov |
-| 4 | **Type & Translate** (USB/Port keyboard + on-screen) → text + voice | server `/translate-text`, `/tts` | 11 Nov |
-| 5 | **Phrasebook** (offline: pre-rendered zh audio on SD) | SD | 12 Nov |
-| 6 | **"Take me to" cards** (big hanzi + pinyin, address, show taxi driver; NFC card tap) | SD + Unit NFC on Port A | 12 Nov |
-| 7 | **Converter** (CNY⇄MXN⇄USD cached rates, units, sizes) | server `/fx` (cached daily) | 13 Nov |
+| 4 | **Type & Translate** ✅ v0.2.0 (USB/Port keyboard + on-screen) → text + voice | server `/translate-text`, `/tts` | 11 Nov |
+| 5 | **Phrasebook** ✅ v0.2.0 (offline: pre-rendered zh audio on SD) | SD | 12 Nov |
+| 6 | **"Take me to" cards** ✅ v0.2.0 (big hanzi + pinyin, address, show taxi driver; NFC card tap) | SD + Unit NFC on Port A | 12 Nov |
+| 7 | **Converter** ✅ v0.2.0 (CNY⇄MXN⇄USD cached rates, units, sizes) | server `/fx` (cached daily) | 13 Nov |
 | 8 | **Voice notes → transcript + summary** (to SD + MD sync) | server `/summarize` | 13 Nov |
 | 9 | **Point & Translate** (camera → OCR → overlay) | server `/ocr-translate`, camera driver | 14 Nov |
 | 10 | **Live subtitles** (streamed chunks, big captions) | chunked ASR | 15 Nov |
@@ -54,6 +54,8 @@ Stretch: S26U USB tethering into the Tab5 USB-A (iot_usbh_rndis).
 | StampS3 1.27 mm | — | in the Grove Breakout → Tab5 STAMP pad / Port A sensor node |
 | StampS3 2.54 mm | — | breadboard: RS-485 Modbus slave for app 12 |
 | Unit NFC, Pa.HUB (70H/77H), Base Dual 16340, Screw Kit | photos 11-07 | NFC → "Take me to" cards; Pa.HUB if Port A gets crowded; 16340 base = spare power for a Core stack, not Tab5 |
+| Unit RFID2 (WS1850S, I2C 0x28) | photo 11-07 | Port A: tap a 13.56 MHz card/sticker → "Take me to" / phrase card (one card per hotel, airport…) |
+| Unit QRCode2 | photo 11-07 | Port A (UART/I2C): scan a menu/sign QR → show + translate its text; scan a WeChat ID QR → show it big |
 | ASR CI1302 | — | offline wake/commands ("translate", "repeat") — stretch |
 
 Every write to a device: `chip-id` + MAC first, backup + sha256 first (house rule 1 & 5).
