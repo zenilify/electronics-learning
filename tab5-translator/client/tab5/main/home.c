@@ -392,7 +392,42 @@ static void build_conv(void)
 }
 
 // ---------- Settings / about ----------
-static lv_obj_t *s_set, *set_info;
+static lv_obj_t *s_set, *set_info, *set_nets;
+static unsigned set_gen = ~0u;
+static char set_cur[33];
+static int set_prefv = -2;
+static void on_net_pick(lv_event_t *e)
+{
+    int slot = (int)(intptr_t)lv_event_get_user_data(e);
+    if (slot == -2) { net_request_scan(); return; }
+    net_join(slot);
+    set_gen = ~0u;            // force a redraw (pref changed)
+}
+static void nets_redraw(void)
+{
+    net_known_t k[NET_SLOTS]; unsigned gen;
+    int n = net_known(k, NET_SLOTS, &gen);
+    int pref = net_pref();
+    if (gen == set_gen && pref == set_prefv && !strcmp(set_cur, (char *)g_status.ssid)) return;
+    set_gen = gen; set_prefv = pref; strlcpy(set_cur, (char *)g_status.ssid, sizeof set_cur);
+    lv_obj_clean(set_nets);
+    lv_obj_t *t = label(set_nets, f24, C_DIM, LV_SYMBOL_WIFI " Red:");
+    (void)t;
+    lv_obj_t *au = pill(set_nets, "Auto", pref < 0 ? C_LINE : C_PANEL, f24);
+    if (pref < 0) { lv_obj_set_style_border_width(au, 3, 0); lv_obj_set_style_border_color(au, lv_color_hex(C_AMBER), 0); }
+    lv_obj_add_event_cb(au, on_net_pick, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
+    for (int i = 0; i < n; i++) {
+        char b[64];
+        if (k[i].rssi > -999) snprintf(b, sizeof b, "%s%s  %d", k[i].current ? LV_SYMBOL_OK " " : "", k[i].ssid, k[i].rssi);
+        else snprintf(b, sizeof b, "%s  —", k[i].ssid);
+        lv_obj_t *p = pill(set_nets, b, k[i].current ? 0x0F5F57 : C_PANEL, f24);
+        if (k[i].rssi <= -999) lv_obj_set_style_text_color(lv_obj_get_child(p, 0), lv_color_hex(C_DIM), 0);
+        if (k[i].slot == pref) { lv_obj_set_style_border_width(p, 3, 0); lv_obj_set_style_border_color(p, lv_color_hex(C_AMBER), 0); }
+        lv_obj_add_event_cb(p, on_net_pick, LV_EVENT_CLICKED, (void *)(intptr_t)k[i].slot);
+    }
+    lv_obj_t *sc = pill(set_nets, LV_SYMBOL_REFRESH " Buscar redes", C_PANEL, f24);
+    lv_obj_add_event_cb(sc, on_net_pick, LV_EVENT_CLICKED, (void *)(intptr_t)-2);
+}
 static void set_refresh(lv_timer_t *t)
 {
     if (lv_screen_active() != s_set) return;
@@ -414,6 +449,7 @@ static void set_refresh(lv_timer_t *t)
              (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
              (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
     lv_label_set_text(set_info, s);
+    nets_redraw();
 }
 static void on_bright(lv_event_t *e)
 {
@@ -426,7 +462,14 @@ static void build_settings(void)
 {
     lv_obj_t *body = app_frame(&s_set, "Ajustes  ·  设置", C_DIM);
     set_info = label(body, f24, C_TEXT, "…");
-    lv_obj_set_style_text_line_space(set_info, 12, 0);
+    lv_obj_set_style_text_line_space(set_info, 10, 0);
+    set_nets = lv_obj_create(body);
+    plain(set_nets, C_BG);
+    lv_obj_set_size(set_nets, LV_PCT(100), 130);
+    lv_obj_align(set_nets, LV_ALIGN_TOP_LEFT, 0, 262);
+    lv_obj_set_flex_flow(set_nets, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_flex_align(set_nets, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(set_nets, 10, 0); lv_obj_set_style_pad_column(set_nets, 10, 0);
     lv_obj_t *row = lv_obj_create(body);
     plain(row, C_BG);
     lv_obj_set_size(row, LV_PCT(100), 70);
@@ -507,7 +550,7 @@ static void open_app(int id)
         open_scr(s_conv);
         if (fx_rate[0] == 0) svc_json("/fx", fx_done, NULL);
         break;
-    case A_SETTINGS:  if (!s_set) build_settings(); open_scr(s_set); set_refresh(NULL); break;
+    case A_SETTINGS:  if (!s_set) build_settings(); open_scr(s_set); net_request_scan(); set_refresh(NULL); break;
     default:          open_soon(id - A_SOON0); break;
     }
 }

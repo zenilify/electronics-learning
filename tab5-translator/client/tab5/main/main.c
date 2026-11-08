@@ -201,6 +201,16 @@ static void console_task(void *a)
             vTaskDelay(pdMS_TO_TICKS(300)); esp_restart();
         }
         else if (!strcmp(line, "scan")) net_scan_log();
+        else if (!strncmp(line, "wifi ", 5)) {          // wifi <slot> | wifi auto — same as the Ajustes picker
+            int slot = !strcmp(line + 5, "auto") ? -1 : atoi(line + 5);
+            ESP_LOGI(TAG, "picker (console): %s", slot < 0 ? "auto" : line + 5);
+            net_join(slot);
+        }
+        else if (!strcmp(line, "nets")) {
+            net_known_t k[NET_SLOTS]; int n = net_known(k, NET_SLOTS, NULL);
+            for (int i = 0; i < n; i++) ESP_LOGI(TAG, "wifi%d %-20s %4d dBm%s%s", k[i].slot, k[i].ssid, k[i].rssi,
+                                                 k[i].current ? " [current]" : "", k[i].slot == net_pref() ? " [picked]" : "");
+        }
         else if (!strcmp(line, "sd")) {
             uint32_t t, f; bool ok = sd_mount(); sd_info(&t, &f);
             ESP_LOGI(TAG, "sd %s card=%s total=%lu MB free=%lu MB", ok ? "OK" : "FAIL", sd_card_name(),

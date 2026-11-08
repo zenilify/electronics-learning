@@ -20,6 +20,13 @@ static EventGroupHandle_t s_ev;
 #define EV_IP    BIT0
 #define EV_FAIL  BIT1
 #define EV_PROBE BIT2
+#define EV_SCAN  BIT3
+#define EV_JOIN  BIT4
+static net_known_t s_known[NET_SLOTS];
+static int s_nknown;
+static volatile unsigned s_gen;
+static volatile int s_join = -1;
+static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 static esp_netif_t *s_netif;
 
 static void on_wifi(void *a, esp_event_base_t base, int32_t id, void *data)
@@ -51,7 +58,7 @@ static bool try_connect(int idx)
     wc.sta.failure_retry_cnt = 3;
     wc.sta.pmf_cfg.capable = true;
     memset(pass, 0, sizeof pass);
-    if (g_status.wifi_up) esp_wifi_disconnect();
+    if (g_status.wifi_up) { esp_wifi_disconnect(); vTaskDelay(pdMS_TO_TICKS(300)); }   // let our own reason-8 event land
     xEventGroupClearBits(s_ev, EV_IP | EV_FAIL);
     esp_wifi_set_config(WIFI_IF_STA, &wc);
     memset(&wc, 0, sizeof wc);
@@ -62,7 +69,6 @@ static bool try_connect(int idx)
     return false;
 }
 
-#define NET_SLOTS 6
 // Provisioned slots whose SSID shows up in a scan, strongest first. Scan failure / nothing seen ->
 // every provisioned slot in NVS order (old behaviour), so a hidden or slow AP still gets tried.
 static int visible_slots(int *order)
@@ -83,6 +89,23 @@ static int visible_slots(int *order)
         order[pos] = i; rssi[pos] = best;
         ESP_LOGI(TAG, "candidate wifi%d \"%s\" %d dBm", i, ssid, best);
     }
+    // remember the scan for the picker (NVS reads outside the critical section)
+    net_known_t tmp[NET_SLOTS]; int nt = 0;
+    for (int i = 0; i < NET_SLOTS; i++) {
+        char ssid[33], pw[65];
+        if (!settings_get_wifi(i, ssid, sizeof ssid, pw, sizeof pw)) continue;
+        memset(pw, 0, sizeof pw);
+        net_known_t *k = &tmp[nt++];
+        k->slot = i; strlcpy(k->ssid, ssid, sizeof k->ssid); k->rssi = -999;
+        k->current = g_status.wifi_up && !strcmp((char *)g_status.ssid, ssid);
+        if (scanned) for (int a = 0; a < na; a++) if (!strcmp((char *)r[a].ssid, ssid) && r[a].rssi > k->rssi) k->rssi = r[a].rssi;
+    }
+    portENTER_CRITICAL(&s_mux);
+    memcpy(s_known, tmp, sizeof tmp); s_nknown = nt; s_gen++;
+    portEXIT_CRITICAL(&s_mux);
+    // a network picked in Ajustes goes first whenever it is on the air
+    int pref = net_pref();
+    for (int j = 1; j < n; j++) if (order[j] == pref) { int t = order[j]; memmove(order + 1, order, j * sizeof *order); order[0] = t; break; }
     free(r);
     if (scanned && n == 0) {                       // nothing known on the air: fall back to all slots
         for (int i = 0; i < NET_SLOTS; i++) { char a[33], b[65]; if (settings_get_wifi(i, a, 33, b, 65)) order[n++] = i; }
@@ -116,6 +139,20 @@ static void net_task(void *arg)
                 continue;
             }
         }
+        EventBits_t ev = xEventGroupGetBits(s_ev);
+        if (ev & EV_JOIN) {                       // picked in Ajustes: switch now (pref is already saved)
+            xEventGroupClearBits(s_ev, EV_JOIN);
+            int slot = s_join;
+            if (slot >= 0) {
+                ESP_LOGI(TAG, "picker: switching to wifi%d", slot);
+                bool ok = false;
+                for (int k = 0; k < 3 && !ok; k++) { ok = try_connect(slot); if (!ok) vTaskDelay(pdMS_TO_TICKS(1500)); }
+                if (!ok) { ESP_LOGW(TAG, "picker: wifi%d failed — back to automatic", slot); esp_wifi_disconnect(); }
+                int o[NET_SLOTS]; visible_slots(o);          // refresh the picker list
+                continue;                                    // EV_IP clear on failure -> the scan-first loop rejoins
+            }
+        }
+        if (ev & EV_SCAN) { xEventGroupClearBits(s_ev, EV_SCAN); int o[NET_SLOTS]; visible_slots(o); }
         wifi_ap_record_t ap;
         if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) g_status.rssi = ap.rssi;
         int64_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
@@ -126,7 +163,7 @@ static void net_task(void *arg)
             int ms = 0, ep = papp_probe(&ms);
             g_status.endpoint = ep; g_status.health_ms = ms; last_probe = now;
         }
-        xEventGroupWaitBits(s_ev, EV_PROBE | EV_FAIL, pdFALSE, pdFALSE, pdMS_TO_TICKS(5000));
+        xEventGroupWaitBits(s_ev, EV_PROBE | EV_FAIL | EV_SCAN | EV_JOIN, pdFALSE, pdFALSE, pdMS_TO_TICKS(5000));
     }
 }
 
@@ -145,6 +182,24 @@ void net_scan_log(void)
 }
 
 void net_reprobe(void) { if (s_ev) xEventGroupSetBits(s_ev, EV_PROBE); }
+void net_request_scan(void) { if (s_ev) xEventGroupSetBits(s_ev, EV_SCAN); }
+int net_pref(void) { uint8_t v = settings_get_u8("wpref", 0); return v ? v - 1 : -1; }
+void net_join(int slot)
+{
+    settings_set_u8("wpref", slot >= 0 ? (uint8_t)(slot + 1) : 0);
+    s_join = slot;
+    if (s_ev) xEventGroupSetBits(s_ev, EV_JOIN);
+}
+int net_known(net_known_t *out, int max, unsigned *gen)
+{
+    portENTER_CRITICAL(&s_mux);
+    int n = s_nknown < max ? s_nknown : max;
+    memcpy(out, s_known, n * sizeof *out);
+    for (int i = 0; i < n; i++) out[i].current = g_status.wifi_up && !strcmp((char *)g_status.ssid, out[i].ssid);
+    if (gen) *gen = s_gen;
+    portEXIT_CRITICAL(&s_mux);
+    return n;
+}
 
 void net_start(void)
 {
