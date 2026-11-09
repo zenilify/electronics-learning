@@ -348,6 +348,13 @@ int papp_get(const char *path, uint8_t **body, size_t *len)
     if (s_active < 0) return -1;
     int st = one_get(s_active, path, body, len, NULL);
     if (st < 0 && papp_probe(NULL) >= 0) { free(*body); *body = NULL; st = one_get(s_active, path, body, len, NULL); }
+    // the offline brain lacks most v2 GET routes (/sd/*, /line/*): ask cachy / Cloud Run instead
+    for (int ep = 1; st == 404 && s_active == 0 && ep < PAPP_EP_COUNT; ep++) {
+        if (!EP_URL[ep][0]) continue;
+        free(*body); *body = NULL; *len = 0;
+        int s2 = one_get(ep, path, body, len, NULL);
+        if (s2 >= 0) st = s2;
+    }
     return st;
 }
 

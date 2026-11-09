@@ -15,4 +15,7 @@ void text_screen_show(const char *title, const char *text);   // full-screen scr
 void subs_app_open(void);
 void subs_leave(void);
 bool subs_key(int enter, const char *text);    // display lock held: Enter = start/stop, 1/2/3 = ES/EN/中文
+// Línea · 产线 (Traceability Cell board) — line.c, GET /line/kpi (N4 contract)
+void line_app_open(void);
+void line_leave(void);
 void subs_inject(const uint8_t *wav, size_t len);   // console test: a WAV paced in 1 s chunks

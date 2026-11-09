@@ -33,6 +33,7 @@ Later (stretch, after 17 Nov only if green): dual-boot — shrink our factory to
 | 10 | **Live subtitles** ✅ v0.4.0 (11-09: 1 s PCM chunks → /stream/*, any language → ES/EN/中文 big captions, SD subtitles.tsv; demo clips es→zh, zh→es, es→en verified, final ~1 s after speech ends; live room test pending) | chunked ASR | 15 Nov |
 | 11 | **Remotes**: Dial knob = language/volume/PTT, StickS3 = PTT clicker, over ESP-NOW | §4 | 15 Nov |
 | 12 | **RS-485 demo** (Ext Port 2) + **HA panel** (lights/Casa from the old tab5-banco) | Modbus unit / HA token-less feed | 16 Nov |
+| 13 | **Línea · 产线** OEE/Andon board ✅ firmware v0.4.0 (11-09: tile replaces the RS-485 placeholder, key `o`; polls GET /line/kpi every 3 s, says "servidor aún no tiene /line" until N4 builds it — T5 AGREEd the N4 contract 11-09) | N4 `/line/*` + T5-I satellites | 16 Nov |
 
 Server endpoints (I own the server now as tower): `/translate-text`, `/tts`, `/summarize`, `/ocr-translate`, `/fx`, `/translate?src=auto`. Same bearer, same 3-endpoint failover.
 
@@ -71,7 +72,7 @@ Stretch: S26U USB tethering into the Tab5 USB-A (iot_usbh_rndis).
 
 Every write to a device: `chip-id` + MAC first, backup + sha256 first (house rule 1 & 5).
 
-Also v0.4.0 (11-09 overnight): Ajustes **Hora: México (UTC-6) / China (UTC+8)** (NVS `tz`, console `tz cn|mx`); Tailscale endpoint dropped (no tailnet client on the Tab5, 2 s per probe); crash when the MacBook brain vanished while active fixed (landmine 329).
+Also v0.4.0 (11-09 overnight): Ajustes **Voz: PAPP / Erick** (es/en phrases from SD papp/voices/erick/, pack copy = D-N4-2 Erick); Ajustes **Hora: México (UTC-6) / China (UTC+8)** (NVS `tz`, console `tz cn|mx`); Tailscale endpoint dropped (no tailnet client on the Tab5, 2 s per probe); crash when the MacBook brain vanished while active fixed (landmine 329).
 
 ## 5 · Risks
 

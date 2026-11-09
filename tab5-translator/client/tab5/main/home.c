@@ -28,7 +28,7 @@ static lv_font_t *f64;
 static void go_home(lv_event_t *e) { home_show(); }
 
 lv_obj_t *home_screen(void) { return s_home; }
-void home_show(void) { cam_stop(); conv_leave(); subs_leave(); audio_note_stop(); lv_screen_load_anim(s_home, LV_SCREEN_LOAD_ANIM_FADE_IN, 200, 0, false); }
+void home_show(void) { cam_stop(); conv_leave(); subs_leave(); line_leave(); audio_note_stop(); lv_screen_load_anim(s_home, LV_SCREEN_LOAD_ANIM_FADE_IN, 200, 0, false); }
 
 lv_obj_t *pill(lv_obj_t *p, const char *txt, uint32_t bg, const lv_font_t *f)
 {
@@ -561,7 +561,7 @@ static void open_soon(int i)
 }
 
 // ---------- home ----------
-typedef enum { A_TRANSLATE, A_TYPE, A_PHRASE, A_PLACES, A_CONV, A_SETTINGS, A_CAM, A_NOTES, A_DIALOG, A_SUBS, A_SOON0 } app_id_t;
+typedef enum { A_TRANSLATE, A_TYPE, A_PHRASE, A_PLACES, A_CONV, A_SETTINGS, A_CAM, A_NOTES, A_DIALOG, A_SUBS, A_LINE, A_SOON0 } app_id_t;
 typedef struct { const char *icon, *name, *sub; uint32_t col; int id; } tile_t;
 static const tile_t TILES[] = {
     { LV_SYMBOL_AUDIO,     "Traductor",   "按住说话 · hold to talk",  C_TEAL,   A_TRANSLATE },
@@ -574,7 +574,7 @@ static const tile_t TILES[] = {
     { LV_SYMBOL_LOOP,      "Diálogo",     "对话 · hands-free",        C_TEAL,   A_DIALOG },
     { LV_SYMBOL_EYE_OPEN,  "Subtítulos",  "实时字幕 · captions",       C_TEAL,   A_SUBS },
     { LV_SYMBOL_BLUETOOTH, "Controles",   "Dial · StickS3",          C_BLUE,   A_SOON0 + 4 },
-    { LV_SYMBOL_CHARGE,    "RS-485",      "Modbus · 工业",            C_AMBER,  A_SOON0 + 5 },
+    { LV_SYMBOL_CHARGE,    "Línea",       "产线 · OEE / Andon",       C_AMBER,  A_LINE },
     { LV_SYMBOL_HOME,      "Casa",        "Home Assistant",          C_GREEN,  A_SOON0 + 6 },
     { LV_SYMBOL_SETTINGS,  "Ajustes",     "设置 · settings",          C_DIM,    A_SETTINGS },
 };
@@ -596,6 +596,7 @@ static void open_app(int id)
     case A_NOTES:     notes_app_open(); break;
     case A_DIALOG:    conv_app_open(); break;
     case A_SUBS:      subs_app_open(); break;
+    case A_LINE:      line_app_open(); break;
     case A_SETTINGS:  if (!s_set) build_settings(); open_scr(s_set); net_request_scan(); set_refresh(NULL); break;
     default:          open_soon(id - A_SOON0); break;
     }
@@ -721,7 +722,7 @@ void home_kbd(const char *text, int sp)
     if (cam_key(ent) || notes_key(ent, text) || conv_key(ent) || subs_key(ent, text)) { if (sp == KBD_ESC) home_show(); return; }
     if (a == s_home && text) {          // shortcuts: t e f l c a p
         static const struct { char k; int id; } K[] = { {'t', A_TRANSLATE}, {'e', A_TYPE}, {'f', A_PHRASE},
-                                                        {'l', A_PLACES}, {'c', A_CONV}, {'a', A_SETTINGS}, {'p', A_CAM}, {'n', A_NOTES}, {'d', A_DIALOG}, {'s', A_SUBS} };
+                                                        {'l', A_PLACES}, {'c', A_CONV}, {'a', A_SETTINGS}, {'p', A_CAM}, {'n', A_NOTES}, {'d', A_DIALOG}, {'s', A_SUBS}, {'o', A_LINE} };
         for (int i = 0; i < (int)(sizeof K / sizeof K[0]); i++)
             if (text[0] == K[i].k) open_app(K[i].id);
         return;
