@@ -141,7 +141,15 @@ static void task(void *a)
             if (q.cb) q.cb(&r, q.ud);
             break;
         case R_POST:
-            papp_post_bytes(q.text, q.ctype, q.buf, q.len, &r);
+            if (strstr(q.text, "/ocr-translate") && strstr(q.text, "engine=vl")) {
+                // D-N4-1: VL is the best reader (char acc 1.000, p50 1.8 s) but give it 8 s, then the fast OCR engine
+                papp_post_bytes_t(q.text, q.ctype, q.buf, q.len, &r, 8000);
+                if (r.http_status != 200) {
+                    ESP_LOGW(TAG, "ocr vl HTTP %d after %d ms -> engine=ocr", r.http_status, r.rtt_ms);
+                    papp_result_free(&r); memset(&r, 0, sizeof r);
+                    papp_post_bytes("/ocr-translate?engine=ocr", q.ctype, q.buf, q.len, &r);
+                }
+            } else papp_post_bytes(q.text, q.ctype, q.buf, q.len, &r);
             free(q.buf);
             if (q.cb) q.cb(&r, q.ud);
             break;

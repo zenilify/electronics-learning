@@ -31,7 +31,7 @@ static const char *TAG = "cam";
 #define PW 960            // PPA scales 1280x720 by 12/16 (exact step) -> shown 1:1, no LVGL transform
 #define PH 540
 #define NBUF 2
-static lv_obj_t *s_scr, *c_img, *c_list, *c_st, *c_eng[2];   // c_list/c_st live on the RESULT screen
+static lv_obj_t *s_scr, *c_img, *c_list, *c_st, *c_eng[3];   // c_list/c_st live on the RESULT screen
 static lv_obj_t *s_res, *r_img, *r_sum, *l_st;                   // result screen + live-screen status
 static uint16_t *s_shot;                                         // frozen capture, PW x PH, not mirrored
 static lv_image_dsc_t s_shot_dsc;
@@ -39,7 +39,8 @@ static volatile bool s_paused;                                    // results sho
 static uint16_t *s_prev;                 // PW x PH RGB565 preview (PSRAM)
 static lv_image_dsc_t s_dsc;
 static volatile bool s_run, s_snap, s_task_alive, s_mirror = true;
-static int s_engine;                     // 0 = ocr (fast), 1 = vl (better)
+static int s_engine;                     // 0 = ocr (fast), 1 = vl (better, default), 2 = best (both)
+static const char *ENG_PATH[3] = { "/ocr-translate?engine=ocr", "/ocr-translate?engine=vl", "/ocr-translate?engine=best" };
 static bool s_cam_inited;
 static jpeg_encoder_handle_t s_jpeg;
 static ppa_client_handle_t s_ppa;
@@ -144,7 +145,7 @@ static void encode_and_send(const uint16_t *frame, int w, int h)
     uint8_t *body = heap_caps_malloc(olen, MALLOC_CAP_SPIRAM);
     if (body) memcpy(body, out, olen);
     free(out);
-    const char *path = s_engine ? "/ocr-translate?engine=vl" : "/ocr-translate?engine=ocr";
+    const char *path = ENG_PATH[s_engine];
     if (!body || !svc_post(path, "image/jpeg", body, olen, ocr_done, NULL)) {
         lock(); lv_label_set_text(c_st, "ocupado, intenta de nuevo"); unlock();
     }
@@ -171,6 +172,9 @@ static void scale_into(const uint16_t *src, int w, int h, uint16_t *dst, bool mi
 static volatile bool s_back;                 // source: false = Tab5 front camera, true = XIAO on the back
 static int s_brot;                           // 0..3 x 90° for the viewfinder/result (mounting orientation)
 static char s_bcam[48];                      // "http://ip:port" or ""
+// s_back is the user's choice (NVS "bcam"). While the XIAO is not on the network the front camera runs instead,
+// so the screen never sits on a black viewfinder (Erick 11-08: "frozen on the camera" with the XIAO unplugged).
+static inline bool use_back(void) { return s_back && s_bcam[0]; }
 
 static jpeg_decoder_handle_t s_jdec;
 static uint8_t *s_jin; static size_t s_jin_cap;
@@ -245,18 +249,19 @@ static void fit_into(const uint16_t *src, int w, int h, int stride, int sh, uint
 
 static void back_loop(void)
 {
-    int frames = 0; int64_t t0 = esp_timer_get_time();
-    while (s_run && s_back) {
-        if (!s_bcam[0]) {
-            lock(); lv_label_set_text(l_st, LV_SYMBOL_WARNING " cámara trasera no encontrada — ¿está encendida y en la misma red?"); unlock();
-            vTaskDelay(pdMS_TO_TICKS(1000)); continue;
-        }
+    int frames = 0, fails = 0; int64_t t0 = esp_timer_get_time();
+    while (s_run && use_back()) {
         if (s_snap) {
             s_snap = false;
             uint8_t *jp; size_t n; int64_t c0 = esp_timer_get_time();
             int st = bcam_get("/capture", &jp, &n, 8000);
             ESP_LOGI(TAG, "back capture HTTP %d %u B in %d ms", st, (unsigned)n, (int)((esp_timer_get_time() - c0) / 1000));
-            if (st != 200) { lock(); lv_label_set_text(c_st, LV_SYMBOL_WARNING " la cámara trasera no respondió"); unlock(); continue; }
+            if (st != 200) {
+                lock(); lv_label_set_text(c_st, LV_SYMBOL_WARNING " la cámara trasera no respondió — toca «Nueva captura»"); unlock();
+                if (++fails >= 2) cam_set_back_url(NULL, 0);          // gone: fall back to the front camera
+                continue;
+            }
+            fails = 0;
             int w, h, sw;
             if (jpeg_rgb(jp, n, &w, &h, &sw)) fit_into(s_jout, w, h, sw, (h + 15) & ~15, s_shot, s_brot);
             lock();
@@ -268,7 +273,7 @@ static void back_loop(void)
                 mkdir(SD_ROOT "/photos", 0775);
                 FILE *f = fopen(p, "wb"); if (f) { fwrite(jp, 1, n, f); fclose(f); }
             }
-            const char *path = s_engine ? "/ocr-translate?engine=vl" : "/ocr-translate?engine=ocr";
+            const char *path = ENG_PATH[s_engine];
             if (!svc_post(path, "image/jpeg", jp, n, ocr_done, NULL)) { lock(); lv_label_set_text(c_st, "ocupado, intenta de nuevo"); unlock(); }
             continue;
         }
@@ -278,7 +283,12 @@ static void back_loop(void)
             fit_into(s_jout, w, h, sw, (h + 15) & ~15, s_prev, s_brot);
             lock(); lv_obj_invalidate(c_img); unlock();
             if (++frames == 30) ESP_LOGI(TAG, "back preview %.1f fps", 30e6 / (esp_timer_get_time() - t0));
-        } else vTaskDelay(pdMS_TO_TICKS(300));
+            fails = 0;
+        } else {
+            // 4 misses in a row (~4-12 s): forget the URL; net.c's mDNS lookup brings it back when the XIAO returns
+            if (++fails >= 4) { ESP_LOGW(TAG, "back camera not answering — front camera until it is found again"); cam_set_back_url(NULL, 0); }
+            vTaskDelay(pdMS_TO_TICKS(300));
+        }
         free(jp);
     }
 }
@@ -320,7 +330,7 @@ static void front_loop(void)
     int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     ioctl(fd, VIDIOC_STREAMON, &type);
     int frames = 0; int64_t t0 = esp_timer_get_time();
-    while (s_run && !s_back) {
+    while (s_run && !use_back()) {
         struct v4l2_buffer b = { .type = V4L2_BUF_TYPE_VIDEO_CAPTURE, .memory = V4L2_MEMORY_MMAP };
         if (ioctl(fd, VIDIOC_DQBUF, &b) != 0) { vTaskDelay(pdMS_TO_TICKS(10)); continue; }
         const uint16_t *src = mem[b.index];
@@ -369,13 +379,13 @@ static void front_loop(void)
 out:
     for (int i = 0; i < NBUF; i++) if (mem[i]) munmap(mem[i], mlen[i]);
     if (fd >= 0) close(fd);
-    if (s_run && !s_back) vTaskDelay(pdMS_TO_TICKS(1000));      // failed to open: don't spin
+    if (s_run && !use_back()) vTaskDelay(pdMS_TO_TICKS(1000));  // failed to open: don't spin
 }
 
 static void cam_task(void *a)
 {
     s_task_alive = true;
-    while (s_run) { if (s_back) back_loop(); else front_loop(); }   // the source button just flips s_back
+    while (s_run) { if (use_back()) back_loop(); else front_loop(); }   // source button / XIAO found or lost
     s_task_alive = false;
     vTaskDelete(NULL);
 }
@@ -384,7 +394,7 @@ void cam_stop(void) { s_run = false; }
 
 static void on_snap(lv_event_t *e)
 {
-    if (!s_run || s_paused) return;
+    if (!s_run || s_paused || !s_task_alive) return;
     s_paused = true;                                            // freeze: the next frame becomes the photo
     s_snap = true;
     open_scr(s_res);
@@ -397,20 +407,31 @@ static void on_new(lv_event_t *e)                               // "Nueva captur
 static void eng_set(int i)
 {
     s_engine = i;
-    for (int k = 0; k < 2; k++) lv_obj_set_style_bg_color(c_eng[k], lv_color_hex(k == i ? C_VIOLET : C_PANEL), 0);
+    for (int k = 0; k < 3; k++) lv_obj_set_style_bg_color(c_eng[k], lv_color_hex(k == i ? C_VIOLET : C_PANEL), 0);
 }
 static void on_eng(lv_event_t *e) { eng_set((int)(intptr_t)lv_event_get_user_data(e)); }
 static lv_obj_t *c_src;
 static void src_label(void)
 {
-    lv_label_set_text(lv_obj_get_child(c_src, 0), s_back ? LV_SYMBOL_IMAGE " trasera" : LV_SYMBOL_IMAGE " frontal");
+    lv_label_set_text(lv_obj_get_child(c_src, 0), !s_back ? LV_SYMBOL_IMAGE " frontal"
+                      : s_bcam[0] ? LV_SYMBOL_IMAGE " trasera" : LV_SYMBOL_IMAGE " trasera " LV_SYMBOL_CLOSE);
+}
+static void src_tick(lv_timer_t *t)            // the XIAO can appear/disappear at any time (mDNS in net.c)
+{
+    static int last = -1;
+    int now = !s_back ? 0 : s_bcam[0] ? 1 : 2;
+    if (now == last || !c_src) return;
+    last = now;
+    src_label();
+    if (now == 2) lv_label_set_text(l_st, LV_SYMBOL_WARNING " cámara trasera no encontrada — uso la frontal");
+    else if (now == 1) lv_label_set_text(l_st, "cámara trasera (XIAO)");
+    else lv_label_set_text(l_st, "pon el letrero frente a la cámara");
 }
 static void on_src(lv_event_t *e)
 {
     s_back = !s_back; settings_set_u8("bcam", s_back);     // cam_task switches loops on its own
-    src_label();
     memset(s_prev, 0, s_prev_sz); lv_obj_invalidate(c_img);
-    lv_label_set_text(l_st, s_back ? "cámara trasera (XIAO)" : "pon el letrero frente a la cámara");
+    src_tick(NULL);
 }
 // mirror button: front = selfie mirror; back = rotate the viewfinder 90° (how the XIAO is stuck on)
 static void on_mirror(lv_event_t *e)
@@ -491,8 +512,9 @@ void cam_app_open(void)
         label(col, f24, C_TEXT, "Capturar · 拍照");
         label(col, f18, C_DIM, "modelo · model");
         c_eng[0] = pill(col, LV_SYMBOL_CHARGE " rápido  ~1 s", C_PANEL, f24);
-        c_eng[1] = pill(col, LV_SYMBOL_EYE_OPEN " mejor  ~3 s", C_PANEL, f24);
-        for (int i = 0; i < 2; i++) { lv_obj_set_width(c_eng[i], 240); lv_obj_add_event_cb(c_eng[i], on_eng, LV_EVENT_CLICKED, (void *)(intptr_t)i); }
+        c_eng[1] = pill(col, LV_SYMBOL_EYE_OPEN " mejor  ~2 s", C_PANEL, f24);
+        c_eng[2] = pill(col, LV_SYMBOL_OK " 最佳 best  ~4 s", C_PANEL, f24);
+        for (int i = 0; i < 3; i++) { lv_obj_set_width(c_eng[i], 240); lv_obj_add_event_cb(c_eng[i], on_eng, LV_EVENT_CLICKED, (void *)(intptr_t)i); }
         lv_obj_t *row = lv_obj_create(col); plain(row, C_BG);
         lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW); lv_obj_set_style_pad_column(row, 8, 0);
@@ -507,7 +529,8 @@ void cam_app_open(void)
         build_result();
         eng_set(1);                                              // Erick 11-08: VL ("mejor") gives clearly better answers
         s_back = settings_get_u8("bcam", 0); s_brot = settings_get_u8("brot", 0) & 3;
-        src_label();
+        src_tick(NULL);
+        lv_timer_create(src_tick, 500, NULL);
     }
     s_paused = false;
     open_scr(s_scr);

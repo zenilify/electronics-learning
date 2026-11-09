@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define PAPP_VERSION   "0.2.0"
+#define PAPP_VERSION   "0.4.0"
 #define PAPP_RATE      16000          // mic + speaker + requested reply rate
 #define PAPP_MAX_SEC   30             // server rejects > 30 s (413)
 #define PAPP_MIN_MS    450            // shorter presses are treated as accidental taps
@@ -64,3 +64,7 @@ typedef struct {
     bool c6v_ok;            // + = into the battery (charging) by INA226 sign convention, see battery.c
 } papp_status_t;
 extern volatile papp_status_t g_status;
+
+// time zone: NVS "tz" 0 = México (CST6), 1 = China (CST-8); applied at boot and from Ajustes
+void papp_tz_apply(void);
+extern const char *TZ_NAME[];

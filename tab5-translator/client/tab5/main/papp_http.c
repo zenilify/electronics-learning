@@ -18,20 +18,23 @@
 static const char *TAG = "papp_http";
 static char EP_URL[PAPP_EP_COUNT][96] = {
     "",                                                  // 0 MacBook offline brain — filled by mDNS (_papp._tcp), see net.c
-    "http://100.69.244.21:8787",                         // cachy over Tailscale
+    "",   // was cachy over Tailscale (100.69.244.21) — the Tab5 has no tailnet client, every probe cost 2 s (11-08)
     "http://192.168.1.5:8787",                           // cachy on the Toluca LAN (also via UTR Teleport)
     "https://papp-138753081869.us-central1.run.app",     // Cloud Run (outside mainland China)
 };
 static const char *EP_NAME[PAPP_EP_COUNT] = { "MacBook", "Tailscale", "LAN", "Cloud Run" };
 
+static int s_active = -1;
 void papp_set_brain(const char *ipv4, int port)
 {
     char u[96] = "";
     if (ipv4 && ipv4[0]) snprintf(u, sizeof u, "http://%s:%d", ipv4, port);
-    if (strcmp(u, EP_URL[0])) { ESP_LOGI(TAG, "offline brain: %s", u[0] ? u : "gone"); strlcpy(EP_URL[0], u, sizeof EP_URL[0]); }
+    if (strcmp(u, EP_URL[0])) { ESP_LOGI(TAG, "offline brain: %s", u[0] ? u : "gone"); strlcpy(EP_URL[0], u, sizeof EP_URL[0]);
+                                  // brain gone while it was the active endpoint: re-probe before the next request
+                                  // (11-09: an empty URL reached esp_http_client_open -> store fault, landmine 329)
+                                  if (!u[0] && s_active == 0) s_active = -1; }
 }
 static char s_token[96];
-static int s_active = -1;
 
 const char *papp_endpoint_url(int i) { return i >= 0 && i < PAPP_EP_COUNT ? EP_URL[i] : ""; }
 const char *papp_endpoint_name(int i) { return i >= 0 && i < PAPP_EP_COUNT ? EP_NAME[i] : "offline"; }
@@ -103,6 +106,7 @@ int papp_probe(int *health_ms)
         if (!EP_URL[i][0]) continue;
         char url[128]; snprintf(url, sizeof url, "%.100s/health", EP_URL[i]);
         esp_http_client_handle_t c = mk(url, 2000, HTTP_METHOD_GET, NULL);
+        if (!c) continue;
         int64_t t0 = esp_timer_get_time();
         esp_err_t e = esp_http_client_perform(c);
         int st = e == ESP_OK ? esp_http_client_get_status_code(c) : -1;
@@ -132,6 +136,7 @@ static int one_req(int ep, const char *path, const char *ctype, const uint8_t *b
     snprintf(auth, sizeof auth, "Bearer %s", s_token);
     hdrs_t h = {0};
     esp_http_client_handle_t c = mk(url, timeout_ms, HTTP_METHOD_POST, &h);
+    if (!c) { ESP_LOGW(TAG, "no URL for endpoint %d", ep); memset(auth, 0, sizeof auth); r->http_status = -1; r->endpoint = ep; return -1; }
     esp_http_client_set_header(c, "Content-Type", ctype);
     esp_http_client_set_header(c, "Authorization", auth);
     memset(auth, 0, sizeof auth);
@@ -193,6 +198,7 @@ static bool health_ok(int ep)
 {
     char url[128]; snprintf(url, sizeof url, "%.100s/health", EP_URL[ep]);
     esp_http_client_handle_t c = mk(url, 2000, HTTP_METHOD_GET, NULL);
+    if (!c) return false;
     bool ok = esp_http_client_perform(c) == ESP_OK && esp_http_client_get_status_code(c) == 200;
     esp_http_client_cleanup(c);
     return ok;
@@ -304,6 +310,7 @@ static int one_get(int ep, const char *path, uint8_t **body, size_t *len, FILE *
     snprintf(url, sizeof url, "%s%s", EP_URL[ep], path);
     snprintf(auth, sizeof auth, "Bearer %s", s_token);
     esp_http_client_handle_t c = mk(url, 30000, HTTP_METHOD_GET, NULL);
+    if (!c) { memset(auth, 0, sizeof auth); return -1; }
     esp_http_client_set_header(c, "Authorization", auth);
     memset(auth, 0, sizeof auth);
     int status = -1; size_t n = 0;
@@ -350,6 +357,11 @@ int papp_get_file(const char *path, FILE *fp)
     if (s_active < 0) papp_probe(NULL);
     if (s_active < 0) return -1;
     return one_get(s_active, path, NULL, NULL, fp);
+}
+
+void papp_post_bytes_t(const char *path, const char *ctype, const uint8_t *b, size_t n, papp_result_t *r, int timeout_ms)
+{
+    with_failover_t(path, ctype, b, n, r, timeout_ms);
 }
 
 void papp_post_bytes(const char *path, const char *ctype, const uint8_t *b, size_t n, papp_result_t *r)
@@ -400,6 +412,8 @@ int papp_get_url(const char *url, uint8_t **buf, size_t *len, int tmo)   // any 
 {
     esp_http_client_config_t cfg = { .url = url, .timeout_ms = tmo, .buffer_size = 4096, .keep_alive_enable = false };
     esp_http_client_handle_t c = esp_http_client_init(&cfg);
+    *buf = NULL; *len = 0;
+    if (!c) return -1;
     char auth[128]; snprintf(auth, sizeof auth, "Bearer %s", s_token);
     esp_http_client_set_header(c, "Authorization", auth); memset(auth, 0, sizeof auth);
     int st = -1; *buf = NULL; *len = 0;

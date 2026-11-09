@@ -29,3 +29,7 @@ bool audio_vad_start(audio_wav_cb_t cb, void *ud);
 void audio_vad_stop(void);
 void audio_vad_pause(bool p);
 int  audio_vad_state(void);       // 0 off, 1 listening, 2 hearing speech, 3 paused
+// Live subtitles: raw PCM16 mono 16 kHz in chunk_ms pieces (no header) -> cb(pcm, bytes) on the recorder task.
+bool audio_stream_start(int chunk_ms, audio_wav_cb_t cb, void *ud);
+void audio_stream_stop(void);
+bool audio_streaming(void);

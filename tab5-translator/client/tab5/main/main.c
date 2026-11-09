@@ -219,6 +219,10 @@ static void console_task(void *a)
             int i = atoi(line + 9) - 1;
             if (i >= 0 && i < DEMO_COUNT) conv_inject(CLIPS[i].ss, CLIPS[i].se - CLIPS[i].ss);
         }
+        else if (!strncmp(line, "substest ", 9)) {     // substest <1..5>: demo clip through live subtitles
+            int i = atoi(line + 9) - 1;
+            if (i >= 0 && i < DEMO_COUNT) subs_inject(CLIPS[i].ss, CLIPS[i].se - CLIPS[i].ss);
+        }
         else if (!strcmp(line, "camsrc")) { lock(); cam_toggle_source(); unlock(); }
         else if (!strcmp(line, "sdsync")) { if (!svc_sd_sync(NULL, NULL)) ESP_LOGW(TAG, "svc busy"); }
         else if (!strcmp(line, "nets")) {
@@ -236,6 +240,11 @@ static void console_task(void *a)
             if (c6_version(&a, &b, &c)) ESP_LOGI(TAG, "C6 esp-hosted fw %lu.%lu.%lu", (unsigned long)a, (unsigned long)b, (unsigned long)c);
             else ESP_LOGW(TAG, "C6 fw version not available");
         }
+        else if (!strcmp(line, "tz cn") || !strcmp(line, "tz mx")) {   // same as the Ajustes "Hora" button
+            settings_set_u8("tz", line[3] == 'c'); papp_tz_apply();
+            time_t t = time(NULL); struct tm lt; localtime_r(&t, &lt); char b[32]; strftime(b, sizeof b, "%Y-%m-%d %H:%M", &lt);
+            ESP_LOGI(TAG, "local time %s", b);
+        }
         else if (!strcmp(line, "status"))
             ESP_LOGI(TAG, "status wifi=%d rssi=%d ep=%d health=%d ms batt=%.2f V %.2f A free_int=%u kB psram=%u kB",
                      g_status.wifi_up, g_status.rssi, g_status.endpoint, g_status.health_ms, g_status.batt_v, g_status.batt_a,
@@ -244,12 +253,22 @@ static void console_task(void *a)
     }
 }
 
+// ---------- time zone (Ajustes) ----------
+static const char *TZ_POSIX[] = { "CST6", "CST-8" };   // America/Mexico_City (no DST) · Asia/Shanghai
+const char *TZ_NAME[] = { "México (UTC-6)", "China (UTC+8)" };
+void papp_tz_apply(void)
+{
+    int i = settings_get_u8("tz", 0) ? 1 : 0;
+    setenv("TZ", TZ_POSIX[i], 1); tzset();
+    ESP_LOGI(TAG, "time zone %s (%s)", TZ_NAME[i], TZ_POSIX[i]);
+}
+
 // ---------- boot ----------
 void app_main(void)
 {
     ESP_LOGI(TAG, "PAPP Tab5 v%s", PAPP_VERSION);
     settings_init();
-    setenv("TZ", "CST6", 1); tzset();          // America/Mexico_City (no DST); China = CST-8 (Ajustes later)
+    papp_tz_apply();                           // Ajustes: México (CST6) / China (CST-8), NVS "tz"
     s_pair = (pair_t)settings_get_u8("pair", PAIR_ES_ZH);
     if (s_pair >= PAIR_COUNT) s_pair = PAIR_ES_ZH;
     papp_http_init();

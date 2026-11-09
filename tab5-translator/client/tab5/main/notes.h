@@ -11,3 +11,8 @@ bool conv_key(int enter);
 #include <stddef.h>
 void conv_inject(const uint8_t *wav, size_t len);
 void text_screen_show(const char *title, const char *text);   // full-screen scrollable text (notes.c)
+// Live subtitles (ROADMAP row 10) — subs.c. Server: POST /stream/start|chunk|stop (T5-S API.md v0.2.0).
+void subs_app_open(void);
+void subs_leave(void);
+bool subs_key(int enter, const char *text);    // display lock held: Enter = start/stop, 1/2/3 = ES/EN/中文
+void subs_inject(const uint8_t *wav, size_t len);   // console test: a WAV paced in 1 s chunks

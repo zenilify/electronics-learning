@@ -28,7 +28,7 @@ static lv_font_t *f64;
 static void go_home(lv_event_t *e) { home_show(); }
 
 lv_obj_t *home_screen(void) { return s_home; }
-void home_show(void) { cam_stop(); conv_leave(); audio_note_stop(); lv_screen_load_anim(s_home, LV_SCREEN_LOAD_ANIM_FADE_IN, 200, 0, false); }
+void home_show(void) { cam_stop(); conv_leave(); subs_leave(); audio_note_stop(); lv_screen_load_anim(s_home, LV_SCREEN_LOAD_ANIM_FADE_IN, 200, 0, false); }
 
 lv_obj_t *pill(lv_obj_t *p, const char *txt, uint32_t bg, const lv_font_t *f)
 {
@@ -461,6 +461,14 @@ static void on_bright(lv_event_t *e)
     settings_set_u8("bri", (uint8_t)v);
 }
 static void on_reprobe(lv_event_t *e) { net_reprobe(); }
+static void tz_label(lv_obj_t *p) { char b[64]; snprintf(b, sizeof b, LV_SYMBOL_GPS " Hora: %s", TZ_NAME[settings_get_u8("tz", 0) ? 1 : 0]);
+                                    lv_label_set_text(lv_obj_get_child(p, 0), b); }
+static void on_tz(lv_event_t *e)          // México <-> China: clocks, file names and logs follow at once
+{
+    settings_set_u8("tz", settings_get_u8("tz", 0) ? 0 : 1);
+    papp_tz_apply();
+    tz_label(lv_event_get_current_target(e));
+}
 static void sync_prog(int i, int n, int ok, void *ud)
 {
     char b[96];
@@ -509,6 +517,10 @@ static void build_settings(void)
     lv_obj_set_width(sl, 700);
     lv_obj_align(sl, LV_ALIGN_BOTTOM_LEFT, 160, -46);
     lv_obj_add_event_cb(sl, on_bright, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_t *tz = pill(body, "", C_PANEL, f24);
+    lv_obj_align(tz, LV_ALIGN_BOTTOM_RIGHT, 0, -30);
+    tz_label(tz);
+    lv_obj_add_event_cb(tz, on_tz, LV_EVENT_CLICKED, NULL);
     lv_timer_create(set_refresh, 1000, NULL);
 }
 
@@ -539,7 +551,7 @@ static void open_soon(int i)
 }
 
 // ---------- home ----------
-typedef enum { A_TRANSLATE, A_TYPE, A_PHRASE, A_PLACES, A_CONV, A_SETTINGS, A_CAM, A_NOTES, A_DIALOG, A_SOON0 } app_id_t;
+typedef enum { A_TRANSLATE, A_TYPE, A_PHRASE, A_PLACES, A_CONV, A_SETTINGS, A_CAM, A_NOTES, A_DIALOG, A_SUBS, A_SOON0 } app_id_t;
 typedef struct { const char *icon, *name, *sub; uint32_t col; int id; } tile_t;
 static const tile_t TILES[] = {
     { LV_SYMBOL_AUDIO,     "Traductor",   "按住说话 · hold to talk",  C_TEAL,   A_TRANSLATE },
@@ -550,7 +562,7 @@ static const tile_t TILES[] = {
     { LV_SYMBOL_IMAGE,     "Cámara",      "拍照翻译 · point",          C_VIOLET, A_CAM },
     { LV_SYMBOL_EDIT,      "Notas",       "语音笔记 · voice notes",   C_VIOLET, A_NOTES },
     { LV_SYMBOL_LOOP,      "Diálogo",     "对话 · hands-free",        C_TEAL,   A_DIALOG },
-    { LV_SYMBOL_EYE_OPEN,  "Subtítulos",  "实时字幕 · captions",       C_TEAL,   A_SOON0 + 3 },
+    { LV_SYMBOL_EYE_OPEN,  "Subtítulos",  "实时字幕 · captions",       C_TEAL,   A_SUBS },
     { LV_SYMBOL_BLUETOOTH, "Controles",   "Dial · StickS3",          C_BLUE,   A_SOON0 + 4 },
     { LV_SYMBOL_CHARGE,    "RS-485",      "Modbus · 工业",            C_AMBER,  A_SOON0 + 5 },
     { LV_SYMBOL_HOME,      "Casa",        "Home Assistant",          C_GREEN,  A_SOON0 + 6 },
@@ -573,6 +585,7 @@ static void open_app(int id)
     case A_CAM:       cam_app_open(); break;
     case A_NOTES:     notes_app_open(); break;
     case A_DIALOG:    conv_app_open(); break;
+    case A_SUBS:      subs_app_open(); break;
     case A_SETTINGS:  if (!s_set) build_settings(); open_scr(s_set); net_request_scan(); set_refresh(NULL); break;
     default:          open_soon(id - A_SOON0); break;
     }
@@ -695,10 +708,10 @@ void home_kbd(const char *text, int sp)
     }
     bool ent = sp == KBD_ENTER || (text && text[0] == ' ');
     if (text && text[0] == 'b' && cam_key(0)) { cam_toggle_source(); return; }   // camera screen: b = front/back
-    if (cam_key(ent) || notes_key(ent, text) || conv_key(ent)) { if (sp == KBD_ESC) home_show(); return; }
+    if (cam_key(ent) || notes_key(ent, text) || conv_key(ent) || subs_key(ent, text)) { if (sp == KBD_ESC) home_show(); return; }
     if (a == s_home && text) {          // shortcuts: t e f l c a p
         static const struct { char k; int id; } K[] = { {'t', A_TRANSLATE}, {'e', A_TYPE}, {'f', A_PHRASE},
-                                                        {'l', A_PLACES}, {'c', A_CONV}, {'a', A_SETTINGS}, {'p', A_CAM}, {'n', A_NOTES}, {'d', A_DIALOG} };
+                                                        {'l', A_PLACES}, {'c', A_CONV}, {'a', A_SETTINGS}, {'p', A_CAM}, {'n', A_NOTES}, {'d', A_DIALOG}, {'s', A_SUBS} };
         for (int i = 0; i < (int)(sizeof K / sizeof K[0]); i++)
             if (text[0] == K[i].k) open_app(K[i].id);
         return;

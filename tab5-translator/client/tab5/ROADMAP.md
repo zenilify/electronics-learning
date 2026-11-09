@@ -29,8 +29,8 @@ Later (stretch, after 17 Nov only if green): dual-boot — shrink our factory to
 | 6 | **"Take me to" cards** ✅ v0.2.0 (big hanzi + pinyin, address, show taxi driver; NFC card tap) | SD + Unit NFC on Port A | 12 Nov |
 | 7 | **Converter** ✅ v0.2.0 (CNY⇄MXN⇄USD cached rates, units, sizes) | server `/fx` (cached daily) | 13 Nov |
 | 8 | **Voice notes → transcript + summary** ✅ v0.3 (11-08: 10 s note → SD WAV + summary .md in 2.8 s) (to SD + MD sync) | server `/summarize` | 13 Nov |
-| 9 | **Point & Translate** ✅ v0.3 (11-08: SC202CS, PPA preview 7.7 fps, HW JPEG, /ocr-translate; real-sign test pending) (camera → OCR → overlay) | server `/ocr-translate`, camera driver | 14 Nov |
-| 10 | **Live subtitles** (streamed chunks, big captions) | chunked ASR | 15 Nov |
+| 9 | **Point & Translate** ✅ v0.4.0 (11-09: back camera falls back to the front one while the XIAO is off the network — fixes Erick's 'frozen camera'; D-N4-1 engines rápido/mejor(vl, 8 s → ocr)/最佳 best) · ✅ v0.3 (11-08: SC202CS, PPA preview 7.7 fps, HW JPEG, /ocr-translate; real-sign test pending) (camera → OCR → overlay) | server `/ocr-translate`, camera driver | 14 Nov |
+| 10 | **Live subtitles** ✅ v0.4.0 (11-09: 1 s PCM chunks → /stream/*, any language → ES/EN/中文 big captions, SD subtitles.tsv; demo clips es→zh, zh→es, es→en verified, final ~1 s after speech ends; live room test pending) | chunked ASR | 15 Nov |
 | 11 | **Remotes**: Dial knob = language/volume/PTT, StickS3 = PTT clicker, over ESP-NOW | §4 | 15 Nov |
 | 12 | **RS-485 demo** (Ext Port 2) + **HA panel** (lights/Casa from the old tab5-banco) | Modbus unit / HA token-less feed | 16 Nov |
 
@@ -70,6 +70,8 @@ Stretch: S26U USB tethering into the Tab5 USB-A (iot_usbh_rndis).
 | ASR CI1302 | — | offline wake/commands ("translate", "repeat") — stretch |
 
 Every write to a device: `chip-id` + MAC first, backup + sha256 first (house rule 1 & 5).
+
+Also v0.4.0 (11-09 overnight): Ajustes **Hora: México (UTC-6) / China (UTC+8)** (NVS `tz`, console `tz cn|mx`); Tailscale endpoint dropped (no tailnet client on the Tab5, 2 s per probe); crash when the MacBook brain vanished while active fixed (landmine 329).
 
 ## 5 · Risks
 

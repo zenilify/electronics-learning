@@ -18,7 +18,7 @@ static volatile bool s_rec, s_stop_play, s_playing;
 static volatile int s_side, s_level;
 static volatile int64_t s_rec_t0;
 static uint8_t *s_buf;                         // PSRAM: 44 + 30 s * 32 kB
-enum { MODE_PTT, MODE_NOTE, MODE_VAD };
+enum { MODE_PTT, MODE_NOTE, MODE_VAD, MODE_STREAM };
 static volatile int s_mode = MODE_PTT, s_vad_state;
 static volatile bool s_vad_on, s_vad_paused;
 static int s_note_max;
@@ -138,6 +138,28 @@ static void rec_vad(void)
     ESP_LOGI(TAG, "vad: off");
 }
 
+// Live subtitles: raw PCM16 in fixed chunks (no WAV header) until audio_stream_stop(). cb owns each chunk.
+static volatile bool s_stream_on;
+static int s_stream_bytes;
+static void rec_stream(void)
+{
+    const size_t CH = PAPP_RATE / 50 * 2;
+    uint8_t junk[640];
+    for (int i = 0; i < 3; i++) esp_codec_dev_read(s_mic, junk, sizeof junk);
+    ESP_LOGI(TAG, "stream: on (%d B chunks)", s_stream_bytes);
+    uint8_t *buf = NULL; size_t n = 0;
+    while (s_stream_on) {
+        if (!buf) { buf = heap_caps_malloc(s_stream_bytes, MALLOC_CAP_SPIRAM); n = 0; if (!buf) { vTaskDelay(pdMS_TO_TICKS(20)); continue; } }
+        if (esp_codec_dev_read(s_mic, buf + n, CH) != ESP_CODEC_DEV_OK) { vTaskDelay(1); continue; }
+        int rms; s_level = chunk_peak_rms((int16_t *)(buf + n), CH / 2, &rms) * 100 / 32768;
+        n += CH;
+        if (n + CH > (size_t)s_stream_bytes) { if (s_cb) s_cb(buf, n, s_cb_ud); else free(buf); buf = NULL; }
+    }
+    if (buf && n >= CH * 10 && s_cb) s_cb(buf, n, s_cb_ud); else free(buf);   // flush the tail (>= 200 ms)
+    s_level = 0;
+    ESP_LOGI(TAG, "stream: off");
+}
+
 static void rec_task(void *arg)
 {
     const size_t CH = PAPP_RATE / 50 * 2;  // 20 ms
@@ -145,6 +167,7 @@ static void rec_task(void *arg)
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         if (s_mode == MODE_NOTE) { rec_note(); s_mode = MODE_PTT; continue; }
         if (s_mode == MODE_VAD) { rec_vad(); s_mode = MODE_PTT; continue; }
+        if (s_mode == MODE_STREAM) { rec_stream(); s_mode = MODE_PTT; continue; }
         size_t n = 0;
         int side = s_side;
         // flush stale DMA data so the recording starts at the press
@@ -202,7 +225,7 @@ bool audio_init(void)
 
 void audio_rec_start(int side)
 {
-    if (s_rec || !s_rec_task || s_mode != MODE_PTT || s_vad_on) return;
+    if (s_rec || !s_rec_task || s_mode != MODE_PTT || s_vad_on || s_stream_on) return;
     audio_play_stop();
     s_side = side; s_rec_t0 = esp_timer_get_time(); s_rec = true;
     xTaskNotifyGive(s_rec_task);
@@ -242,7 +265,7 @@ void audio_play(const int16_t *pcm, size_t samples, int rate)
 
 bool audio_note_start(int max_sec, audio_wav_cb_t cb, void *ud)
 {
-    if (s_rec || s_vad_on || !s_rec_task) return false;
+    if (s_rec || s_vad_on || s_stream_on || !s_rec_task) return false;
     audio_play_stop();
     s_note_max = max_sec; s_cb = cb; s_cb_ud = ud; s_mode = MODE_NOTE;
     s_rec_t0 = esp_timer_get_time(); s_rec = true;
@@ -253,7 +276,7 @@ void audio_note_stop(void) { if (s_mode == MODE_NOTE) s_rec = false; }
 
 bool audio_vad_start(audio_wav_cb_t cb, void *ud)
 {
-    if (s_rec || s_vad_on || !s_rec_task) return false;
+    if (s_rec || s_vad_on || s_stream_on || !s_rec_task) return false;
     s_cb = cb; s_cb_ud = ud; s_mode = MODE_VAD; s_vad_paused = false; s_vad_on = true;
     xTaskNotifyGive(s_rec_task);
     return true;
@@ -261,3 +284,15 @@ bool audio_vad_start(audio_wav_cb_t cb, void *ud)
 void audio_vad_stop(void) { s_vad_on = false; }
 void audio_vad_pause(bool p) { s_vad_paused = p; }
 int audio_vad_state(void) { return s_vad_on ? s_vad_state : 0; }
+
+bool audio_stream_start(int chunk_ms, audio_wav_cb_t cb, void *ud)
+{
+    if (s_rec || s_vad_on || s_stream_on || !s_rec_task) return false;
+    audio_play_stop();
+    s_stream_bytes = PAPP_RATE * 2 * chunk_ms / 1000;
+    s_cb = cb; s_cb_ud = ud; s_mode = MODE_STREAM; s_stream_on = true;
+    xTaskNotifyGive(s_rec_task);
+    return true;
+}
+void audio_stream_stop(void) { s_stream_on = false; }
+bool audio_streaming(void) { return s_stream_on; }
