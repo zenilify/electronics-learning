@@ -3,7 +3,7 @@
 ROADMAP §3, layer 2. The MacBook (Apple Silicon) serves the **same contract** as cachy and Cloud Run
 (`GET /health`, `POST /translate`, `/translate-text`, `/tts`, `/fx`, same bearer token, same `X-Papp-*`
 headers). It announces itself over **mDNS as `_papp._tcp`**, so the Tab5 can list it as endpoint 0.
-Built 2026-11-07 by lane T5-B (`claude-1b`).
+Built 2026-11-07 by lane T5-B (`claude-1b`); v2 routes added 2026-11-09 (chapter 2, below).
 
 ```
 Tab5 ──Wi-Fi (phone hotspot, no mobile data)──▶ MacBook :8787  (_papp._tcp, TXT backend=offline-brain)
@@ -58,6 +58,38 @@ The brain translates better than the cloud on both directions and adds about 0.4
 The inputs are synthetic speech, not a real voice on the Tab5 mic, so real-mic ASR is still unmeasured.
 Known weak spot: product codes said aloud ("ESP32-P4" came out as 波茨瓦那普拉 in the ASR).
 
+## v2 routes (chapter 2, 2026-11-09): what the brain answers now
+
+Same contract as cachy's `server/API.md` (v0.2.1). The logic is copied from `server/papp` @3e51ffe into `brain/v2.py` and
+`brain/lid.py`, not imported. `GET /health` lists `features` (served) and `missing` (answered 404 → the Tab5 uses the next endpoint).
+
+| Route | Brain | Notes |
+|---|---|---|
+| `/translate?pair=es,zh` (conversation mode) · `src=auto` | ✅ | Whisper language ID restricted to the pair/allowed set, **one encoder pass** (encode → `detect_language` on the features → forced decode). For zh, the trip vocabulary goes in as the decode prompt (`ZH_PROMPT`: 地铁站, 开发板, 翻译器…). `mt=llm` (cachy's interpreter prompt + glossary, `mt_sane` fallback) is served when asked for, but **`pair=` defaults to the plain prompt on the brain**: on z16-1..4 the interpreter prompt was no better with Qwen3-8B ("comes a China" vs "visitas China") and doubled MT time (1.7 s vs 0.8 s median). Headers `X-Papp-Src/Tgt/Detected/Mt` |
+| `/translate-text?src=auto` | ✅ | text LID (`lid.py`) |
+| `/summarize?lang=auto&out=es` (WAV ≤ 10 min or `{text}`) | ✅ | local Qwen3-8B; cachy's prompt, glossary, language check + one retry. Local deviation: no copyable "Owner: … before 5 December" example (Qwen3 copied it into every action); `clean_action()` strips leftovers |
+| `/sd/index`, `/sd/file` | ✅ | serves `~/papp-brain/sdpack` (start.sh rsyncs cachy's `phrasebook-pack-v2/papp/` while online; 682 files, 34.9 MB); path traversal → 404 |
+| `/ocr-translate`, `/stream/*` | 404 | Tab5 falls back to cachy / Cloud Run |
+| tts-cache, asr-alt (canary) | — | not needed offline / no second ASR on the Mac |
+
+### Measured 2026-11-09 (MacBook, airgapped, `eval/v2_smoke.py` + T5-S's own acceptance tools)
+
+| Check | Result |
+|---|---|
+| `pair=es,zh`, 30 es + 30 zh WAVs: detected speaker + other-language target | 60/60 · RTT median 1.84 s |
+| `src=auto&tgt=en`, 30 es + 30 zh | 60/60 · RTT median 1.65 s |
+| `translate-text?src=auto`, 20 | 20/20 |
+| `/sd/index` + 5 `/sd/file` sha256 vs index · `../` traversal | 682 files · 5/5 · 404 |
+| `/ocr-translate`, `/stream/start`, `/stream/chunk` | 404 ×3 |
+| `server/tools/eval_summarize.py` (m16 zh meeting 105 s, en, de notes; expect Erick, LLM) | **3/3 PASS (exit 0)** · 17–22 s each (LLM 15–19 s) |
+| ASR on T5's z16 dialog clips, auto (es,zh) | 4/4 zh, 开发板 and 地铁站 right (were 开发版 / 低铁站 before ZH_PROMPT); 210–370 ms |
+
+**Measurement caveat (11-09 afternoon):** the Mac's GPU sat at 69–89 % "Device Utilization" with the brain idle, and the
+load average reached 231. Neither came from the brain (51 threads, idle between calls). The source was not identified;
+WindowServer was at 50–80 % CPU. Stage times swung 3–5× during that period, so treat today's latencies as an upper bound.
+The 11-07 numbers above were taken on an idle GPU.
+Known weak spot: Qwen3-8B (mt=llm) sometimes flips 买/卖 ("si me das 10"); cachy's second ASR plus the larger LLM fixes that.
+
 ## Offline proof (what was verified, and how)
 
 | Check | Result |
@@ -76,6 +108,6 @@ server time. The Tab5 should connect to the IPv4 A record from the mDNS answer.
 
 ## Files
 
-`brain/app.py` (API, mDNS, copied from `server/papp/app.py`, not imported) · `brain/engines.py` ·
+`brain/app.py` (API, mDNS, copied from `server/papp/app.py`, not imported) · `brain/engines.py` · `brain/v2.py` · `brain/lid.py` ·
 `start.sh` · `setup.sh` · `fetch_models.py` · `airgap.sb` · `requirements.txt` · `eval/` (sentences,
 benches, results). Venv, models and test WAVs live in `~/papp-brain/` and the HF cache, outside git.

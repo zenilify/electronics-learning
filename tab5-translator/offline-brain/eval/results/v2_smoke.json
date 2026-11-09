@@ -1,0 +1,67 @@
+{
+ "pair=es,zh": {
+  "ok": "60/60",
+  "rtt_ms_median": 1843,
+  "rtt_ms_max": 2918,
+  "misses": []
+ },
+ "src=auto>en": {
+  "ok": "60/60",
+  "rtt_ms_median": 1654,
+  "rtt_ms_max": 3100,
+  "misses": []
+ },
+ "pair=es,en": {
+  "ok": "30/30",
+  "rtt_ms_median": 2497,
+  "rtt_ms_max": 3046,
+  "misses": []
+ },
+ "translate-text auto": "20/20",
+ "sd": {
+  "index_status": 200,
+  "count": 682,
+  "bytes": 34872273,
+  "index_ms": 574,
+  "files_hash_ok": "5/5",
+  "traversal_status": 404
+ },
+ "404": {
+  "/ocr-translate": 404,
+  "/stream/start": 404,
+  "/stream/chunk": 404
+ },
+ "summarize text es->en": {
+  "status": 200,
+  "ms": 11364,
+  "title": "Voice Note - Hotel and Travel Request",
+  "summary": "A voice note in Spanish contains a traveler's request for hotel assistance, transportation, and information about a restaurant. The traveler also mentions needing a taxi to the airport and provides their name as Erick.",
+  "bullets": 6,
+  "actions": [
+   "Erick: Request taxi to airport at 7 AM",
+   "Erick: Need help with directions",
+   "Erick: Ask for restaurant recommendation that is not spicy",
+   "Erick: Confirm if credit card payment is accepted",
+   "Erick: Request hotel bill",
+   "Erick: Mention reservation under name Erick"
+  ]
+ },
+ "summarize audio zh->es": {
+  "status": 200,
+  "ms": 15116,
+  "audio_s": 34.4,
+  "lang": "zh",
+  "title": "Interés en nuevo tablet con ESP32-P4",
+  "summary": "El fundador de Zenilify, una empresa consultora de México, expresa interés en el nuevo tablet con chip ESP32-P4. Pregunta sobre la cantidad mínima de pedido, tiempo de envío a México y menciona que su fábrica redujo los defectos en un 30%. Promete enviar un plan por correo electrónico esta semana.",
+  "actions": [
+   "Zenilify: enviar plan por correo electrónico esta semana",
+   "Zenilify: confirmar cantidad mínima de pedido",
+   "Zenilify: verificar tiempo de envío a México"
+  ],
+  "timings": {
+   "asr": 3421,
+   "llm": 11684,
+   "total": 15105
+  }
+ }
+}

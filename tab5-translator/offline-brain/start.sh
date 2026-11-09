@@ -22,6 +22,9 @@ json.dump({"base":"USD","date":j.get("time_last_update_utc",""),"source":"open.e
            "rates":{k:j["rates"][k] for k in keep if k in j["rates"]}},sys.stdout)' > "$STATE/cache/fx.json.tmp" \
   && mv "$STATE/cache/fx.json.tmp" "$STATE/cache/fx.json" || rm -f "$STATE/cache/fx.json.tmp"
 
+# Best effort: refresh the SD phrasebook pack from cachy (rsync over the tailnet/LAN); keep the old copy if offline.
+rsync -a --timeout=8 cachy:papp/phrasebook-pack-v2/papp/ "$STATE/sdpack/" 2>/dev/null || true
+
 # Never touch the network from here on: a missing model must fail, not download.
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 TOKENIZERS_PARALLELISM=false
 export PAPP_STATE="$STATE" PAPP_MT="${PAPP_MT:-qwen3}" PAPP_TTS="${PAPP_TTS:-piper}" PAPP_PORT="${PAPP_PORT:-8787}"
