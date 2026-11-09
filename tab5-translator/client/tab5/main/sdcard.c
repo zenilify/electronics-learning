@@ -59,10 +59,22 @@ static uint32_t fnv(const char *s)
 
 static void cache_path(const char *key, char *p, size_t n) { snprintf(p, n, SD_ROOT "/tts/%08lx.wav", (unsigned long)fnv(key)); }
 
+static bool wav_file_get(const char *p, int16_t **pcm, size_t *samples, int *rate);
 bool sd_cache_get(const char *key, int16_t **pcm, size_t *samples, int *rate)
 {
     if (!s_ok) return false;
     char p[64]; cache_path(key, p, sizeof p);
+    return wav_file_get(p, pcm, samples, rate);
+}
+// Erick-voice pack (N4, personal, card only): SD_ROOT/voices/erick/tts/<fnv32("<lang>|<text>")>.wav, es + en
+bool sd_voice_get(const char *voice, const char *key, int16_t **pcm, size_t *samples, int *rate)
+{
+    if (!s_ok) return false;
+    char p[96]; snprintf(p, sizeof p, SD_ROOT "/voices/%s/tts/%08lx.wav", voice, (unsigned long)fnv(key));
+    return wav_file_get(p, pcm, samples, rate);
+}
+static bool wav_file_get(const char *p, int16_t **pcm, size_t *samples, int *rate)
+{
     FILE *f = fopen(p, "rb");
     if (!f) return false;
     fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);

@@ -8,6 +8,7 @@
 #include "freertos/idf_additions.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "settings.h"
 #include "papp_http.h"
 #include "audio.h"
 #include "sdcard.h"
@@ -97,13 +98,16 @@ static bool say_cached(lang_t lang, const char *text, papp_result_t *r, bool fet
 {
     char *key = malloc(strlen(text) + 8);
     sprintf(key, "%s|%s", lang_code(lang), text);
-    bool hit = sd_cache_get(key, &r->pcm, &r->samples, &r->rate);
+    // Ajustes "Voz: Erick": es/en phrases in Erick's own cloned voice when the pack is on the card (zh stays Magpie)
+    bool mine = lang != LANG_ZH && settings_get_u8("voice", 0) && !fetch_only &&
+                sd_voice_get("erick", key, &r->pcm, &r->samples, &r->rate);
+    bool hit = mine || sd_cache_get(key, &r->pcm, &r->samples, &r->rate);
     if (hit) { r->http_status = 200; r->endpoint = -2; }      // -2 = SD cache
     else {
         papp_tts(lang, text, r);
         if (r->http_status == 200 && r->samples) sd_cache_put(key, r->pcm, r->samples, r->rate);
     }
-    ESP_LOGI(TAG, "say %s %s (%u samples)%s", lang_code(lang), hit ? "SD-cache" : "server",
+    ESP_LOGI(TAG, "say %s %s (%u samples)%s", lang_code(lang), mine ? "SD-voice-erick" : hit ? "SD-cache" : "server",
              (unsigned)r->samples, fetch_only ? " [prefetch]" : "");
     free(key);
     return r->http_status == 200 && r->samples;

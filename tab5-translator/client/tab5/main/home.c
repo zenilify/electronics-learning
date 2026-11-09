@@ -463,6 +463,12 @@ static void on_bright(lv_event_t *e)
 static void on_reprobe(lv_event_t *e) { net_reprobe(); }
 static void tz_label(lv_obj_t *p) { char b[64]; snprintf(b, sizeof b, LV_SYMBOL_GPS " Hora: %s", TZ_NAME[settings_get_u8("tz", 0) ? 1 : 0]);
                                     lv_label_set_text(lv_obj_get_child(p, 0), b); }
+static void voice_label(lv_obj_t *p) { lv_label_set_text(lv_obj_get_child(p, 0), settings_get_u8("voice", 0) ? LV_SYMBOL_AUDIO " Voz: Erick" : LV_SYMBOL_AUDIO " Voz: PAPP"); }
+static void on_voice(lv_event_t *e)       // es/en phrases in Erick's cloned voice (SD papp/voices/erick/, N4 pack)
+{
+    settings_set_u8("voice", settings_get_u8("voice", 0) ? 0 : 1);
+    voice_label(lv_event_get_current_target(e));
+}
 static void on_tz(lv_event_t *e)          // México <-> China: clocks, file names and logs follow at once
 {
     settings_set_u8("tz", settings_get_u8("tz", 0) ? 0 : 1);
@@ -514,13 +520,17 @@ static void build_settings(void)
     lv_obj_t *sl = lv_slider_create(body);
     lv_slider_set_range(sl, 10, 100);
     lv_slider_set_value(sl, settings_get_u8("bri", 85), LV_ANIM_OFF);
-    lv_obj_set_width(sl, 700);
+    lv_obj_set_width(sl, 520);
     lv_obj_align(sl, LV_ALIGN_BOTTOM_LEFT, 160, -46);
     lv_obj_add_event_cb(sl, on_bright, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_t *tz = pill(body, "", C_PANEL, f24);
     lv_obj_align(tz, LV_ALIGN_BOTTOM_RIGHT, 0, -30);
     tz_label(tz);
     lv_obj_add_event_cb(tz, on_tz, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *vo = pill(body, "", C_PANEL, f24);
+    lv_obj_align(vo, LV_ALIGN_BOTTOM_RIGHT, -330, -30);
+    voice_label(vo);
+    lv_obj_add_event_cb(vo, on_voice, LV_EVENT_CLICKED, NULL);
     lv_timer_create(set_refresh, 1000, NULL);
 }
 

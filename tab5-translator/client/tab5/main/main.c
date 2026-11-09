@@ -240,6 +240,12 @@ static void console_task(void *a)
             if (c6_version(&a, &b, &c)) ESP_LOGI(TAG, "C6 esp-hosted fw %lu.%lu.%lu", (unsigned long)a, (unsigned long)b, (unsigned long)c);
             else ESP_LOGW(TAG, "C6 fw version not available");
         }
+        else if (!strcmp(line, "voice erick") || !strcmp(line, "voice papp")) {   // Ajustes "Voz"
+            settings_set_u8("voice", line[6] == 'e'); ESP_LOGI(TAG, "voice %s", line + 6);
+        }
+        else if (!strncmp(line, "say ", 4) && strlen(line) > 7) {   // say es|en|zh <text>: SD voice/cache -> /tts
+            line[6] = 0; svc_say(lang_from_code(line + 4), line + 7, NULL, NULL);
+        }
         else if (!strcmp(line, "tz cn") || !strcmp(line, "tz mx")) {   // same as the Ajustes "Hora" button
             settings_set_u8("tz", line[3] == 'c'); papp_tz_apply();
             time_t t = time(NULL); struct tm lt; localtime_r(&t, &lt); char b[32]; strftime(b, sizeof b, "%Y-%m-%d %H:%M", &lt);
