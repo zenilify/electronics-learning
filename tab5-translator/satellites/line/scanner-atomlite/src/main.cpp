@@ -2,7 +2,7 @@
 // AtomS3 Lite on the Atomic QRCode2 Base (UART 115200; host RX = G5, TX = G6 — measured 2026-11-10: begin() fails on the swapped order).
 //   every decoded code  -> POST /scan {code, station, kind:"qr", result:"ok"}
 //   button (G41) once   -> the NEXT scan is posted as result:"scrap", reason S01 (LED red while armed; press again = disarm)
-//   the same code inside 3 s is ignored (the scanner repeats while the label stays in view)
+//   a code seen in the last 5 s is ignored (the scanner repeats while a label stays in view, and hops between labels)
 // RGB LED G35: green ok · red scrap / armed · yellow duplicate or FIFO warning · blue tint = MOCK server · purple = no server
 // Serial console (USB): type a code + Enter to inject a scan without the optics ("!code" = scrap) — for bench tests.
 #include <WiFi.h>
@@ -32,7 +32,10 @@ static void idle() {
 static void handle(String code, bool scrap) {
   code.trim();
   if (!code.length()) return;
-  if (code == lastCode && millis() - lastAt < 3000) return;
+  // ignore a code seen in the last 5 s — with several labels in view the scanner hops between them
+  static String seen[8]; static uint32_t seenAt[8]; static uint8_t si = 0;
+  for (int i = 0; i < 8; i++) if (seen[i] == code && millis() - seenAt[i] < 5000) { seenAt[i] = millis(); return; }
+  seen[si] = code; seenAt[si] = millis(); si = (si + 1) % 8;
   lastCode = code; lastAt = millis();
   String rep;
   int c = lineScan(code, "qr", scrap ? "scrap" : "ok", scrap ? "S01" : "", "", &rep);
