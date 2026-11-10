@@ -86,7 +86,8 @@ static void poll_task(void *x)
     while (s_up) {
         uint8_t *body = NULL; size_t len = 0;
         int st = papp_get("/line/kpi?window=shift", &body, &len);
-        if (st != 200) ESP_LOGD(TAG, "kpi HTTP %d", st);
+        static int last = -999;
+        if (st != last) { ESP_LOGI(TAG, "kpi HTTP %d (%u B)", st, (unsigned)len); last = st; }
         lock(); show((const char *)body, st); unlock();
         free(body);
         for (int i = 0; i < 30 && s_up; i++) vTaskDelay(pdMS_TO_TICKS(100));

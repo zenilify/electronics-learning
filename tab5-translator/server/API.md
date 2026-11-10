@@ -98,3 +98,24 @@ Before (cachy 21c3754): 0/3 — "Eric"/"Erik", "módulo LM", German title on the
 no CJK, no German/English sentence, actions plain strings with deadlines as said ("Erick: enviar documentación técnica antes del 5 de
 diciembre", "…12 de diciembre a las 3 p. m. hora de Beijing"), "Erick"/"LLM" right. Residual: the DE note's ASR heard "OEE-Auswertung"
 as "UE-Auswertung", and the title keeps that German compound.
+
+## v0.2.2 — Traceability Cell `/scan` + `/line/*` (T5, 2026-11-10; contract = N4 proposal §3, AGREEd 11-09)
+
+Same bearer. SQLite `PAPP_CACHE_DIR/line.db` (persistent on cachy; Cloud Run not deployed with it yet — LAN/Teleport only).
+Code: `server/papp/line.py` (ported from T5-I's `satellites/line/tools/mock_line.py`, same replies without `"mock"`).
+
+| Method · path | Body / query | Reply |
+|---|---|---|
+| `POST /scan` | `{code, station, operator?, kind:"qr"\|"rfid", result:"ok"\|"scrap"\|"rework", reason?, lot?, ts?}` | `{id, seq, station, lot, duplicate, fifo_warning, counts{good,scrap,rework}}`; 422 on missing fields |
+| `POST /line/event` | `{station, type:"run"\|"stop"\|"fault"\|"andon"\|"andon_clear"\|"login"\|"logout"\|"kanban", operator?, reason?, text?, value?, unit?, count?}` | `{id, state, andon_open[]}`; andon `text` translated es/zh/en (NMT) |
+| `GET /line/kpi?window=shift\|hour\|<iso>/<iso>&station=` | — | `{window, planned_s, run_s, stop_s, ideal_cycle_s, total, good, scrap, availability, performance, quality, oee, andon_open[{station,reason,es,zh,en,operator,ts}], top_reasons[{code,es,zh,en,count}], last_scans[10], sensors{station:{value,unit,ts}}}` |
+| `GET /line/trace?code=` | — | `{code, lot, scans[], lot_scans[], events[]}` |
+| `GET\|POST /line/config` | `{stations[], ideal_cycle_s, shift{start,end,breaks[]}, reasons{code:{es,zh,en}}}` | current config (persisted to `line-config.json`) |
+| `POST /line/report?out=es\|zh\|en` | — | `{title, summary, bullets[], markdown, kpi}` (deterministic, no LLM) |
+| `POST /line/reset` | `{confirm:"demo"}` | `{ok, kept:"line.db.<ts>"}` — old DB kept, nothing deleted |
+
+OEE: A = run_s / planned_s, with planned time starting at the first event/scan of the window (a demo cell switched on
+mid-shift is not penalised for the hours before) · P = ideal_cycle_s × total / run_s (cap 1) · Q = good / total.
+12 default reason codes: S01–S05 (quality), D01–D05 (downtime), A01–A02 (help) — `GET /line/config`.
+Measured on cachy 11-10: 6 scans over 12 s → A 1.0 · P 1.0 · Q 0.833 · OEE 0.833; andon "falta tornillo M3" → zh 缺少螺丝 M3 /
+en missing screw M3; no bearer → 401; Tab5 Línea tile → `kpi HTTP 200`.

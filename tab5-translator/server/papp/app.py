@@ -37,7 +37,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from . import cache, lid, llm, ocr, stream
+from . import cache, lid, line, llm, ocr, stream
 from .config import load_settings
 from .pipeline import HOTWORDS, LANGS, fix_terms, BadAudio, PcmAudio, Pipeline, UpstreamError, read_wav, to_wav
 
@@ -71,7 +71,7 @@ def health() -> dict:
     return {"ok": True, "service": "papp", "version": app.version, "commit": os.environ.get("PAPP_COMMIT", "dev"),
             "langs": sorted(LANGS), "cooling_down": pipeline.status(),
             "features": ["translate", "auto", "translate-text", "tts-cache", "summarize", "ocr-translate",
-                         "fx", "stream", "mt-llm", "asr-alt"],
+                         "fx", "stream", "mt-llm", "asr-alt", "scan", "line"],
             "ocr_engines": ["vl", "ocr"] + (["best"] if llm.gemini_available() or PEER else []),
             "cache": {k: v for k, v in cache.stats.items()}}
 
@@ -549,3 +549,64 @@ async def sd_file(path: str) -> Response:
         raise HTTPException(404, "not in the SD pack")
     from fastapi.responses import FileResponse
     return FileResponse(p, media_type="application/octet-stream")
+
+
+# ---- Traceability Cell (contract: mission-control handoff 2026-11-08-n4.md §3; built by T5 11-10) ---------------
+# The Tab5 "Línea · 产线" board polls GET /line/kpi; the T5-I satellites (scanner, badge, sensor) POST /scan and
+# /line/event. SQLite in the cache dir: persistent on cachy (~/papp/cache), ephemeral (demo-only) on Cloud Run.
+LINE = line.Line(os.path.join(os.environ.get("PAPP_CACHE_DIR", "/tmp/papp-cache"), "line.db"),
+                 translate=lambda t, a, b: pipeline.translate(t, a, b))
+
+
+async def _json(request: Request) -> dict:
+    raw = await request.body()
+    try:
+        j = json.loads(raw or b"{}")
+    except ValueError:
+        raise HTTPException(422, "invalid JSON")
+    if not isinstance(j, dict):
+        raise HTTPException(422, "JSON object expected")
+    return j
+
+
+async def _line_call(fn, *a):
+    try:
+        return await run_in_threadpool(fn, *a)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+@app.post("/scan", dependencies=[Depends(auth)])
+async def line_scan(request: Request) -> dict:
+    return await _line_call(LINE.scan, await _json(request))
+
+
+@app.post("/line/event", dependencies=[Depends(auth)])
+async def line_event(request: Request) -> dict:
+    return await _line_call(LINE.event, await _json(request))
+
+
+@app.get("/line/kpi", dependencies=[Depends(auth)])
+async def line_kpi(window: str = "shift", station: str | None = None) -> dict:
+    return await _line_call(LINE.kpi, window, station)
+
+
+@app.get("/line/trace", dependencies=[Depends(auth)])
+async def line_trace(code: str) -> dict:
+    return await _line_call(LINE.trace, code)
+
+
+@app.api_route("/line/config", methods=["GET", "POST"], dependencies=[Depends(auth)])
+async def line_config(request: Request) -> dict:
+    j = await _json(request) if request.method == "POST" else None
+    return await _line_call(LINE.config, j)
+
+
+@app.post("/line/report", dependencies=[Depends(auth)])
+async def line_report(out: str = "es") -> dict:
+    return await _line_call(LINE.report, out)
+
+
+@app.post("/line/reset", dependencies=[Depends(auth)])
+async def line_reset(request: Request) -> dict:
+    return await _line_call(LINE.reset, await _json(request))
