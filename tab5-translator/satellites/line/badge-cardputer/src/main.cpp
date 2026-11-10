@@ -17,7 +17,46 @@
 #include <MFRC522_I2C.h>
 #include "line_net.h"
 
-static MFRC522_I2C rfid(0x28, -1, &Wire);
+// The RFID2 may sit on PORT.A (Wire, SDA G2 / SCL G1) or on the internal bus G8/G9 — the red Grove port of the
+// grey cap — which M5Unified already owns for the keyboard. InWire lets MFRC522_I2C talk through M5.In_I2C there.
+class InWire : public TwoWire {
+  uint8_t a = 0, tx[40], rx[80];
+  size_t tn = 0, rn = 0, ri = 0;
+public:
+  InWire() : TwoWire(0) {}
+  void beginTransmission(uint8_t ad) override { a = ad; tn = 0; }
+  size_t write(uint8_t d) override { if (tn < sizeof(tx)) { tx[tn++] = d; return 1; } return 0; }
+  size_t write(const uint8_t *p, size_t n) override { size_t k = 0; while (k < n && write(p[k])) k++; return k; }
+  uint8_t endTransmission(bool) override {
+    bool ok = M5.In_I2C.start(a, false, 100000) && (tn == 0 || M5.In_I2C.write(tx, tn));
+    ok = M5.In_I2C.stop() && ok; tn = 0;
+    return ok ? 0 : 2;
+  }
+  uint8_t endTransmission() override { return endTransmission(true); }
+  size_t requestFrom(uint8_t ad, size_t n, bool) override {
+    if (n > sizeof(rx)) n = sizeof(rx);
+    ri = rn = 0;
+    if (M5.In_I2C.start(ad, true, 100000) && M5.In_I2C.read(rx, n, true)) rn = n;
+    M5.In_I2C.stop();
+    return rn;
+  }
+  size_t requestFrom(uint8_t ad, size_t n) override { return requestFrom(ad, n, true); }
+  int available() override { return rn - ri; }
+  int read() override { return ri < rn ? rx[ri++] : -1; }
+};
+static InWire inWire;
+static MFRC522_I2C rfidA(0x28, -1, &Wire), rfidIn(0x28, -1, &inWire);
+static MFRC522_I2C *rfid = &rfidA;
+static const char *rfidBus = "--";
+
+static bool rfidProbe() {                      // PORT.A first, then the internal bus
+  Wire.beginTransmission(0x28);
+  if (Wire.endTransmission() == 0) { rfid = &rfidA; rfidBus = "PORT.A"; }
+  else if (M5.In_I2C.scanID(0x28)) { rfid = &rfidIn; rfidBus = "G8/G9"; }
+  else { rfidBus = "--"; return false; }
+  rfid->PCD_Init();
+  return true;
+}
 static bool rfidOk = false, armBadge = true;
 static String op, typed, lastMsg = "listo · 就绪", lastUid;
 static uint32_t lastTap = 0;
@@ -46,7 +85,7 @@ static void draw() {
   d.printf("Operador·操作员: %s", op.length() ? op.c_str() : "—");
   d.setCursor(4, 44);
   d.setTextColor(andonOpen > 0 ? TFT_RED : TFT_GREEN, TFT_BLACK);
-  d.printf("Andon·安灯: %ld   RFID %s", andonOpen < 0 ? 0 : andonOpen, rfidOk ? "ok" : "--");
+  d.printf("Andon·安灯: %ld   RFID %s", andonOpen < 0 ? 0 : andonOpen, rfidOk ? rfidBus : "--");
   d.setTextColor(TFT_YELLOW, TFT_BLACK);
   d.setCursor(4, 62);
   d.print(lastMsg);
@@ -118,10 +157,8 @@ void setup() {
   draw();
   Serial.println("\n[badge] T5-I badge-cardputer station=" LINE_STATION);
   Wire.begin(2, 1, 100000);
-  Wire.beginTransmission(0x28);
-  rfidOk = Wire.endTransmission() == 0;
-  if (rfidOk) rfid.PCD_Init();
-  Serial.printf("[badge] rfid2 @0x28 ack=%d board=%d\n", rfidOk, (int)M5.getBoard());
+  rfidOk = rfidProbe();
+  Serial.printf("[badge] rfid2 @0x28 ack=%d bus=%s board=%d\n", rfidOk, rfidBus, (int)M5.getBoard());
   lineBegin();
   lastMsg = "listo · 就绪";
   draw();
@@ -139,13 +176,15 @@ void loop() {
     } else for (char k : st.word) onKey(k);
   }
 
+  static uint32_t tP = 0;                      // hot-plug: look for the reader every 5 s until it answers
+  if (!rfidOk && millis() - tP > 5000) { tP = millis(); if ((rfidOk = rfidProbe())) { Serial.printf("[badge] rfid2 found on %s\n", rfidBus); draw(); } }
   static uint32_t tR = 0;
   if (rfidOk && millis() - tR > 120) {
     tR = millis();
-    if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
+    if (rfid->PICC_IsNewCardPresent() && rfid->PICC_ReadCardSerial()) {
       String uid;
-      for (byte i = 0; i < rfid.uid.size; i++) { char b[3]; sprintf(b, "%02X", rfid.uid.uidByte[i]); uid += b; }
-      rfid.PICC_HaltA();
+      for (byte i = 0; i < rfid->uid.size; i++) { char b[3]; sprintf(b, "%02X", rfid->uid.uidByte[i]); uid += b; }
+      rfid->PICC_HaltA();
       onCard(uid);
     }
   }
@@ -153,7 +192,7 @@ void loop() {
   if (Serial.available()) {                    // scanner fallback / bench injection
     String s = Serial.readStringUntil('\n');
     s.trim();
-    if (s == "?") Serial.printf("[badge] status up=%d mock=%d rfid=%d op=%s andon=%ld\n", lineUp(), lineIsMock(), rfidOk,
+    if (s == "?") Serial.printf("[badge] status up=%d mock=%d rfid=%d(%s) op=%s andon=%ld\n", lineUp(), lineIsMock(), rfidOk, rfidBus,
                                 op.c_str(), andonOpen);
     else if (s == "w") lineWifiScan();
     else if (s == "i") {                       // bench: I2C scan of the Grove port, both pin orders
