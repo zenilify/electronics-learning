@@ -1,0 +1,4 @@
+common/secrets.h
+.pio/
+*.db
+*.db.*
