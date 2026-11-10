@@ -64,7 +64,7 @@ Unknown fields are ignored by both sides (diagnostics such as `lr` = last ack ro
 
 | `ev` | `arg` | Sent when |
 |---|---|---|
-| `hello` | `{"kind":"stick"\|"dial","name":"…","fw":"0.1.0","boot":<uint32 random per boot>}` | discovery, then every 15 s as link check (ack refreshes `state`) |
+| `hello` | `{"kind":"stick"\|"dial","name":"…","fw":"0.1.0","boot":<uint32 random per boot>}` | discovery (every 1 s), then every 5 s as link check; 2 unanswered -> back to discovery (ack refreshes `state`) |
 | `ptt_down` | `{"side":0\|1}` (+ `"rep":1` on keep-alives) | talk key goes down — sent immediately, no debounce delay beyond 15 ms |
 | `ptt_up` | `{"side":0\|1,"ms":<held ms>}` (+ `"cancel":true` when held < 250 ms) | talk key released; `cancel` = discard the capture (it was a short press) |
 | `replay` | `{}` | play the last translation again |
