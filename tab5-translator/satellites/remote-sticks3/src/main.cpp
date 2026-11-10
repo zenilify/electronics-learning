@@ -95,6 +95,6 @@ void loop() {
     if (batPct < 0 || batPct > 100) batPct = -1;
     t5r::setBattery(batPct, M5.Power.getBatteryVoltage(), M5.Power.isCharging() == m5::Power_Class::is_charging);
   }
-  draw();
+  if (!t5r::busy()) draw();            // a full redraw blocks ~25 ms; never let it sit between a press and its ack
   delay(1);
 }

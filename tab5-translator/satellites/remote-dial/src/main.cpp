@@ -122,6 +122,6 @@ void loop() {
     t5r::setBattery(-1, 0, false);
   }
   t5r::loop();
-  draw();
+  if (!t5r::busy()) draw();            // a full redraw blocks ~25 ms; never let it sit between a press and its ack
   delay(1);
 }

@@ -11,7 +11,7 @@
 namespace t5r {
 
 static const uint16_t PORT = 47800;
-static const char *FW = "0.1.0";
+static const char *FW = "0.1.2";
 static const int SLOTS = 4;
 static const uint32_t RETRY_MS = 60;
 
@@ -99,12 +99,17 @@ static bool jnum(const char *s, const char *k, long long *v) {
   return true;
 }
 
+static uint32_t logDropped = 0;
 static void say(const char *fmt, ...) {            // console line; never carries secrets
   char b[400];
   va_list a;
   va_start(a, fmt);
   vsnprintf(b, sizeof b, fmt, a);
   va_end(a);
+  // Never block on the USB console: with no host draining it the HWCDC TX buffer fills after a few lines and a plain
+  // print() then stalls the whole loop (seen 2026-11-10: both remotes froze ~4 min after linking, display stuck on "Tab5 OK").
+  size_t need = strlen(b) + 6;
+  if ((size_t)Serial.availableForWrite() < need) { logDropped++; return; }
   Serial.print("T5R ");
   Serial.println(b);
 }
@@ -317,6 +322,7 @@ void ptt(bool down, int side, const char *shortEv, bool synthetic) {
 }
 
 bool pttHeld() { return pHeld; }
+bool busy() { return qc > 0; }
 Link link() { return lnk; }
 const State &state() { return stt; }
 const Stats &stats() { return st; }

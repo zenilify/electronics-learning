@@ -27,6 +27,7 @@ bool send(const char *ev, const char *argJson = "{}", uint8_t tries = 5);
 // Push-to-talk. down: sent at once. up: held < 250 ms -> cancel:true and then shortEv (if not null).
 void ptt(bool down, int side, const char *shortEv = "replay", bool synthetic = false);
 bool pttHeld();
+bool busy();                                       // an event is waiting for its ack: postpone slow work (LCD redraw ~25 ms)
 
 Link link();
 const State &state();
