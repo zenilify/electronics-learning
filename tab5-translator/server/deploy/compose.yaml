@@ -17,6 +17,7 @@ services:
       - ${HOME}/.config/zenilify/papp_token:/run/secrets/papp_token:ro
       - ${HOME}/papp/cache:/cache
       - ${HOME}/papp/phrasebook-pack-v2/papp:/sdpack:ro   # /sd/index + /sd/file (Tab5 SD sync)
+      - ${HOME}/papp/voice-pack-erick/papp/voices:/sdpack/voices:ro   # D-N4-2 (Erick 11-09): Erick-voice pack -> Tab5 SD over Wi-Fi; cachy ONLY (never git/bucket/Cloud Run)
     ports:
       - "192.168.1.5:8787:8080"     # LAN (Toluca)
       - "100.69.244.21:8787:8080"   # Tailscale (cachy) — the path from China
