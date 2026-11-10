@@ -164,6 +164,10 @@ void loop() {
         Serial.println();
       }
       Wire.end(); Wire.begin(2, 1, 100000);
+      bool r[120]; M5.In_I2C.scanID(r);       // internal bus G8/G9 (also the grey cap's red Grove port)
+      Serial.print("[badge] i2c internal G8/G9:");
+      for (int a = 8; a < 120; a++) if (r[a]) Serial.printf(" 0x%02X", a);
+      Serial.println();
     }
     else if (s.startsWith("card:")) onCard(s.substring(5));
     else if (s.startsWith("key:")) { for (size_t i = 4; i < s.length(); i++) onKey(s[i]); }

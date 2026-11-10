@@ -79,7 +79,11 @@ void setup() {
 void loop() {
   static bool was = false;
   bool down = digitalRead(PIN_BTN) == LOW;
-  if (down && !was) { scrapArmed = !scrapArmed; Serial.printf("[scan] scrap armed=%d\n", scrapArmed); idle(); delay(30); }
+  static uint32_t btnAt = 0;                   // 400 ms lock-out: contact bounce on release used to disarm it again
+  if (down && !was && millis() - btnAt > 400) {
+    btnAt = millis(); scrapArmed = !scrapArmed;
+    Serial.printf("[scan] scrap armed=%d\n", scrapArmed); idle();
+  }
   was = down;
 
   if (qr.available()) {
