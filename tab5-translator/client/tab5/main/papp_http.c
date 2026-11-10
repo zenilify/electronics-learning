@@ -340,10 +340,22 @@ static int one_get(int ep, const char *path, uint8_t **body, size_t *len, FILE *
     return status;
 }
 
+// SD sync source: the full pack lives on cachy (LAN/Teleport); the MacBook brain only mirrors the phrasebook part,
+// so a sync pins cachy whenever it answers /health (11-10: the Erick-voice pack exists on cachy only, D-N4-2).
+static int s_get_pin = -1;
+int papp_sd_source_begin(void)
+{
+    s_get_pin = (EP_URL[2][0] && health_ok(2)) ? 2 : -1;
+    ESP_LOGI(TAG, "sd sync source: %s", s_get_pin >= 0 ? EP_NAME[s_get_pin] : "active endpoint");
+    return s_get_pin;
+}
+void papp_sd_source_end(void) { s_get_pin = -1; }
+
 int papp_get(const char *path, uint8_t **body, size_t *len)
 {
     *body = NULL; *len = 0;
     if (!s_token[0]) return 401;
+    if (s_get_pin >= 0) return one_get(s_get_pin, path, body, len, NULL);
     if (s_active < 0) papp_probe(NULL);
     if (s_active < 0) return -1;
     int st = one_get(s_active, path, body, len, NULL);
@@ -361,6 +373,7 @@ int papp_get(const char *path, uint8_t **body, size_t *len)
 int papp_get_file(const char *path, FILE *fp)
 {
     if (!s_token[0]) return 401;
+    if (s_get_pin >= 0) return one_get(s_get_pin, path, NULL, NULL, fp);
     if (s_active < 0) papp_probe(NULL);
     if (s_active < 0) return -1;
     return one_get(s_active, path, NULL, NULL, fp);

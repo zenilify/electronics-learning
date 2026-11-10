@@ -37,8 +37,9 @@ static void urlenc(const char *in, char *out, size_t n)
 static void sd_sync(svc_progress_t prog, void *ud)
 {
     uint8_t *idx; size_t len;
+    papp_sd_source_begin();
     int st = papp_get("/sd/index", &idx, &len);
-    if (st != 200 || !idx) { ESP_LOGW(TAG, "sd sync: index HTTP %d", st); free(idx); if (prog) prog(0, 0, 0, ud); return; }
+    if (st != 200 || !idx) { ESP_LOGW(TAG, "sd sync: index HTTP %d", st); free(idx); papp_sd_source_end(); if (prog) prog(0, 0, 0, ud); return; }
     int total = 0;
     for (const char *p = (char *)idx; (p = strstr(p, "\"path\"")); p++) total++;
     int i = 0, got = 0, kept = 0, bad = 0; int64_t t0 = esp_timer_get_time(); size_t bytes = 0;
@@ -69,6 +70,7 @@ static void sd_sync(svc_progress_t prog, void *ud)
         if (prog && (i % 10 == 0 || i == total)) prog(i, total, ok, ud);
     }
     free(idx);
+    papp_sd_source_end();
     int ms = (int)((esp_timer_get_time() - t0) / 1000);
     char ln[160]; snprintf(ln, sizeof ln, "sd sync: %d files, %d new (%u kB), %d kept, %d failed, %d ms", total, got, (unsigned)(bytes / 1024), kept, bad, ms);
     ESP_LOGI(TAG, "%s", ln); sd_log("sync.log", ln);

@@ -20,6 +20,8 @@ void papp_get_json(const char *path, papp_result_t *r);
 // GET {BASE}{path}: body -> heap (PSRAM, NUL-terminated, caller frees). Returns HTTP status (<0 transport/short read).
 int papp_get(const char *path, uint8_t **body, size_t *len);
 // GET {BASE}{path} streamed into an open file. Returns HTTP status (-2 write error, -3 short read).
+int papp_sd_source_begin(void);   // pin cachy (LAN) for /sd/* while a sync runs; returns the endpoint or -1
+void papp_sd_source_end(void);
 int papp_get_file(const char *path, FILE *fp);
 void papp_set_brain(const char *ipv4, int port);   // NULL/"" = forget it
 void papp_post_bytes(const char *path, const char *ctype, const uint8_t *b, size_t n, papp_result_t *r);  // JSON reply -> r->tgt_text
