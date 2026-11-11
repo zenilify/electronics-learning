@@ -46,7 +46,7 @@ logging.basicConfig(level=os.environ.get("PAPP_LOG_LEVEL", "INFO"))
 
 settings = load_settings()
 pipeline = Pipeline(settings.nvidia_api_key, settings.grpc_server)
-app = FastAPI(title="PAPP translator", version="0.2.1", docs_url=None, redoc_url=None)
+app = FastAPI(title="PAPP translator", version="0.2.2", docs_url=None, redoc_url=None)
 _bearer = HTTPBearer(auto_error=False)
 MAX_AUDIO_BYTES = 30 * 16000 * 2 + 1024  # 30 s of 16 kHz PCM16
 
