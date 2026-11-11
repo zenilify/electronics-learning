@@ -8,7 +8,7 @@ void audio_rec_start(int side);        // non-blocking; called from the LVGL pre
 void audio_rec_stop(void);             // non-blocking; the recorder task builds the job
 bool audio_recording(void);
 float audio_rec_seconds(void);
-int audio_level(void);                 // 0..100 peak of the last 20 ms chunk
+int audio_level(void);                 // 0..100 peak of the last 20 ms chunk (live subtitles: dB scale of what is sent)
 // Blocking playback (call from the worker). Resamples to 16 kHz if rate differs. Stops early on audio_play_stop().
 void audio_play(const int16_t *pcm, size_t samples, int rate);
 void audio_play_stop(void);
@@ -33,6 +33,13 @@ int  audio_vad_state(void);       // 0 off, 1 listening, 2 hearing speech, 3 pau
 bool audio_stream_start(int chunk_ms, audio_wav_cb_t cb, void *ud);
 void audio_stream_stop(void);
 bool audio_streaming(void);
+// The stream is recorded at its own analog gain and amplified so that the room's noise floor sits just under the
+// server's speech detector (audio.c). stats: noise floor (RMS, before the gain) and the gain of the last chunk x10.
+void audio_stream_tune(float analog_db, int max_gain);
+void audio_stream_stats(int *noise_rms, int *gain_x10);
+// Console test: log peak / RMS of the microphone for `seconds` (2 lines per second), at `gain_db` of analog gain when
+// that is >= 0 (the normal gain is restored afterwards). Refused while recording.
+void audio_mic_probe(int seconds, float gain_db);
 // speaker volume 0..100, persisted (NVS vol); the Dial changes it
 int audio_get_volume(void);
 void audio_set_volume(int v);

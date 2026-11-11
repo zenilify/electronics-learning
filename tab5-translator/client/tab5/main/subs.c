@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -34,6 +35,7 @@ static char s_sid[48];
 static volatile int s_lat_ms, s_finals, s_err;
 static char s_partial[400];
 static volatile bool s_part_dirty;
+static volatile int64_t s_start_us, s_voice_us;   // session start · last time the server had speech open (or sent text)
 
 static uint32_t lang_col(const char *l) { return !strcmp(l, "zh") ? C_AMBER : !strcmp(l, "en") ? C_BLUE : C_TEAL; }
 
@@ -95,6 +97,19 @@ static void stream_post(const char *verb, uint8_t *pcm, size_t n)
     papp_result_t r; int64_t t0 = esp_timer_get_time();
     papp_post_bytes(path, "application/octet-stream", pcm ? pcm : (const uint8_t *)"", n, &r);
     s_lat_ms = (int)((esp_timer_get_time() - t0) / 1000);
+    {   // what went out and what came back, one line per POST: the first thing to read when "nothing comes up"
+        int pk = 0, noise = 0, gx10 = 10; double acc = 0; size_t ns = n / 2; const int16_t *q = (const int16_t *)pcm;
+        for (size_t i = 0; q && i < ns; i++) { int v = abs(q[i]); if (v > pk) pk = v; acc += (double)q[i] * q[i]; }
+        const char *o = r.tgt_text ? strstr(r.tgt_text, "\"open_s\"") : NULL; o = o ? strchr(o, ':') : NULL;
+        float open_s = o ? (float)atof(o + 1) : -1;
+        bool part = r.tgt_text && strstr(r.tgt_text, "\"partial\":\"") && !strstr(r.tgt_text, "\"partial\":\"\"");
+        bool fin = r.tgt_text && strstr(r.tgt_text, "\"final\":[{");
+        if (open_s > 0 || part || fin) s_voice_us = esp_timer_get_time();
+        audio_stream_stats(&noise, &gx10);
+        ESP_LOGI(TAG, "%s %u B sent peak %d rms %d (room noise %d, gain x%d.%d) -> HTTP %d in %d ms, speech open %.1f s%s%s",
+                 verb, (unsigned)n, pk, (int)sqrt(acc / (ns ? ns : 1)), noise, gx10 / 10, gx10 % 10, r.http_status, s_lat_ms,
+                 open_s, part ? ", partial" : "", fin ? ", FINAL" : "");
+    }
     if (r.http_status == 200 && r.tgt_text) { handle_reply(r.tgt_text); s_err = 0; }
     else {
         ESP_LOGW(TAG, "%s HTTP %d (%u B)", verb, r.http_status, (unsigned)n);
@@ -154,7 +169,7 @@ static void toggle(void)
 {
     if (s_on) { sub_stop(); return; }
     ensure_task();
-    if (audio_stream_start(CHUNK_MS, on_chunk, NULL)) { s_on = true; s_finals = 0; }
+    if (audio_stream_start(CHUNK_MS, on_chunk, NULL)) { s_on = true; s_finals = 0; s_start_us = esp_timer_get_time(); s_voice_us = 0; }
     else lv_label_set_text(u_st, LV_SYMBOL_WARNING " micrófono ocupado");
 }
 static void on_go(lv_event_t *e) { toggle(); }
@@ -162,9 +177,13 @@ static void on_go(lv_event_t *e) { toggle(); }
 static void tick(lv_timer_t *t)
 {
     if (lv_screen_active() != s_scr) return;
-    char b[96];
+    char b[160];
+    int64_t now = esp_timer_get_time(), last = s_voice_us ? s_voice_us : s_start_us;
     if (!s_on) snprintf(b, sizeof b, "toca para empezar · 点击开始");
     else if (s_err) snprintf(b, sizeof b, LV_SYMBOL_WARNING " servidor: error %d — reintento", s_err);
+    else if (s_voice_us && now - s_voice_us < 2500000) snprintf(b, sizeof b, LV_SYMBOL_AUDIO " oyendo voz  ·  %.1f s", s_lat_ms / 1000.0);
+    // 8 s without the server hearing speech: say so, instead of an empty screen that looks broken (11 Nov)
+    else if (now - last > 8000000) snprintf(b, sizeof b, LV_SYMBOL_AUDIO " escuchando · 正在听\nno oigo voz: acerca el Tab5 a quien habla");
     else snprintf(b, sizeof b, LV_SYMBOL_AUDIO " escuchando · 正在听  ·  %.1f s", s_lat_ms / 1000.0);
     lv_label_set_text(u_st, b);
     lv_obj_set_style_bg_color(u_go, lv_color_hex(s_on ? C_GREEN : C_PANEL), 0);
@@ -234,7 +253,7 @@ static void inj_task(void *a)
     inj_t *in = a; const int16_t *pcm; size_t ns; int rate;
     if (wav_parse(in->wav, in->len, &pcm, &ns, &rate) && rate == PAPP_RATE) {
         size_t step = PAPP_RATE * CHUNK_MS / 1000, i = 0;
-        s_on = true;
+        s_on = true; s_start_us = esp_timer_get_time(); s_voice_us = 0;
         while (i < ns) {
             size_t k = ns - i < step ? ns - i : step;
             uint8_t *c = heap_caps_malloc(k * 2, MALLOC_CAP_SPIRAM);

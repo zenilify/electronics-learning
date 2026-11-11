@@ -302,6 +302,15 @@ static void console_task(void *a)
             vTaskDelay(pdMS_TO_TICKS(300)); esp_restart_noos();
         }
         else if (!strcmp(line, "bod off")) papp_bod_off();            // test: brownout detector off until the next boot
+        else if (!strcmp(line, "mic") || !strncmp(line, "mic ", 4)) {   // mic [seconds [gain dB]]: what the microphone hears (peak / RMS)
+            int sec = 3; float gdb = -1;
+            if (line[3]) sscanf(line + 4, "%d %f", &sec, &gdb);
+            audio_mic_probe(sec < 1 ? 1 : sec > 30 ? 30 : sec, gdb);
+        }
+        else if (!strncmp(line, "subgain ", 8)) {       // subgain <analog dB> <max digital gain>: live-subtitles input level (test, not saved)
+            float adb = 37.5f; int gmax = 12;
+            if (sscanf(line + 8, "%f %d", &adb, &gmax) >= 1) audio_stream_tune(adb, gmax);
+        }
         else if (!strcmp(line, "status")) {
             char ub[200]; usbport_describe(ub, sizeof ub, false);
             // the leading fields keep their order (bench scripts and old logs grep "status wifi="); new ones go at the end
@@ -310,7 +319,7 @@ static void console_task(void *a)
                      (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
                      (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024),
                      PAPP_VERSION, (long long)(esp_timer_get_time() / 1000000), ub);
-            ESP_LOGI(TAG, "status2 cam=%s cam_bad_frames=%d ui_restarts=%d", cam_back_url()[0] ? cam_back_url() : "-", cam_bad_frames(), settings_get_u8("uistall", 0));
+            ESP_LOGI(TAG, "status2 cam=%s cam_bad_frames=%d ui_restarts=%d vol=%d", cam_back_url()[0] ? cam_back_url() : "-", cam_bad_frames(), settings_get_u8("uistall", 0), audio_get_volume());
             ESP_LOGI(TAG, "status3 chg_kicks=%d on_batt=%d src_changes=%d", battery_chg_kicks(), battery_on_batt(), battery_src_changes());
             // internal RAM: int_min = sum of per-region low-water marks (a worst-case bound, not a moment that happened); int_largest = biggest piece left
             ESP_LOGI(TAG, "status4 int_min=%u kB int_largest=%u kB boot_reason=0x%x cpu_resets_fixed=%d rst=%s brownouts=%d bod=%s",
