@@ -152,7 +152,8 @@ echo "status" >> ~/t5/watch/inbox.txt                        # ...so commands go
 ## From the MacBook (on the road)
 
 Set up on 2026-11-11 from cachy and checked against it: the MacBook builds **the same firmware** (every byte except the
-compile time and the checksums that follow from it — `tools/same_firmware.py`). Everything lives in `~/t5/` on the
+compile time and the checksums that follow from it — `tools/same_firmware.py`), and the Tab5 was flashed from the
+MacBook with that build the same day (all three parts verified, booted, Wi-Fi up). Everything lives in `~/t5/` on the
 MacBook; nothing else on it was changed.
 
 | On the MacBook | What it is |
@@ -185,10 +186,18 @@ bash tools/flash.sh app ~/t5/1128-c18-artifacts-v0.4.3   # or: back to the teste
 **Before a trip**, at home with internet: after a `git pull` that brings new work, run one build. The image and the
 components are then on the MacBook and a build needs no network.
 
+**Console and screenshot on the MacBook** — the tools take the port as an argument:
+
+```sh
+P=$(~/t5/venv/bin/python tools/t5port.py)
+python3 tools/console_nr.py "$P" 4 0.8:status                  # checked on macOS: does not reset the Tab5
+python3 tools/screenshot.py ~/t5/shot.jpg --port "$P" --pre "key a"
+```
+
 What is **not** on the MacBook yet (2026-11-11): the Wi-Fi list and the remotes key (`~/.config/zenilify/t5-wifi`,
-`t5-remote-key` — needed only to provision a board from scratch, not to flash the app); PlatformIO for the remotes and
-the line kit; and the console tools (`console_nr.py`, `screenshot.py`, `console_log.py`) have not been run on macOS —
-pass them the port from `~/t5/venv/bin/python tools/t5port.py`.
+`t5-remote-key` — needed only to provision a board from scratch, not to flash the app); and PlatformIO for the remotes
+and the line kit. Not run on macOS: `flash.sh backup` (a full read-back contains the Wi-Fi passwords and keys, and the
+MacBook's disk is not encrypted), `console_log.py`, `ram_walk.py`, `gallery.sh`.
 
 ## Demo script — M5Stack, Shenzhen (Thu 26 Nov), ~3 minutes
 
