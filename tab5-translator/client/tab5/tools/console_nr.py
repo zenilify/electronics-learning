@@ -22,7 +22,7 @@ def main():
     cmds = []
     for a in sys.argv[3:]:
         at, c = a.split(":", 1)
-        cmds.append((float(at), c.encode() + b"\n"))
+        cmds.append((float(at), b"\n" + c.encode() + b"\n"))   # empty line first: ends whatever is left in the board's line buffer
     fd = os.open(port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
     a = termios.tcgetattr(fd)
     a[0] = 0                                                   # iflag: raw

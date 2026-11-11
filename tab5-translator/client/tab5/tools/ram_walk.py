@@ -39,7 +39,7 @@ def read_for(fd, seconds):
     return buf.decode("utf-8", "replace")
 
 def send(fd, cmd, wait):
-    os.write(fd, cmd.encode() + b"\n")
+    os.write(fd, b"\n" + cmd.encode() + b"\n")
     return read_for(fd, wait)
 
 # From the `status4` line (firmware c16 and later). "min" is ESP-IDF's low-water figure: one minimum per heap region,

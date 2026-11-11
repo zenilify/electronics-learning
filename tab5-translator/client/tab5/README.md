@@ -125,13 +125,16 @@ python3 tools/screenshot.py /tmp/ajustes.jpg --pre "key a"   # open Ajustes (key
 bash    tools/gallery.sh                                     # screenshots of all 13 screens into ~/t5/shots/
 python3 tools/ram_walk.py                                    # internal RAM each app costs (opens every app twice)
 python3 tools/watch_status.py --every 60                     # `status` into a CSV until `touch ~/t5/watch/STOP`
+python3 tools/console_log.py                                 # every console line with the time, plus the CSV; owns the port
+echo "status" >> ~/t5/watch/inbox.txt                        # ...so commands go through its inbox while it runs
 ```
 
 | Command | What it does |
 |---|---|
-| `status` | Wi-Fi, server, battery, memory, version, uptime, USB-A; `status2` = camera address, dropped frames, UI restarts; `status3` = charger re-triggers; `status4` = internal RAM: worst-case low-water figure (a sum of per-region minimums, not a moment that happened) and largest free piece; reset reason of this boot (`0x9` = restarted by software, `0x17` = reset over USB), CPU-only resets caught |
+| `status` | Wi-Fi, server, battery, memory, version, uptime, USB-A; `status2` = camera address, dropped frames, UI restarts; `status3` = charger re-triggers; `status4` = internal RAM: worst-case low-water figure (a sum of per-region minimums, not a moment that happened) and largest free piece; reset reason of this boot (`0x9` = restarted by software, `0x17` = reset over USB, `0x3` = brownout handler or a crash with a digital reset), CPU-only resets caught; since 0.4.3 also `rst=` (ESP-IDF's name for the cause: BROWNOUT, PANIC, WDT, USB ...), `brownouts=` (counted in NVS) and `bod=`; `status3` adds `on_batt=` and `src_changes=` (battery / external power changes since boot). Ajustes shows the cause as "último arranque" |
 | `reboot` | restart the Tab5 — a reset of the whole chip (`main/restart.c`). A plain `esp_restart()` can leave Wi-Fi dead on this board and loop forever; the firmware turns every restart into this one |
 | `reboot cpu` | test only: restart the way a crash does (CPU-only reset). The next boot must log "full chip reset" and come up normally |
+| `bod off` | test only: brownout detector off until the next boot (0.4.3) |
 | `key <x>` | a key as from the keyboard: `t e f l c a p n d s o r` open the apps, `esc`, `enter` |
 | `shot [quality]` | the screen as a JPEG (use `tools/screenshot.py`) |
 | `usb on\|off`, `usb`, `usb host` | 5 V of the USB-A port (saved) · what is plugged in · start the USB host stack |
@@ -145,6 +148,58 @@ python3 tools/watch_status.py --every 60                     # `status` into a C
 | `t5b R …`, `t5buart <rx> <tx>\|off` | ESP-NOW bridge input: over this console (bench relay) / on a UART (untested) |
 | `uiwd reset` | clear the UI-restart counter |
 | `demo`, `say`, `convtest`, `substest`, `c6ver`, `ant`, `tz`, `voice`, `sd`, `camsrc` | as before |
+
+## From the MacBook (on the road)
+
+Set up on 2026-11-11 from cachy and checked against it: the MacBook builds **the same firmware** (every byte except the
+compile time and the checksums that follow from it — `tools/same_firmware.py`), and the Tab5 was flashed from the
+MacBook with that build the same day (all three parts verified, booted, Wi-Fi up). Everything lives in `~/t5/` on the
+MacBook; nothing else on it was changed.
+
+| On the MacBook | What it is |
+|---|---|
+| `~/t5/electronics-learning/` | its own clone of this repo (separate from `~/PARA/…`) |
+| colima VM `default` + image `espressif/idf:v6.0.3` (arm64) | the same pinned ESP-IDF as on cachy, for building |
+| `~/t5/venv/` | Python with `esptool` and `pyserial`, for flashing (Docker on macOS cannot reach a USB port) |
+| `~/t5/docker-config/` | docker settings used only by these scripts (the Mac's own default still points at cachy) |
+| `~/t5/1128-c18-artifacts-v0.4.3/` | the tested firmware files (no secrets), ready to flash |
+
+**Build**
+
+```sh
+colima start                                   # the Docker engine on the Mac; once after each restart of the Mac (~20 s)
+cd ~/t5/electronics-learning/tab5-translator/client/tab5
+git pull
+bash tools/build-local.sh                      # ~2.5 min the first time, ~15 s after a small change
+python3 tools/same_firmware.py build/papp_tab5.bin ~/t5/1128-c18-artifacts-v0.4.3/papp_tab5.bin   # same as the tested one?
+```
+
+**Flash** (Tab5 plugged into the MacBook. Use a USB-C to USB-C cable into a USB-C port: through a USB-A adapter the
+Tab5 restarts when power is plugged in while it runs from its battery — 7 of 7 on cachy's USB-A ports, 0 of 5 on
+USB-C ports, PDCA §5/§6)
+
+```sh
+bash tools/flash.sh port                       # must show:  30:ED:A0:E2:EF:41 ... <- the Tab5
+bash tools/flash.sh backup before-change       # optional: full read-back first (~2 min), into ~/t5/backup/
+bash tools/flash.sh app                        # the build you just made (refuses a build that failed)
+bash tools/flash.sh app ~/t5/1128-c18-artifacts-v0.4.3   # or: back to the tested firmware
+```
+
+**Before a trip**, at home with internet: after a `git pull` that brings new work, run one build. The image and the
+components are then on the MacBook and a build needs no network.
+
+**Console and screenshot on the MacBook** — the tools take the port as an argument:
+
+```sh
+P=$(~/t5/venv/bin/python tools/t5port.py)
+python3 tools/console_nr.py "$P" 4 0.8:status                  # checked on macOS: does not reset the Tab5
+python3 tools/screenshot.py ~/t5/shot.jpg --port "$P" --pre "key a"
+```
+
+What is **not** on the MacBook yet (2026-11-11): the Wi-Fi list and the remotes key (`~/.config/zenilify/t5-wifi`,
+`t5-remote-key` — needed only to provision a board from scratch, not to flash the app); and PlatformIO for the remotes
+and the line kit. Not run on macOS: `flash.sh backup` (a full read-back contains the Wi-Fi passwords and keys, and the
+MacBook's disk is not encrypted), `console_log.py`, `ram_walk.py`, `gallery.sh`.
 
 ## Demo script — M5Stack, Shenzhen (Thu 26 Nov), ~3 minutes
 

@@ -17,7 +17,7 @@ import argparse, csv, os, re, select, sys, termios, time
 PORT = "/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_30:ED:A0:E2:EF:41-if00"
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
-def ask(port, cmd=b"status\n", listen=3.0):
+def ask(port, cmd=b"\nstatus\n", listen=3.0):
     try:
         fd = os.open(port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
     except OSError as e:
