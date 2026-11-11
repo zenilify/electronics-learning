@@ -42,7 +42,7 @@ def fnv1a(b):
     return h
 
 def shoot(fd, quality):
-    os.write(fd, f"shot {quality}\n".encode())
+    os.write(fd, f"\nshot {quality}\n".encode())
     meta, chunks = None, []
     for ln in lines(fd, 40):
         if not ln.startswith(b"@@"): continue
@@ -71,7 +71,7 @@ def main():
     try:
         for _ in lines(fd, 0.3): pass                           # drain whatever the board said before us
         for c in a.pre:
-            os.write(fd, c.encode() + b"\n"); time.sleep(0.6)
+            os.write(fd, b"\n" + c.encode() + b"\n"); time.sleep(0.6)
         if a.pre:
             for _ in lines(fd, a.wait): pass
         for attempt in range(3):

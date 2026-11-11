@@ -11,7 +11,9 @@ shows what the firmware was doing. It also sends `status` every --every seconds 
 
 Only one reader may own the port: do not run watch_status.py, console_nr.py or another copy at the same time (a lock
 file refuses a second copy). To send the board a command while this runs, append a line to <out>/inbox.txt
-(echo status >> ~/t5/watch/inbox.txt): it is written to the console and logged as "## sent: ...". The Tab5 may be unplugged and plugged back: the log notes it and carries on.
+(echo status >> ~/t5/watch/inbox.txt): it is written to the console and logged as "## sent: ...". Every command is sent with an empty line in front: the
+first command after a reconnect used to get lost (2026-11-11: a `bod off` vanished that way), because it was glued to
+whatever was left in the board's line buffer. The Tab5 may be unplugged and plugged back: the log notes it and carries on.
 Stop it: kill the process (pid in <out>/console_log.pid). STOP IT BEFORE FLASHING the Tab5.
 Lines that start with "##" are ours, everything else is the board.
 """
@@ -85,12 +87,12 @@ def main():
                 for c in new.splitlines():
                     c = c.strip()
                     if not c: continue
-                    try: os.write(fd, c.encode() + b"\n"); logline("## sent: " + c)
+                    try: os.write(fd, b"\n" + c.encode() + b"\n"); logline("## sent: " + c)
                     except OSError as e: logline(f"## could not send '{c}': {e}")
                     time.sleep(0.3)
         except OSError: pass
         if now >= next_status:
-            try: os.write(fd, b"status\n")
+            try: os.write(fd, b"\nstatus\n")
             except BlockingIOError: pass
             except OSError: pass
             asked_at, block, next_status = now, "", now + a.every
