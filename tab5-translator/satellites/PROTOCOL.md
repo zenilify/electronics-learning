@@ -147,11 +147,13 @@ bridge and Tab5 was `tools/bridge_relay.py` on cachy (both on USB): it copies `R
 | ack round trip at the remote | min 21.0 · median 24.0 · p95 28.0 · max 29.0 ms |
 | of which Tab5 + relay | min 13.0 · median 15.8 · max 18.9 ms (console polling; a UART will be shorter — not measured) |
 | both transports at once | Dial over Wi-Fi and StickS3 over ESP-NOW listed together |
+| M5Dial (`dial-espnow`, 03:19) | 80 sent, 80 acked, 0 lost, 79 on the first try (one retransmission); round trip min 22.0 · median 25.0 · p95 30.0 · max 82.0 ms; listed as `ESP-NOW` next to the StickS3 on `Wi-Fi` |
 
 ### Not built yet
 
 - The real cable: a UART reader on the Tab5 (Grove port; needs `ext5v on` for the 5 V) or USB. Until then transport B is a
   bench result, not something to demo.
-- The Dial was not flashed with the `-espnow` build (same library; `pio run -e dial-espnow`).
-- After the test both devices were restored from their full flash backups (StickS3 → 0.1.2, StampS3 → line sensor).
+- Only the transport was tested (synthetic presses from `T5R bench`): nobody pressed a key or turned the knob over ESP-NOW.
+- After the tests all three boards were restored from their full flash backups (StickS3 and Dial → 0.1.2, StampS3 → line
+  sensor) and checked: both remotes linked over Wi-Fi again, the sensor posting `-> 200`.
 
