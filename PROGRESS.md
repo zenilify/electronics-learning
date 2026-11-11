@@ -6,6 +6,36 @@ each session.
 
 ---
 
+## 2026-11-11 — Tab5 overnight PDCA: camera power, charging, ESP-NOW bridge (lane T5, Claude Code on cachy)
+
+Four unattended hours on the Tab5 translator (`tab5-translator/`). Full record with every measurement:
+`tab5-translator/docs/PDCA-2026-11-11.md`. Firmware 0.4.0 → **0.4.2** (branch `claude/t5-overnight-1111`, draft PR).
+
+**Done and measured**
+
+- The XIAO back camera had no power: the Tab5 never switched on the 5 V of its USB-A port. On at boot now.
+- The camera was also often on a different Wi-Fi than the Tab5. The Tab5 now reads the camera's address from the
+  camera's own log over the USB cable and, if needed, joins the camera's network.
+- The battery was never charged while PAPP ran (charger enable pin low). Enabled; charging at 0.32 A measured — but
+  on cachy's USB port it only starts on some boots. Needs a look with the wall charger.
+- New tools: console without reset, screenshots of the Tab5 screen over USB, a full flash backup that really is one.
+- ESP-NOW: not possible on the Tab5's own radio (Espressif's esp-hosted has none). Built a small S3 bridge instead and
+  measured it with the StickS3: 80/80 events acknowledged, median 24 ms. The cable from bridge to Tab5 is not built.
+- SD sync now compares file contents (12 re-taken voice clips had been skipped because their size was unchanged).
+- RainMaker command-line tools installed on cachy (`rmaker`, `rmaker-neo`); logging in is Erick's step.
+
+**Things worth understanding (lesson material)**
+
+- *High-Z output*: an I/O-expander pin can be "set high" and still drive nothing until it is switched to push-pull.
+  That one detail explained both the dead USB port and the antenna switch that never switched.
+- *snprintf returns what it wanted to write*, not what it wrote — `w += snprintf(...)` walks off the buffer on truncation.
+- *A test that cannot fail proves nothing*: the local-model code review found 0 of 2 planted bugs, so its "0 findings"
+  on the real files meant nothing.
+
+**Open** — see §4 of the PDCA file (merge, charger test, ESP-NOW cable, RainMaker login, camera-freeze follow-up).
+
+---
+
 ## 2026-11-06 — Kaizen Firmware Foundry: whole fleet builds in Cloud Build (GCP sprint lane C, macbook)
 
 New `foundry/`: four pinned builder images in Artifact Registry (ESP-IDF 6.0.3 +
