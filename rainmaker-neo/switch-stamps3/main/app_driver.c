@@ -30,7 +30,7 @@ static bool g_power_state = DEFAULT_POWER;
 /* LED indicator default: red at 30% brightness (HSV), starts off. */
 static const app_led_state_t s_default_led_state = {
     .power = DEFAULT_POWER,
-    .brightness = 30,
+    .brightness = 100,   /* RM-1 2026-11-11: 30 % was not visible on the StampS3 (reported dark at state ON); full brightness so the OTA to 1.0.1 is visible */
     .color_hs = {.hue = 0, .saturation = 100},
     .cct = 0,
     .mode = APP_LED_MODE_HSV,
