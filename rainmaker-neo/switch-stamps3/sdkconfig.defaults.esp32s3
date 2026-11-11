@@ -1,0 +1,6 @@
+# M5Stamp S3 (ESP32-S3FN8, 8 MB flash) overrides — lane RM-1, 2026-11-11.
+# Onboard WS2812B-2020 RGB LED on GPIO 21 (not exposed on the header; HYPOTHESIS from the M5 schematic,
+# verified only when the LED follows the switch state). BOOT button = GPIO 0 (app_button default).
+CONFIG_APP_LED_TYPE_WS2812=y
+CONFIG_APP_LED_WS2812_GPIO_NUM=21
+CONFIG_APP_BUTTON_GPIO_NUM=0

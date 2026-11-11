@@ -1,0 +1,10 @@
+# Lane RM-1: the vendored SDK is a pinned clone, fetched by tools/fetch-vendor.sh (sha in README.md)
+vendor/
+# ESP-IDF / CMake build outputs
+*/build/
+*/sdkconfig
+*/sdkconfig.old
+*/dependencies.lock
+*/managed_components/
+*-host/build/
+*/build-host/
