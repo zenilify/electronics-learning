@@ -1,8 +1,8 @@
 #pragma once
 // Restarting the Tab5 so that it really comes back — lane T5, 2026-11-11.
-// A plain esp_restart() is a CPU-only reset on the ESP32-P4 (boot log: rst:0xc SW_CPU_RESET). Seen once on this board
-// (03:48; 7 later tries recovered): the SDIO link to the ESP32-C6 stayed dead ("Card init success", no INIT event), the USB
-// host saw no device, and esp-hosted answered by restarting the host — a boot loop, every 18 s, until a hardware reset.
+// A plain esp_restart() is a CPU-only reset on the ESP32-P4 (boot log: rst:0xc SW_CPU_RESET). Measured on this board
+// (soak 2026-11-11: 20 of 57 such resets): the SDIO link to the ESP32-C6 stays dead ("Card init success", no INIT event), the
+// USB host sees no device, and esp-hosted answers by restarting the host — without this file a boot loop, every 18 s.
 // A reset of the whole chip (what esptool's reset does) boots normally. So:
 void papp_full_reset(void);      // reset the whole chip through the LP watchdog; does not return
 void papp_restart_guard(void);   // call early in app_main: (1) a boot that follows a CPU-only reset (a crash restarts
