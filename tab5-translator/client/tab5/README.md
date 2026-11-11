@@ -127,7 +127,20 @@ python3 tools/ram_walk.py                                    # internal RAM each
 python3 tools/watch_status.py --every 60                     # `status` into a CSV until `touch ~/t5/watch/STOP`
 python3 tools/console_log.py                                 # every console line with the time, plus the CSV; owns the port
 echo "status" >> ~/t5/watch/inbox.txt                        # ...so commands go through its inbox while it runs
+python3 tools/t5cmd.py "key s" "sleep:2" "key enter" --wait 10 --grep 'subs:'   # send commands through the logger, print what came back
+python3 tools/t5shot.py out.jpg 70                           # screenshot through the logger (screenshot.py needs the port for itself)
 ```
+
+Hands-free bench runs (all through the logger's inbox; results in `docs/PDCA-2026-11-11.md` §7):
+
+| Script | What it does |
+|---|---|
+| `tools/bench/subs_soak.py` | 15 start/stop cycles of live subtitles, then a 4-minute session in which the Tab5 speaks six known phrases through its own loudspeaker (`say <lang> <text>`) and the captions are compared with them |
+| `tools/bench/subs_mem.py` | one long subtitles session: free internal RAM against the number of captions |
+| `tools/bench/ui_soak.py [minutes]` | walks through all twelve apps (camera preview, subtitles start/stop, a demo translation) and checks that the screen never stalls |
+| `tools/bench/glyph_cache_test.py` | types every Chinese character of the phrase pack into Escribe and reads the free internal RAM: what the font cache costs |
+
+The Tab5's own loudspeaker is the test voice: cachy has no loudspeaker the Tab5 can hear (two outputs tried, 11 Nov).
 
 | Command | What it does |
 |---|---|
