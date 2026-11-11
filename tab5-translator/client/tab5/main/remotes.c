@@ -1,4 +1,6 @@
-// Remotes receiver (ROADMAP row 11): StickS3 push-to-talk clicker + M5Dial knob over UDP 47800 on the same Wi-Fi.
+// Remotes receiver (ROADMAP row 11): StickS3 push-to-talk clicker + M5Dial knob.
+// Transport A: UDP 47800 on the same Wi-Fi. Transport B (2026-11-11): ESP-NOW through a small ESP32-S3 bridge
+// (satellites/espnow-bridge) that hands us the very same datagrams as text lines — no access point needed.
 // Protocol v1 = lane T5-R, tab5-translator/satellites/PROTOCOL.md (bench 11-10: 40/40 presses per remote, ack median 5 ms).
 // Every datagram carries an 8-byte HMAC-SHA256 tag with a 16-byte key shared with the remotes (NVS papp/rkey, provisioned
 // over the USB console with `rkey <32 hex>` from cachy ~/.config/zenilify/t5-remote-key — never printed).
@@ -9,11 +11,14 @@
 #include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_random.h"
 #include "nvs.h"
 #include "lwip/sockets.h"
+#include "driver/uart.h"
+#include "settings.h"
 #include "ui_priv.h"
 #include "papp.h"
 #include "audio.h"
@@ -68,6 +73,20 @@ static void sha_fin(sha_t *s, uint8_t out[32])
     sha_upd(s, L, 8);
     for (int i = 0; i < 8; i++) { out[4*i] = s->h[i] >> 24; out[4*i+1] = s->h[i] >> 16; out[4*i+2] = s->h[i] >> 8; out[4*i+3] = s->h[i]; }
 }
+// SHA-256 of a file as 64 hex chars — svc.c uses it to tell a changed file from an unchanged one of the same size.
+bool papp_sha256_file(const char *path, char hex[65])
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) return false;
+    static uint8_t buf[8192];                  // only the svc task calls this
+    sha_t s; sha_init(&s); size_t n;
+    while ((n = fread(buf, 1, sizeof buf, f)) > 0) sha_upd(&s, buf, n);
+    fclose(f);
+    uint8_t d[32]; sha_fin(&s, d);
+    for (int i = 0; i < 32; i++) sprintf(hex + 2 * i, "%02x", d[i]);
+    return true;
+}
+
 static uint8_t s_key[16];
 static bool s_have_key;
 static void tag16(const uint8_t *msg, size_t n, char out[17])        // first 8 bytes of HMAC-SHA256(key, msg), hex
@@ -97,8 +116,12 @@ static bool jnum(const char *j, const char *k, long long *v)
 }
 
 // ---------- device table ----------
+// Where a datagram came from = where its ack goes. via 0: UDP socket · 1: ESP-NOW bridge relayed over the USB
+// console (bench, tools/bridge_relay.py) · 2: ESP-NOW bridge on a UART (Port A; not wired yet on 11-11).
+typedef struct { uint8_t via; struct sockaddr_in addr; char mac[13]; } rsrc_t;
 typedef struct { char dev[20], name[24], kind[8], n[9]; long long boot; uint32_t last; int64_t seen, ptt_t; bool ptt; int side, batt;
-                 struct sockaddr_in addr; } rdev_t;
+                 rsrc_t src; } rdev_t;
+static SemaphoreHandle_t s_mx;                 // one datagram at a time: two tasks can feed handle() now
 static rdev_t s_dev[MAXDEV];
 static char s_allow[160];                      // "stick-353c,dial-944c"
 static char s_pending[20];                     // first-contact request waiting for the pop-up
@@ -147,11 +170,22 @@ static rdev_t *dev_get(const char *dev)
     rdev_t *free_ = NULL;
     for (int i = 0; i < MAXDEV; i++) { if (!strcmp(s_dev[i].dev, dev)) return &s_dev[i]; if (!s_dev[i].dev[0] && !free_) free_ = &s_dev[i]; }
     if (!free_) free_ = &s_dev[0];             // table full: recycle the first slot
-    memset(free_, 0, sizeof *free_); strlcpy(free_->dev, dev, sizeof free_->dev);
+    memset(free_, 0, sizeof *free_); strlcpy(free_->dev, dev, sizeof free_->dev); free_->batt = -1;
     return free_;
 }
 
-static void send_ack(const struct sockaddr_in *to, const char *dev, uint32_t seq, bool ok, const char *err, const char *extra)
+static bool s_uart_on;
+static void reply(const rsrc_t *to, const char *b, int n)
+{
+    if (to->via == 0) { sendto(s_sock, b, n, 0, (const struct sockaddr *)&to->addr, sizeof to->addr); return; }
+    if (to->via == 1) { printf("@@T5B T %s %.*s\n", to->mac, n, b); fflush(stdout); }
+    if (to->via == 2 && s_uart_on) {
+        uart_write_bytes(UART_NUM_1, "T ", 2); uart_write_bytes(UART_NUM_1, to->mac, 12);
+        uart_write_bytes(UART_NUM_1, " ", 1); uart_write_bytes(UART_NUM_1, b, n); uart_write_bytes(UART_NUM_1, "\n", 1);
+    }
+}
+
+static void send_ack(const rsrc_t *to, const char *dev, uint32_t seq, bool ok, const char *err, const char *extra)
 {
     char b[400];
     static const char *PAIRQ[PAIR_COUNT] = { "es-zh", "en-zh", "es-en" };
@@ -162,7 +196,7 @@ static void send_ack(const struct sockaddr_in *to, const char *dev, uint32_t seq
     if (extra) n += snprintf(b + n, sizeof b - 32 - n, "%s", extra);
     char t[17]; tag16((uint8_t *)b, n, t);
     n += snprintf(b + n, sizeof b - n, ",\"m\":\"%s\"}", t);
-    sendto(s_sock, b, n, 0, (const struct sockaddr *)to, sizeof *to);
+    reply(to, b, n);
 }
 
 // ---------- event execution (display lock taken here) ----------
@@ -214,7 +248,98 @@ static void popup_tick(lv_timer_t *t)
     lv_obj_add_event_cb(n, on_mb, LV_EVENT_CLICKED, (void *)(intptr_t)0);
 }
 
-// ---------- receiver task ----------
+// ---------- one datagram (any transport) ----------
+static void handle(char *b, int n, const rsrc_t *from)
+{
+    int64_t now = esp_timer_get_time();
+    if (n <= 0 || !s_have_key) return;
+    b[n] = 0;
+    char *mp = NULL; for (char *p = b; (p = strstr(p, ",\"m\":\"")); p++) mp = p;
+    if (n < 30 || !mp || (b + n) - mp != 6 + 16 + 2 || strcmp(b + n - 2, "\"}")) return;
+    char t[17]; tag16((uint8_t *)b, mp - b, t);
+    uint8_t diff = 0; for (int i = 0; i < 16; i++) diff |= t[i] ^ mp[6 + i];
+    if (diff) return;                                        // bad HMAC: drop silently
+    *mp = 0;
+    char dev[20], ev[16]; long long seq;
+    if (!jstr(b, "dev", dev, sizeof dev) || !jstr(b, "ev", ev, sizeof ev) || !jnum(b, "seq", &seq)) return;
+    rdev_t *d = dev_get(dev);
+    d->seen = now; d->src = *from;
+    if (!strcmp(ev, "hello")) {
+        long long boot = 0; jnum(b, "boot", &boot);
+        jstr(b, "name", d->name, sizeof d->name); jstr(b, "kind", d->kind, sizeof d->kind);
+        if (!allowed(dev)) {
+            if (strcmp(s_pending, dev)) { strlcpy(s_pending, dev, sizeof s_pending); ESP_LOGI(TAG, "pairing request from %s (%s)", dev, d->name); }
+            send_ack(from, dev, seq, false, "pair", NULL); return;
+        }
+        if (!d->n[0] || d->boot != boot) {                    // new boot of the remote -> new session nonce
+            d->boot = boot; d->last = 0; snprintf(d->n, sizeof d->n, "%08lx", (unsigned long)esp_random());
+            char ip[16] = ""; if (!from->via) inet_ntoa_r(from->addr.sin_addr, ip, sizeof ip);
+            ESP_LOGI(TAG, "%s (%s) linked %s%s", dev, d->name, from->via ? "over ESP-NOW, bridge sees it as " : "from ", from->via ? from->mac : ip);
+        }
+        if ((uint32_t)seq > d->last) d->last = seq;
+        char ex[48]; snprintf(ex, sizeof ex, ",\"n\":\"%s\",\"boot\":%lld", d->n, d->boot);
+        send_ack(from, dev, seq, true, NULL, ex); return;
+    }
+    if (!allowed(dev)) { send_ack(from, dev, seq, false, "pair", NULL); return; }
+    char nn[12] = ""; jstr(b, "n", nn, sizeof nn);
+    if (!d->n[0] || strcmp(nn, d->n)) { send_ack(from, dev, seq, false, "nonce", NULL); return; }
+    if ((uint32_t)seq <= d->last) { send_ack(from, dev, seq, true, NULL, NULL); return; }   // duplicate: re-ack only
+    d->last = seq;
+    static const char *KNOWN[] = { "ptt_down", "ptt_up", "replay", "pair_next", "pair_prev", "vol_up", "vol_down", "battery" };
+    bool known = false; for (size_t i = 0; i < sizeof KNOWN / sizeof *KNOWN; i++) known |= !strcmp(ev, KNOWN[i]);
+    if (!known) { send_ack(from, dev, seq, false, "unknown", NULL); return; }
+    send_ack(from, dev, seq, true, NULL, NULL);            // ack first: the remote's RTT is the radio, not our UI
+    if (strcmp(ev, "battery")) ESP_LOGI(TAG, "%s %s", dev, ev);
+    exec_ev(d, ev, b);
+}
+
+// A line from the ESP-NOW bridge: "R <src mac, 12 hex> <rssi> <datagram>". via 1 = relayed over the console.
+void remotes_bridge_line(char *l, int via)
+{
+    if (!s_mx || l[0] != 'R' || l[1] != ' ' || strlen(l) < 2 + 12 + 1 + 2 + 30) return;
+    rsrc_t src = { .via = (uint8_t)via };
+    memcpy(src.mac, l + 2, 12); src.mac[12] = 0;
+    char *p = strchr(l + 15, ' ');                           // after the rssi field
+    if (!p) return;
+    p++;
+    xSemaphoreTake(s_mx, portMAX_DELAY);
+    handle(p, (int)strlen(p), &src);
+    xSemaphoreGive(s_mx);
+}
+
+// ---------- transport B on a UART: the bridge wired to the Grove port (Port A = GPIO 53 / 54) ----------
+// WRITTEN, NOT TESTED ON HARDWARE (2026-11-11: no bridge was wired to the Tab5). Off unless `t5buart <rx> <tx>` was
+// given on the console (NVS papp/t5brx, t5btx). The Grove 5 V needs `ext5v on`. Same lines as the console relay.
+static void bridge_uart_task(void *a)
+{
+    static char ln[720]; size_t n = 0; uint8_t c[128];
+    for (;;) {
+        int k = uart_read_bytes(UART_NUM_1, c, sizeof c, pdMS_TO_TICKS(20));
+        for (int i = 0; i < k; i++) {
+            if (c[i] == '\n' || c[i] == '\r') { if (n) { ln[n] = 0; remotes_bridge_line(ln, 2); n = 0; } }
+            else if (n + 1 < sizeof ln) ln[n++] = (char)c[i];
+        }
+    }
+}
+bool remotes_bridge_uart(int rx, int tx, bool save)          // rx/tx < 0: switch it off (takes effect after a reboot)
+{
+    nvs_handle_t h;
+    if (save && nvs_open("papp", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_u8(h, "t5brx", rx < 0 ? 255 : (uint8_t)rx); nvs_set_u8(h, "t5btx", tx < 0 ? 255 : (uint8_t)tx);
+        nvs_commit(h); nvs_close(h);
+    }
+    if (rx < 0 || tx < 0 || s_uart_on) return rx >= 0;
+    uart_config_t uc = { .baud_rate = 115200, .data_bits = UART_DATA_8_BITS, .parity = UART_PARITY_DISABLE,
+                         .stop_bits = UART_STOP_BITS_1, .flow_ctrl = UART_HW_FLOWCTRL_DISABLE, .source_clk = UART_SCLK_DEFAULT };
+    if (uart_driver_install(UART_NUM_1, 2048, 2048, 0, NULL, 0) != ESP_OK || uart_param_config(UART_NUM_1, &uc) != ESP_OK ||
+        uart_set_pin(UART_NUM_1, tx, rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE) != ESP_OK) { ESP_LOGE(TAG, "bridge UART init failed"); return false; }
+    s_uart_on = true;
+    xTaskCreate(bridge_uart_task, "t5buart", 4096, NULL, 5, NULL);
+    ESP_LOGI(TAG, "ESP-NOW bridge UART on: rx GPIO%d tx GPIO%d 115200 (untested path)", rx, tx);
+    return true;
+}
+
+// ---------- receiver task (UDP) ----------
 static void rx_task(void *a)
 {
     s_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -225,53 +350,17 @@ static void rx_task(void *a)
     ESP_LOGI(TAG, "listening on UDP %d (key %s, allow-list \"%s\")", PORT, s_have_key ? "present" : "MISSING", s_allow);
     char b[520];
     for (;;) {
-        struct sockaddr_in from; socklen_t fl = sizeof from;
-        int n = recvfrom(s_sock, b, sizeof b - 1, 0, (struct sockaddr *)&from, &fl);
+        rsrc_t from = { .via = 0 }; socklen_t fl = sizeof from.addr;
+        int n = recvfrom(s_sock, b, sizeof b - 1, 0, (struct sockaddr *)&from.addr, &fl);
         int64_t now = esp_timer_get_time();
+        xSemaphoreTake(s_mx, portMAX_DELAY);
         for (int i = 0; i < MAXDEV; i++)                        // stuck-talk guard: 2 s without a PTT datagram -> release
             if (s_dev[i].ptt && now - s_dev[i].ptt_t > 2000000) {
                 s_dev[i].ptt = false; ESP_LOGW(TAG, "%s: PTT released by the 2 s guard", s_dev[i].dev);
                 lock(); ui_remote_ptt(s_dev[i].side, false); unlock();
             }
-        if (n <= 0 || !s_have_key) continue;
-        b[n] = 0;
-        char *mp = NULL; for (char *p = b; (p = strstr(p, ",\"m\":\"")); p++) mp = p;
-        if (n < 30 || !mp || (b + n) - mp != 6 + 16 + 2 || strcmp(b + n - 2, "\"}")) continue;
-        char t[17]; tag16((uint8_t *)b, mp - b, t);
-        uint8_t diff = 0; for (int i = 0; i < 16; i++) diff |= t[i] ^ mp[6 + i];
-        if (diff) continue;                                      // bad HMAC: drop silently
-        *mp = 0;
-        char dev[20], ev[16]; long long seq;
-        if (!jstr(b, "dev", dev, sizeof dev) || !jstr(b, "ev", ev, sizeof ev) || !jnum(b, "seq", &seq)) continue;
-        rdev_t *d = dev_get(dev);
-        d->seen = now; d->addr = from;
-        if (!strcmp(ev, "hello")) {
-            long long boot = 0; jnum(b, "boot", &boot);
-            jstr(b, "name", d->name, sizeof d->name); jstr(b, "kind", d->kind, sizeof d->kind);
-            if (!allowed(dev)) {
-                if (strcmp(s_pending, dev)) { strlcpy(s_pending, dev, sizeof s_pending); ESP_LOGI(TAG, "pairing request from %s (%s)", dev, d->name); }
-                send_ack(&from, dev, seq, false, "pair", NULL); continue;
-            }
-            if (!d->n[0] || d->boot != boot) {                    // new boot of the remote -> new session nonce
-                d->boot = boot; d->last = 0; snprintf(d->n, sizeof d->n, "%08lx", (unsigned long)esp_random());
-                char ip[16]; inet_ntoa_r(from.sin_addr, ip, sizeof ip);
-                ESP_LOGI(TAG, "%s (%s) linked from %s", dev, d->name, ip);
-            }
-            if ((uint32_t)seq > d->last) d->last = seq;
-            char ex[48]; snprintf(ex, sizeof ex, ",\"n\":\"%s\",\"boot\":%lld", d->n, d->boot);
-            send_ack(&from, dev, seq, true, NULL, ex); continue;
-        }
-        if (!allowed(dev)) { send_ack(&from, dev, seq, false, "pair", NULL); continue; }
-        char nn[12] = ""; jstr(b, "n", nn, sizeof nn);
-        if (!d->n[0] || strcmp(nn, d->n)) { send_ack(&from, dev, seq, false, "nonce", NULL); continue; }
-        if ((uint32_t)seq <= d->last) { send_ack(&from, dev, seq, true, NULL, NULL); continue; }   // duplicate: re-ack only
-        d->last = seq;
-        static const char *KNOWN[] = { "ptt_down", "ptt_up", "replay", "pair_next", "pair_prev", "vol_up", "vol_down", "battery" };
-        bool known = false; for (size_t i = 0; i < sizeof KNOWN / sizeof *KNOWN; i++) known |= !strcmp(ev, KNOWN[i]);
-        if (!known) { send_ack(&from, dev, seq, false, "unknown", NULL); continue; }
-        send_ack(&from, dev, seq, true, NULL, NULL);            // ack first: the remote's RTT is the radio, not our UI
-        if (strcmp(ev, "battery")) ESP_LOGI(TAG, "%s %s", dev, ev);
-        exec_ev(d, ev, b);
+        if (n > 0) handle(b, n, &from);
+        xSemaphoreGive(s_mx);
     }
 }
 
@@ -282,8 +371,11 @@ int remotes_list(char *out, size_t n)                          // "stick-353c St
     for (int i = 0; i < MAXDEV; i++) {
         if (!s_dev[i].dev[0]) continue;
         int age = (int)((now - s_dev[i].seen) / 1000000);
-        o += snprintf(out + o, n - o, "%s %s  %s  ·  %s%d%%  ·  %d s\n", age < 12 ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE, s_dev[i].dev,
-                      s_dev[i].name, allowed(s_dev[i].dev) ? "" : "(sin aceptar) ", s_dev[i].batt, age);
+        char bt[16] = "—";                                     // battery not reported (yet): a dash, not "0%" / "-1%"
+        if (s_dev[i].batt >= 0) snprintf(bt, sizeof bt, "%d%%", s_dev[i].batt);
+        o += snprintf(out + o, n - o, "%s %s  %s  ·  %s%s  ·  %d s  ·  %s\n", age < 12 ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE, s_dev[i].dev,
+                      s_dev[i].name, allowed(s_dev[i].dev) ? "" : "(sin aceptar) ", bt, age,
+                      s_dev[i].src.via ? "ESP-NOW" : "Wi-Fi");
         if (o >= n) break;
         c++;
     }
@@ -298,6 +390,9 @@ void remotes_start(void)
         l = sizeof s_allow; if (nvs_get_str(h, "rdevs", s_allow, &l) != ESP_OK) s_allow[0] = 0;
         nvs_close(h);
     }
+    s_mx = xSemaphoreCreateMutex();
+    {   uint8_t rx = settings_get_u8("t5brx", 255), tx = settings_get_u8("t5btx", 255);
+        if (rx != 255 && tx != 255) remotes_bridge_uart(rx, tx, false); }
     lock(); lv_timer_create(popup_tick, 500, NULL); unlock();
     xTaskCreatePinnedToCore(rx_task, "remotes", 6144, NULL, 5, NULL, 0);
 }

@@ -285,13 +285,16 @@ void ui_demo_state(bool running, int idx, int count)
     unlock();
 }
 
+volatile int64_t g_ui_beat_us;             // heartbeat for the UI watchdog in main.c
 static void tick(lv_timer_t *t)
 {
     static int n;
+    g_ui_beat_us = esp_timer_get_time();
     for (int s = 0; s < 2; s++) lv_bar_set_value(ptt_bar[s], 0, LV_ANIM_OFF);
     if (audio_recording()) {
         char b[48]; int side = -1;
         for (int s = 0; s < 2; s++) if (lv_obj_has_state(ptt[s], LV_STATE_PRESSED)) side = s;
+        if (side < 0) side = s_rside & 1;      // push-to-talk from a remote (StickS3 / Dial): no finger on the screen
         if (side >= 0) {
             lv_bar_set_value(ptt_bar[side], audio_level(), LV_ANIM_OFF);
             snprintf(b, sizeof b, LV_SYMBOL_STOP "  %.1f s", audio_rec_seconds());

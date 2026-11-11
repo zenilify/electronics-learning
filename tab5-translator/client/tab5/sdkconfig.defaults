@@ -40,6 +40,8 @@ CONFIG_LV_FONT_MONTSERRAT_40=y
 CONFIG_LV_FONT_DEFAULT_MONTSERRAT_24=y
 CONFIG_LV_USE_SPINNER=y
 CONFIG_LV_USE_PERF_MONITOR=n
+# console `shot` (main/shot.c): render the active screen into a buffer for a screenshot
+CONFIG_LV_USE_SNAPSHOT=y
 CONFIG_LVGL_PORT_ENABLE_PPA=y
 CONFIG_BSP_LCD_DRAW_BUF_HEIGHT=80
 # --- Wi-Fi through the ESP32-C6 co-processor (esp_hosted 2.x over SDIO slot 1, 4-bit).

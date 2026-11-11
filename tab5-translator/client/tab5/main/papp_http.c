@@ -448,6 +448,7 @@ int papp_get_url(const char *url, uint8_t **buf, size_t *len, int tmo)   // any 
             if (r <= 0) break;
             n += r;
         }
+        if (st == 200 && cl > 0 && (int64_t)n != cl) st = -3;      // short read: never hand a cut-off body to the caller
         if (st == 200 && b && n) { *buf = b; *len = n; } else free(b);
     }
     esp_http_client_close(c); esp_http_client_cleanup(c);

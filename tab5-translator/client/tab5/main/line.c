@@ -61,8 +61,12 @@ static void show(const char *j, int st)                     // lock held
     for (const char *p = a; a && p && p < e && n < 4; n++) {
         const char *ob = strchr(p, '{'); if (!ob || ob > e) break;
         char *stn = json_str(ob, "station"), *rs = json_str(ob, "es"), *rz = json_str(ob, "zh"), *rr = json_str(ob, "reason");
-        w += snprintf(w, b + sizeof b - w, LV_SYMBOL_BELL " %s  %s %s\n", stn ? stn : "?", rs ? rs : rr ? rr : "", rz ? rz : "");
+        // snprintf returns the length it WANTED to write: without the clamp a long reason text moved w past the end
+        // of b and the next round wrote outside the buffer (found 11-11).
+        int room = (int)(b + sizeof b - w), k = snprintf(w, room, LV_SYMBOL_BELL " %s  %s %s\n", stn ? stn : "?", rs ? rs : rr ? rr : "", rz ? rz : "");
         free(stn); free(rs); free(rz); free(rr);
+        if (k < 0 || k >= room) { n++; break; }      // truncated: what fits is shown, stop here
+        w += k;
         p = strchr(ob, '}'); if (p) p++;
     }
     lv_label_set_text(n_andon, n ? b : LV_SYMBOL_OK " sin andon abierto · 无报警");
@@ -73,8 +77,10 @@ static void show(const char *j, int st)                     // lock held
         char *c = json_str(p, "code"), *es = json_str(p, "es"), *zh = json_str(p, "zh");
         const char *ob = strchr(p, '}');
         char cnt[8] = "?"; { const char *q = strstr(p, "\"count\""); if (q && (!ob || q < ob)) snprintf(cnt, sizeof cnt, "%d", atoi(strchr(q, ':') + 1)); }
-        w += snprintf(w, b + sizeof b - w, "%s  ×%s   %s · %s\n", c ? c : "", cnt, es ? es : "", zh ? zh : "");
+        int room = (int)(b + sizeof b - w), k = snprintf(w, room, "%s  ×%s   %s · %s\n", c ? c : "", cnt, es ? es : "", zh ? zh : "");
         free(c); free(es); free(zh);
+        if (k < 0 || k >= room) { n++; break; }      // same clamp as above
+        w += k;
         p = ob ? ob : p + 6;
     }
     lv_label_set_text(n_reasons, n ? b : "—");

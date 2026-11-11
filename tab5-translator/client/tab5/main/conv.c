@@ -112,7 +112,10 @@ static void on_hist(lv_event_t *e)        // past conversations from SD papp/con
     fseek(f, 0, SEEK_END); long n = ftell(f); long off = n > 16000 ? n - 16000 : 0; fseek(f, off, SEEK_SET);
     char *raw = malloc(n - off + 1); if (!raw) { fclose(f); return; }
     n = fread(raw, 1, n - off, f); raw[n] = 0; fclose(f);
-    char *out = malloc(n * 2 + 64), *w = out; *w = 0;
+    size_t cap = n * 2 + 64;
+    char *out = malloc(cap), *w = out;
+    if (!out) { free(raw); return; }
+    *w = 0;
     char *save, *ln = strtok_r(raw, "\n", &save);
     if (off) ln = strtok_r(NULL, "\n", &save);                 // first line may be cut
     while (ln) {                                               // "<when>\t<sl>><tl>\t<src>\t<tgt>"
@@ -120,7 +123,10 @@ static void on_hist(lv_event_t *e)        // past conversations from SD papp/con
         char *src = strchr(dir, '\t'); if (!src) break; *src++ = 0;
         char *tgt = strchr(src, '\t'); if (!tgt) break; *tgt++ = 0;
         char sl[4] = "", tl[4] = ""; sscanf(dir, "%3[^>]>%3s", sl, tl);
-        w += sprintf(w, "%s   %s → %s\n%s\n→ %s\n\n", strlen(when) > 11 ? when + 11 : when, lang_lbl(sl), lang_lbl(tl), src, tgt);
+        // bounded: very short lines (no wall clock yet -> "up42" stamps, one-word turns) grow more than 2x here
+        int room = (int)(out + cap - w), k = snprintf(w, room, "%s   %s → %s\n%s\n→ %s\n\n", strlen(when) > 11 ? when + 11 : when, lang_lbl(sl), lang_lbl(tl), src, tgt);
+        if (k < 0 || k >= room) break;
+        w += k;
         ln = strtok_r(NULL, "\n", &save);
     }
     text_screen_show("Historial · 对话记录", out[0] ? out : "sin conversaciones todavía");

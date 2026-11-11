@@ -6,6 +6,7 @@
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "ui_priv.h"
+#include "usbport.h"
 #include "remotes.h"
 #include "papp.h"
 #include "papp_http.h"
@@ -437,21 +438,26 @@ static void set_refresh(lv_timer_t *t)
     if (lv_screen_active() != s_set) return;
     uint32_t tot, fr; sd_info(&tot, &fr);
     uint32_t a = g_status.c6v[0], b = g_status.c6v[1], c = g_status.c6v[2]; bool c6 = g_status.c6v_ok;
-    char s[700];
+    char s[800], ub[200];
+    usbport_describe(ub, sizeof ub, true);
+    float amps = g_status.batt_a > -0.005f && g_status.batt_a < 0.005f ? 0.0f : g_status.batt_a;   // no "-0.00"
+    // six lines: the Wi-Fi row starts right below (a seventh line is cut off — seen on the 11-11 screenshot)
     snprintf(s, sizeof s,
              "PAPP OS v%s  ·  ESP32-P4 rev1.3 + ESP32-C6 (esp-hosted %s%lu.%lu.%lu)\n"
              "Wi-Fi: %s  %s  %d dBm  ·  IP %s\n"
              "Servidor: %s  ·  %d ms\n"
-             "Batería: %.2f V  %.2f A\n"
-             "Tarjeta SD: %s  %s  ·  %lu / %lu GB libres\n"
-             "RAM interna libre: %u kB  ·  PSRAM libre: %u kB",
+             "Batería: %.2f V  %.2f A  ·  %s\n"
+             "Tarjeta SD: %s  %s  ·  %lu / %lu GB libres  ·  RAM %u kB  ·  PSRAM %u MB\n"
+             "USB-A: %s",
              PAPP_VERSION, c6 ? "" : "?", (unsigned long)a, (unsigned long)b, (unsigned long)c,
              g_status.wifi_up ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE, g_status.ssid, g_status.rssi, g_status.ip,
              papp_endpoint_name(g_status.endpoint), g_status.health_ms,
-             g_status.batt_v, g_status.batt_a,
+             g_status.batt_v, amps,
+             amps > 0.05f ? LV_SYMBOL_CHARGE " cargando" : amps < -0.05f ? "usando la batería" : usbport_charge_is_on() ? "con corriente externa, sin cargar" : "cargador apagado",
              sd_ok() ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE, sd_card_name(), (unsigned long)(fr / 1024), (unsigned long)(tot / 1024),
              (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
-             (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
+             (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / (1024 * 1024)),
+             ub);
     lv_label_set_text(set_info, s);
     nets_redraw();
 }
@@ -494,7 +500,8 @@ static void build_settings(void)
 {
     lv_obj_t *body = app_frame(&s_set, "Ajustes  ·  设置", C_DIM);
     set_info = label(body, f24, C_TEXT, "…");
-    lv_obj_set_style_text_line_space(set_info, 10, 0);
+    lv_obj_set_style_text_line_space(set_info, 4, 0);
+    lv_obj_set_width(set_info, 1240); lv_label_set_long_mode(set_info, LV_LABEL_LONG_DOT);
     set_nets = lv_obj_create(body);
     plain(set_nets, C_BG);
     lv_obj_set_size(set_nets, LV_PCT(100), 130);
@@ -529,7 +536,7 @@ static void build_settings(void)
     tz_label(tz);
     lv_obj_add_event_cb(tz, on_tz, LV_EVENT_CLICKED, NULL);
     lv_obj_t *vo = pill(body, "", C_PANEL, f24);
-    lv_obj_align(vo, LV_ALIGN_BOTTOM_RIGHT, -330, -30);
+    lv_obj_align(vo, LV_ALIGN_BOTTOM_RIGHT, -350, -30);
     voice_label(vo);
     lv_obj_add_event_cb(vo, on_voice, LV_EVENT_CLICKED, NULL);
     lv_timer_create(set_refresh, 1000, NULL);
@@ -745,7 +752,7 @@ void home_kbd(const char *text, int sp)
     if (cam_key(ent) || notes_key(ent, text) || conv_key(ent) || subs_key(ent, text)) { if (sp == KBD_ESC) home_show(); return; }
     if (a == s_home && text) {          // shortcuts: t e f l c a p
         static const struct { char k; int id; } K[] = { {'t', A_TRANSLATE}, {'e', A_TYPE}, {'f', A_PHRASE},
-                                                        {'l', A_PLACES}, {'c', A_CONV}, {'a', A_SETTINGS}, {'p', A_CAM}, {'n', A_NOTES}, {'d', A_DIALOG}, {'s', A_SUBS}, {'o', A_LINE} };
+                                                        {'l', A_PLACES}, {'c', A_CONV}, {'a', A_SETTINGS}, {'p', A_CAM}, {'n', A_NOTES}, {'d', A_DIALOG}, {'s', A_SUBS}, {'o', A_LINE}, {'r', A_REMOTES} };
         for (int i = 0; i < (int)(sizeof K / sizeof K[0]); i++)
             if (text[0] == K[i].k) open_app(K[i].id);
         return;

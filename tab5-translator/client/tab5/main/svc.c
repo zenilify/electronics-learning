@@ -12,6 +12,7 @@
 #include "papp_http.h"
 #include "audio.h"
 #include "sdcard.h"
+#include "remotes.h"
 #include <sys/stat.h>
 #include <unistd.h>
 #include "esp_timer.h"
@@ -42,19 +43,26 @@ static void sd_sync(svc_progress_t prog, void *ud)
     if (st != 200 || !idx) { ESP_LOGW(TAG, "sd sync: index HTTP %d", st); free(idx); papp_sd_source_end(); if (prog) prog(0, 0, 0, ud); return; }
     int total = 0;
     for (const char *p = (char *)idx; (p = strstr(p, "\"path\"")); p++) total++;
-    int i = 0, got = 0, kept = 0, bad = 0; int64_t t0 = esp_timer_get_time(); size_t bytes = 0;
+    int i = 0, got = 0, kept = 0, bad = 0, changed = 0; int64_t t0 = esp_timer_get_time(); size_t bytes = 0;
     for (const char *p = (char *)idx; (p = strstr(p, "\"path\"")); ) {
         p = strchr(p + 6, '"'); if (!p) break; p++;
         const char *e = strchr(p, '"'); if (!e) break;
         char rel[160]; snprintf(rel, sizeof rel, "%.*s", (int)(e - p), p);
         const char *sz = strstr(e, "\"size\""); long size = sz ? atol(strchr(sz + 6, ':') + 1) : -1;
+        // "sha256" of THIS entry (the index lists path, size, sha256 per file): look no further than the next "path"
+        char want[65] = ""; const char *nx = strstr(e, "\"path\""), *sh = strstr(e, "\"sha256\"");
+        if (sh && (!nx || sh < nx)) { const char *q = strchr(sh + 8, '"'); if (q && strlen(q) > 65 && q[65] == '"') { memcpy(want, q + 1, 64); want[64] = 0; } }
         p = e + 1; i++;
         if (strstr(rel, "..")) { bad++; continue; }
         char dst[200], tmp[208], q[400], enc[300];
         snprintf(dst, sizeof dst, SD_ROOT "/%s", rel);
         struct stat stt;
         int ok;
-        if (stat(dst, &stt) == 0 && stt.st_size == size) { kept++; ok = 2; }
+        // Same size is not "same file": 12 of the 16 voice clips re-taken on 11-11 kept their byte size and were
+        // skipped by the old size-only test. Equal size -> compare the content hash with the index.
+        bool same = stat(dst, &stt) == 0 && stt.st_size == size;
+        if (same && want[0]) { char have[65]; same = papp_sha256_file(dst, have) && !strcmp(have, want); if (!same) changed++; }
+        if (same) { kept++; ok = 2; }
         else {
             mkdirs(dst);
             snprintf(tmp, sizeof tmp, "%s.part", dst);
@@ -72,7 +80,8 @@ static void sd_sync(svc_progress_t prog, void *ud)
     free(idx);
     papp_sd_source_end();
     int ms = (int)((esp_timer_get_time() - t0) / 1000);
-    char ln[160]; snprintf(ln, sizeof ln, "sd sync: %d files, %d new (%u kB), %d kept, %d failed, %d ms", total, got, (unsigned)(bytes / 1024), kept, bad, ms);
+    char ln[200]; snprintf(ln, sizeof ln, "sd sync: %d files, %d new (%u kB; %d of them same size, other content), %d kept, %d failed, %d ms",
+                           total, got, (unsigned)(bytes / 1024), changed, kept, bad, ms);
     ESP_LOGI(TAG, "%s", ln); sd_log("sync.log", ln);
     if (prog) prog(total, total, bad == 0, ud);
 }

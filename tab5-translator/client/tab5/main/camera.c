@@ -180,17 +180,55 @@ static jpeg_decoder_handle_t s_jdec;
 static uint8_t *s_jin; static size_t s_jin_cap;
 static uint16_t *s_jout; static size_t s_jout_cap;
 
-void cam_set_back_url(const char *ip, int port)
+// Two ways to learn where the camera is: mDNS (only works when both sit on the same network) and the USB cable
+// (usbport.c reads the XIAO's own boot log: SSID + IP — works whenever that address is routable from here, e.g. Tab5 on
+// the travel router and the camera on the LAN behind it). The cable wins: an mDNS answer can come from any device on
+// the Wi-Fi, and whoever we take for the camera receives the PAPP bearer in the request. mDNS is only the fallback for
+// a camera that is powered from somewhere else. "gone" needs both empty.
+static char s_bcam_mdns[48], s_bcam_usb[48];
+static void bcam_pick(void)
+{
+    const char *u = s_bcam_usb[0] ? s_bcam_usb : s_bcam_mdns;
+    if (!strcmp(u, s_bcam)) return;
+    ESP_LOGI(TAG, "back camera: %s%s", u[0] ? u : "gone", !u[0] ? "" : u == s_bcam_usb ? " (told over the USB cable)" : " (mDNS)");
+    strlcpy(s_bcam, u, sizeof s_bcam);
+}
+void cam_set_back_url(const char *ip, int port)                 // net task: mDNS result ("" = not seen)
 {
     char u[48] = "";
     if (ip && ip[0]) snprintf(u, sizeof u, "http://%s:%d", ip, port);
-    if (strcmp(u, s_bcam)) { ESP_LOGI(TAG, "back camera: %s", u[0] ? u : "gone"); strlcpy(s_bcam, u, sizeof s_bcam); }
+    strlcpy(s_bcam_mdns, u, sizeof s_bcam_mdns); bcam_pick();
 }
+void cam_set_back_usb(const char *ip)                           // usbport.c / console `bcam <ip>` ("" = forget)
+{
+    char u[48] = "";
+    if (ip && ip[0]) snprintf(u, sizeof u, "http://%s:80", ip);
+    strlcpy(s_bcam_usb, u, sizeof s_bcam_usb); bcam_pick();
+}
+static void bcam_forget(void) { s_bcam_mdns[0] = 0; s_bcam_usb[0] = 0; bcam_pick(); }   // not answering: front camera
+const char *cam_back_url(void) { return s_bcam; }
+
+// A JPEG the hardware decoder may see: starts with SOI and ends with EOI (a few padding bytes after EOI are fine).
+// A frame cut short by a Wi-Fi hiccup fails this. Why it matters: see jpeg_rgb() below.
+static bool jpeg_whole(const uint8_t *j, size_t n)
+{
+    if (!j || n < 128 || j[0] != 0xFF || j[1] != 0xD8) return false;
+    for (size_t k = 2; k <= 18 && k <= n; k++) if (j[n - k] == 0xFF && j[n - k + 1] == 0xD9) return true;
+    return false;
+}
+
+static int s_bad_frames;                           // truncated / corrupt frames dropped before the decoder (console `status`)
+int cam_bad_frames(void) { return s_bad_frames; }
 
 static int bcam_get(const char *path, uint8_t **buf, size_t *len, int tmo)
 {
     char url[96]; snprintf(url, sizeof url, "%s%s", s_bcam, path);
-    return papp_get_url(url, buf, len, tmo);       // papp_http.c (lwIP headers clash with V4L2 ioctl macros here)
+    int st = papp_get_url(url, buf, len, tmo);     // papp_http.c (lwIP headers clash with V4L2 ioctl macros here)
+    if (st == 200 && !jpeg_whole(*buf, *len)) {
+        ESP_LOGW(TAG, "back camera %s: incomplete JPEG (%u B) dropped", path, (unsigned)*len);
+        s_bad_frames++; free(*buf); *buf = NULL; *len = 0; st = -4;
+    }
+    return st;
 }
 
 static bool jpeg_rgb(const uint8_t *j, size_t n, int *w, int *h, int *stride)
@@ -258,7 +296,7 @@ static void back_loop(void)
             ESP_LOGI(TAG, "back capture HTTP %d %u B in %d ms", st, (unsigned)n, (int)((esp_timer_get_time() - c0) / 1000));
             if (st != 200) {
                 lock(); lv_label_set_text(c_st, LV_SYMBOL_WARNING " la cámara trasera no respondió — toca «Nueva captura»"); unlock();
-                if (++fails >= 2) cam_set_back_url(NULL, 0);          // gone: fall back to the front camera
+                if (++fails >= 2) bcam_forget();                      // gone: fall back to the front camera
                 continue;
             }
             fails = 0;
@@ -286,7 +324,7 @@ static void back_loop(void)
             fails = 0;
         } else {
             // 4 misses in a row (~4-12 s): forget the URL; net.c's mDNS lookup brings it back when the XIAO returns
-            if (++fails >= 4) { ESP_LOGW(TAG, "back camera not answering — front camera until it is found again"); cam_set_back_url(NULL, 0); }
+            if (++fails >= 4) { ESP_LOGW(TAG, "back camera not answering — front camera until it is found again"); bcam_forget(); }
             vTaskDelay(pdMS_TO_TICKS(300));
         }
         free(jp);
@@ -551,3 +589,27 @@ bool cam_key(int enter)          // physical keyboard: Enter / space = capture, 
 }
 
 void cam_toggle_source(void) { if (c_src) on_src(NULL); }   // display lock held (console / keyboard 'b')
+
+#ifdef PAPP_CAMTEST
+// Diagnosis only (11-11, PDCA cycle 3): does a cut-short JPEG in the HARDWARE decoder freeze the display flush?
+// `camtest <percent>`: fetch one /frame, keep <percent> % of it, decode it 3 times. Then look whether LVGL still runs.
+void cam_test_bad_jpeg(int pct)
+{
+    if (!s_bcam[0]) { ESP_LOGW(TAG, "camtest: no back camera"); return; }
+    char url[96]; snprintf(url, sizeof url, "%s/frame", s_bcam);
+    uint8_t *jp = NULL; size_t n = 0;
+    int st = papp_get_url(url, &jp, &n, 3000);
+    if (st != 200 || !jp) { ESP_LOGW(TAG, "camtest: fetch HTTP %d", st); free(jp); return; }
+    size_t cut = n * (size_t)pct / 100;
+    if (pct > 100) {                                // > 100: whole frame, but 48 bytes of entropy data overwritten in the middle
+        cut = n; memset(jp + n / 2, 0x55, n > 200 ? 48 : 0);
+    }
+    ESP_LOGW(TAG, "camtest: frame %u B, feeding %u B (%s) to the hardware decoder", (unsigned)n, (unsigned)cut, pct > 100 ? "corrupted" : "cut");
+    for (int i = 0; i < 3; i++) {
+        int w = 0, h = 0, sw = 0; int64_t t0 = esp_timer_get_time();
+        bool ok = jpeg_rgb(jp, cut, &w, &h, &sw);
+        ESP_LOGW(TAG, "camtest: decode %d -> %s (%dx%d) in %d ms", i, ok ? "ok" : "FAILED", w, h, (int)((esp_timer_get_time() - t0) / 1000));
+    }
+    free(jp);
+}
+#endif
