@@ -10,3 +10,13 @@ void papp_restart_guard(void);   // call early in app_main: (1) a boot that foll
                                  // esp-hosted's, the C6 updater's - is turned into a full reset
 int  papp_cpu_resets_fixed(void);  // how many CPU-only resets were escalated so far (NVS "cpurst")
 int  papp_boot_reason(void);       // ROM reset reason of this boot (0xc = CPU-only software reset)
+
+// Why did this boot happen? (0.4.3, 2026-11-11: the Tab5 resets whenever USB-C power is plugged in, ROM reason 0x3 -
+// which is what ESP-IDF's brownout handler produces, but also one kind of crash. The console cannot tell: at that
+// moment it is the cable being plugged. So the firmware keeps the answer and shows it.)
+const char *papp_reset_name(void);     // ESP-IDF's view: POWERON, SW, PANIC, WDT, BROWNOUT, USB ... (esp_reset_reason())
+const char *papp_reset_text(void);     // the same for the Ajustes screen, in Spanish, e.g. "baja tensión ×3"
+int  papp_brownouts(void);             // brownout resets counted so far (NVS "rbod")
+void papp_restart_note(uint8_t why);   // call right before esp_restart(): 1 = UI watchdog, 2 = asked on the console
+void papp_bod_off(void);               // test only: brownout detector off until the next boot (console `bod off`)
+bool papp_bod_is_on(void);

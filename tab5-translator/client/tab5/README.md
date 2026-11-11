@@ -125,13 +125,16 @@ python3 tools/screenshot.py /tmp/ajustes.jpg --pre "key a"   # open Ajustes (key
 bash    tools/gallery.sh                                     # screenshots of all 13 screens into ~/t5/shots/
 python3 tools/ram_walk.py                                    # internal RAM each app costs (opens every app twice)
 python3 tools/watch_status.py --every 60                     # `status` into a CSV until `touch ~/t5/watch/STOP`
+python3 tools/console_log.py                                 # every console line with the time, plus the CSV; owns the port
+echo "status" >> ~/t5/watch/inbox.txt                        # ...so commands go through its inbox while it runs
 ```
 
 | Command | What it does |
 |---|---|
-| `status` | Wi-Fi, server, battery, memory, version, uptime, USB-A; `status2` = camera address, dropped frames, UI restarts; `status3` = charger re-triggers; `status4` = internal RAM: worst-case low-water figure (a sum of per-region minimums, not a moment that happened) and largest free piece; reset reason of this boot (`0x9` = restarted by software, `0x17` = reset over USB), CPU-only resets caught |
+| `status` | Wi-Fi, server, battery, memory, version, uptime, USB-A; `status2` = camera address, dropped frames, UI restarts; `status3` = charger re-triggers; `status4` = internal RAM: worst-case low-water figure (a sum of per-region minimums, not a moment that happened) and largest free piece; reset reason of this boot (`0x9` = restarted by software, `0x17` = reset over USB, `0x3` = brownout handler or a crash with a digital reset), CPU-only resets caught; since 0.4.3 also `rst=` (ESP-IDF's name for the cause: BROWNOUT, PANIC, WDT, USB ...), `brownouts=` (counted in NVS) and `bod=`; `status3` adds `on_batt=` and `src_changes=` (battery / external power changes since boot). Ajustes shows the cause as "último arranque" |
 | `reboot` | restart the Tab5 — a reset of the whole chip (`main/restart.c`). A plain `esp_restart()` can leave Wi-Fi dead on this board and loop forever; the firmware turns every restart into this one |
 | `reboot cpu` | test only: restart the way a crash does (CPU-only reset). The next boot must log "full chip reset" and come up normally |
+| `bod off` | test only: brownout detector off until the next boot (0.4.3) |
 | `key <x>` | a key as from the keyboard: `t e f l c a p n d s o r` open the apps, `esc`, `enter` |
 | `shot [quality]` | the screen as a JPEG (use `tools/screenshot.py`) |
 | `usb on\|off`, `usb`, `usb host` | 5 V of the USB-A port (saved) · what is plugged in · start the USB host stack |

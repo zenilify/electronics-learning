@@ -13,6 +13,12 @@ static const char *TAG = "battery";
 static i2c_master_dev_handle_t s_dev;
 static int s_kicks;
 int battery_chg_kicks(void) { return s_kicks; }
+// Power source, seen from the battery current: clearly negative = the pack is feeding the Tab5 (measured 11-11: -0.44 A
+// with the camera on USB-A), about zero or positive = external power. Counted so that a test can tell afterwards
+// whether the USB-C power really went away and came back (the console is gone while it is away).
+static int s_src_changes; static int8_t s_on_batt = -1;
+int battery_src_changes(void) { return s_src_changes; }
+bool battery_on_batt(void) { return s_on_batt == 1; }
 
 // Charger supervisor (11-11). Measured on Erick's unit, USB power from cachy:
 //   - charger pin low (what PAPP did until 0.4.1): 0.00 A, the battery is never charged;
@@ -69,6 +75,13 @@ static void task(void *a)
             // battery (measured 11-11: charger off 0.00 A at 8.14 V; charger on raw -0.32 A and the voltage climbs to
             // 8.21 V), so it is flipped here: + = charging, - = running from the battery.
             g_status.batt_a = -(int16_t)sh * 2.5e-6f / 0.005f;
+            int8_t ob = g_status.batt_a < -0.10f;
+            if (s_on_batt >= 0 && ob != s_on_batt) {
+                s_src_changes++;
+                ESP_LOGW(TAG, "%s (%.2f V %.2f A, change %d)", ob ? "running from the battery now" : "external power is back",
+                         g_status.batt_v, g_status.batt_a, s_src_changes);
+            }
+            s_on_batt = ob;
         } else g_status.batt_v = -1;
         charger_tick();
         vTaskDelay(pdMS_TO_TICKS(5000));

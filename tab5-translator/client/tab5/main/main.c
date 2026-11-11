@@ -293,6 +293,7 @@ static void console_task(void *a)
         }
         else if (!strcmp(line, "reboot")) {                      // a clean restart from the no-reset console (tools/console_nr.py)
             ESP_LOGW(TAG, "reboot: asked on the console");
+            papp_restart_note(2);
             vTaskDelay(pdMS_TO_TICKS(300)); esp_restart();          // -> papp_full_reset() through the shutdown handler
         }
         else if (!strcmp(line, "reboot cpu")) {                  // test: restart the way a crash does (CPU-only reset);
@@ -300,6 +301,7 @@ static void console_task(void *a)
             ESP_LOGW(TAG, "reboot cpu: CPU-only reset, as after a panic");
             vTaskDelay(pdMS_TO_TICKS(300)); esp_restart_noos();
         }
+        else if (!strcmp(line, "bod off")) papp_bod_off();            // test: brownout detector off until the next boot
         else if (!strcmp(line, "status")) {
             char ub[200]; usbport_describe(ub, sizeof ub, false);
             // the leading fields keep their order (bench scripts and old logs grep "status wifi="); new ones go at the end
@@ -309,12 +311,12 @@ static void console_task(void *a)
                      (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024),
                      PAPP_VERSION, (long long)(esp_timer_get_time() / 1000000), ub);
             ESP_LOGI(TAG, "status2 cam=%s cam_bad_frames=%d ui_restarts=%d", cam_back_url()[0] ? cam_back_url() : "-", cam_bad_frames(), settings_get_u8("uistall", 0));
-            ESP_LOGI(TAG, "status3 chg_kicks=%d", battery_chg_kicks());
+            ESP_LOGI(TAG, "status3 chg_kicks=%d on_batt=%d src_changes=%d", battery_chg_kicks(), battery_on_batt(), battery_src_changes());
             // internal RAM: int_min = sum of per-region low-water marks (a worst-case bound, not a moment that happened); int_largest = biggest piece left
-            ESP_LOGI(TAG, "status4 int_min=%u kB int_largest=%u kB boot_reason=0x%x cpu_resets_fixed=%d",
+            ESP_LOGI(TAG, "status4 int_min=%u kB int_largest=%u kB boot_reason=0x%x cpu_resets_fixed=%d rst=%s brownouts=%d bod=%s",
                      (unsigned)(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL) / 1024),
                      (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024),
-                     papp_boot_reason(), papp_cpu_resets_fixed());
+                     papp_boot_reason(), papp_cpu_resets_fixed(), papp_reset_name(), papp_brownouts(), papp_bod_is_on() ? "on" : "OFF");
         }
     }
 }
@@ -336,7 +338,7 @@ static void uiwd_task(void *a)
         ESP_LOGE(TAG, "UI silent for %d s (display flush stuck?) - restarting. UI restarts so far: %d",
                  (int)((now - beat) / 1000000), n + 1);
         vTaskDelay(pdMS_TO_TICKS(300));
-        esp_restart();
+        papp_restart_note(1); esp_restart();
     }
 }
 

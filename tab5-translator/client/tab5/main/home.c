@@ -7,6 +7,7 @@
 #include "esp_heap_caps.h"
 #include "ui_priv.h"
 #include "usbport.h"
+#include "restart.h"
 #include "remotes.h"
 #include "papp.h"
 #include "papp_http.h"
@@ -558,13 +559,13 @@ static void set_refresh(lv_timer_t *t)
     snprintf(s, sizeof s,
              "PAPP OS v%s  ·  ESP32-P4 rev1.3 + ESP32-C6 (esp-hosted %s%lu.%lu.%lu)\n"
              "Wi-Fi: %s  %s  %d dBm  ·  IP %s\n"
-             "Servidor: %s  ·  %d ms\n"
+             "Servidor: %s  ·  %d ms  ·  último arranque: %s\n"
              "Batería: %.2f V  %.2f A  ·  %s\n"
              "Tarjeta SD: %s  %s  ·  %lu / %lu GB libres  ·  RAM %u kB  ·  PSRAM %u MB\n"
              "USB-A: %s",
              PAPP_VERSION, c6 ? "" : "?", (unsigned long)a, (unsigned long)b, (unsigned long)c,
              g_status.wifi_up ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE, g_status.ssid, g_status.rssi, g_status.ip,
-             papp_endpoint_name(g_status.endpoint), g_status.health_ms,
+             papp_endpoint_name(g_status.endpoint), g_status.health_ms, papp_reset_text(),
              g_status.batt_v, amps,
              amps > 0.05f ? LV_SYMBOL_CHARGE " cargando" : amps < -0.05f ? "usando la batería" : usbport_charge_is_on() ? "con corriente externa, sin cargar" : "cargador apagado",
              sd_ok() ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE, sd_card_name(), (unsigned long)(fr / 1024), (unsigned long)(tot / 1024),
