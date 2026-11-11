@@ -221,6 +221,26 @@ def main():
         got += stream.feed(st, sig[i:i + RATE].tobytes(), lambda pcm, lang: ("lo mismo", "es"), lambda t, a, b: t)["final"]
     check("12 the same caption twice in a row is shown once", len(got) == 1 and st.repeats >= 1, f"captions {len(got)}, repeats dropped {st.repeats}")
 
+    # 13. "It worked after my first sentence, then it started inventing stuff" (Erick, 17:10): a quiet source keeps
+    # talking in the background (a television in the house: the Chinese clip at RMS 120, every 5 s), somebody speaks
+    # at the device once (RMS 1500 at 11 s). Before that sentence the television is all there is and is captioned;
+    # for the next 15 s it must stay out.
+    tv = scaled(d2, 120)
+    sig = noise(40, 30, rnd)
+    for k in range(8):
+        mix(sig, tv, 0.5 + 5.0 * k)
+    mix(sig, scaled(d1, 1500), 11.0)
+    new, s = run_new(sig)
+    before = [x for x in new if x[0] < 10.5]
+    mine = covered(new, 11.0 + on1, 11.0 + len1)
+    after = [x for x in new if 11.0 + len1 + 1.0 < x[0] < 11.0 + len1 + 15.0]
+    check("13 after somebody spoke at the device, a far quieter source is not captioned", len(before) >= 1 and mine >= 0.9 and after == [],
+          f"television before the sentence: {len(before)} segments · the sentence: {mine:.0%} covered · television in the 15 s after: {after}")
+
+    loop = "O bueno, no sé, " + ", ".join(["no"] * 30) + ", ya."
+    check("14 a recogniser stuck in a loop is cut back", stream.unlooped(loop).count("no,") <= 4 and stream.unlooped("no, no, gracias") == "no, no, gracias"
+          and stream.unlooped("sí sí sí") == "sí sí sí", f"{len(loop)} characters -> {stream.unlooped(loop)!r}")
+
     # 9. what a recogniser makes of non-speech is not a caption (all four were on the Tab5's screen on 11 Nov)
     junk = ["-", "...", "*Gunshot*", "[Music]", "(risas)", "  ", "なお", "- 마리 마리.", "이렇게 해서", "Субтитры сделал DimaTorzok",
             "Subtítulos realizados por la comunidad de Amara.org", "Thanks for watching!"]

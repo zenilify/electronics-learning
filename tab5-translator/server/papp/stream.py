@@ -47,6 +47,19 @@ only yardstick for "this is still speech". So:
   * A segment whose loud and quiet frames differ by less than FLAT_RATIO is a noise (a fan that started): it is
     not recognised.
   * The same caption twice in a row within 30 s is dropped (what a recogniser does with noise).
+
+Third pass, 17:20, after Erick's verdict on the second ("it worked after my first sentence, then it started
+inventing stuff"): the captions that followed his sentence were short phrases made from much quieter sound
+(a television elsewhere in the house, the room itself), 15-25 dB under his voice.
+
+  * `dom`, the level of the strongest recent speech that produced words (90th percentile of that segment's
+    frames), halving every DOM_HALF_S. A segment does not open under K_DOM x dom: for a while after somebody
+    spoke at the device, sound a tenth as strong is background, not the next speaker. Somebody at 3 m is about a
+    sixth of somebody at 0.5 m and still gets through (just: 0.17 against K_DOM 0.15); with nobody near, `dom`
+    is small and changes nothing. A compromise between "ignore the television" and "hear the far end of the
+    table" - the clean answer is a near / room switch on the Tab5, not built yet.
+  * A word or phrase repeated more than three times in a row inside one caption is cut back to three (a
+    recogniser stuck in a loop: "no, no, no, ..." thirty times on 11 Nov).
 """
 from __future__ import annotations
 
@@ -81,6 +94,10 @@ REF_DECAY = 0.995           # that level follows the loudest recent frame and ha
 BG_WIN_S = 10.0
 FLAT_RATIO = 2.5            # 90th / 10th percentile of a segment's frame levels; under it = a noise, not speech
 REPEAT_S = 30.0
+K_DOM = 0.15                # a segment does not open under this share of the strongest recent speech
+DOM_HALF_S = 45.0
+DOM_DECAY = 0.5 ** (FRAME_S / DOM_HALF_S)
+DOM_MIN_VOICED_S = 0.6      # only a segment with this much speech can set that level
 ABS_MIN = 40.0
 ASR_TARGET_RMS = 2000.0     # level a segment is raised to before recognition
 ASR_MAX_GAIN = 30.0
@@ -93,6 +110,18 @@ _SOUND_TAG = re.compile(r"^[\*\[\(（【].{0,40}[\*\]\)）】]$")
 # they were trained on. Lower case, matched anywhere in the text.
 _CREDITS = ("amara.org", "dimatorzok", "thanks for watching", "thank you for watching", "gracias por ver",
             "subtítulos realizados", "subtitulos realizados", "suscríbete", "字幕由", "谢谢观看", "請不吝", "请不吝")
+
+
+_LOOP = re.compile(r"((?:\b[\w']+\b[,;]?\s+){0,3}\b[\w']+\b[,;.!?]?)(?:\s+\1){3,}", re.IGNORECASE)
+
+
+def unlooped(text: str) -> str:
+    """'no, no, no, no, no, no' -> 'no, no, no': a run of the same one to four words is cut back to three."""
+    prev = None
+    while prev != text:
+        prev = text
+        text = _LOOP.sub(lambda m: " ".join([m.group(1)] * 3), text)
+    return text
 
 
 def _our_script(ch: str) -> bool:
@@ -113,7 +142,7 @@ def spoken(text: str) -> str:
     low = t.lower()
     if any(c in low for c in _CREDITS):
         return ""
-    return t
+    return unlooped(t)
 
 
 def _rms(pcm: bytes) -> float:
@@ -158,6 +187,7 @@ class Session:
     bg_hi: float = 0.0          # their 75th percentile
     bg_hist: deque = field(default_factory=lambda: deque(maxlen=int(BG_WIN_S / FRAME_S)))
     ref: float = 0.0            # speech level of the open segment
+    dom: float = 0.0            # level of the strongest recent speech that produced words; halves every DOM_HALF_S
     seg_e: list = field(default_factory=list)   # frame levels of the open segment, from its first loud frame
     flat: int = 0               # segments discarded as a steady noise
     repeats: int = 0            # captions discarded as a repeat of the one before
@@ -204,6 +234,7 @@ def feed(s: Session, pcm: bytes, recognise, translate, flush: bool = False) -> d
             s.hist.append(e)
             s.bg_hist.append(e)
             s.frames += 1
+            s.dom *= DOM_DECAY
             if len(s.hist) >= 10 and (s.frames % 5 == 0 or s.noise <= 0):
                 h = sorted(s.hist)
                 s.noise = max(h[int(len(h) * NOISE_PCT)], 1.0)
@@ -214,7 +245,7 @@ def feed(s: Session, pcm: bytes, recognise, translate, flush: bool = False) -> d
                 continue
             bg = s.bg or s.noise
             if not s.seg:
-                if e <= max(K_ON * s.noise, K_HI_ON * (s.bg_hi or s.noise), ABS_MIN):
+                if e <= max(K_ON * s.noise, K_HI_ON * (s.bg_hi or s.noise), K_DOM * s.dom, ABS_MIN):
                     s.pre.append(fr)                          # not speech: keep the last PRE_ROLL_S
                     continue
                 for p in s.pre:                               # first loud frame: open with the pre-roll
@@ -258,7 +289,8 @@ def feed(s: Session, pcm: bytes, recognise, translate, flush: bool = False) -> d
         return {"seq": s.seq, "partial": s.partial, "final": good,
                 "open_s": round(len(s.seg) / 2 / RATE, 2), "lang": s.detected or s.lang,
                 # what the detector saw, for whoever has to answer "why did nothing come up":
-                "level": round(level), "noise": round(s.noise), "bg": round(s.bg), "empty": len(finals) - len(good)}
+                "level": round(level), "noise": round(s.noise), "bg": round(s.bg), "dom": round(s.dom),
+                "empty": len(finals) - len(good)}
 
 
 def _finalise(s: Session, recognise, translate) -> dict:
@@ -283,7 +315,10 @@ def _finalise(s: Session, recognise, translate) -> dict:
         s.last_text, s.last_text_t = text, now
     if s.lang == "auto" and lang and text:
         s.detected = lang
-    out = {"text": text, "lang": lang, "dur_s": dur, "voiced_s": voiced}
+    p90 = lv[int(len(lv) * 0.9)] if lv else 0.0
+    if text and voiced >= DOM_MIN_VOICED_S:
+        s.dom = max(s.dom, p90)
+    out = {"text": text, "lang": lang, "dur_s": dur, "voiced_s": voiced, "p90": round(p90)}
     if s.tgt and text and lang and s.tgt != lang:
         try:
             out["tgt_text"] = translate(text, lang, s.tgt)
