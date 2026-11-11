@@ -242,7 +242,10 @@ static void console_task(void *a)
             if (i >= 0 && i < DEMO_COUNT) subs_inject(CLIPS[i].ss, CLIPS[i].se - CLIPS[i].ss);
         }
         else if (!strcmp(line, "camsrc")) { lock(); cam_toggle_source(); unlock(); }
-        else if (!strcmp(line, "sdsync")) { if (!svc_sd_sync(NULL, NULL)) ESP_LOGW(TAG, "svc busy"); }
+        else if (!strcmp(line, "sdsync") || !strcmp(line, "sdsync full")) {   // full: hash every file, ignore the manifest
+            extern volatile bool g_sd_sync_full; g_sd_sync_full = line[6] != 0;
+            if (!svc_sd_sync(NULL, NULL)) ESP_LOGW(TAG, "svc busy");
+        }
         else if (!strcmp(line, "nets")) {
             net_known_t k[NET_SLOTS]; int n = net_known(k, NET_SLOTS, NULL);
             for (int i = 0; i < n; i++) ESP_LOGI(TAG, "wifi%d %-20s %4d dBm%s%s", k[i].slot, k[i].ssid, k[i].rssi,

@@ -35,12 +35,45 @@ static void urlenc(const char *in, char *out, size_t n)
     out[o] = 0;
 }
 
+// Manifest of what the last sync left on the card: one "<sha256> <size> <path>" line per file. A file whose size
+// AND manifest hash match the server index is taken as unchanged without reading it (hashing all 1364 files made a
+// sync take 41 s instead of 7 s). No manifest entry, or a different size -> the file is hashed or fetched as before.
+// `sdsync full` on the console ignores the manifest once.
+#define MANIFEST SD_ROOT "/.sync-manifest"
+volatile bool g_sd_sync_full;
+static bool manifest_has(const char *mf, const char **hint, const char *sha, long size, const char *rel)
+{
+    if (!mf) return false;
+    char line[260]; int n = snprintf(line, sizeof line, "%s %ld %s\n", sha, size, rel);
+    if (n <= 0 || n >= (int)sizeof line) return false;
+    const char *f = *hint ? strstr(*hint, line) : NULL;        // entries come in index order: look ahead first
+    if (!f) f = strstr(mf, line);
+    if (!f || (f != mf && f[-1] != '\n')) return false;
+    *hint = f + n;
+    return true;
+}
+
 static void sd_sync(svc_progress_t prog, void *ud)
 {
     uint8_t *idx; size_t len;
+    bool full = g_sd_sync_full; g_sd_sync_full = false;
+    char *mf = NULL; const char *mhint = NULL;
+    if (!full) {
+        FILE *f = fopen(MANIFEST, "rb");
+        if (f) {
+            fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
+            if (n > 0 && n < 1024 * 1024 && (mf = heap_caps_malloc(n + 1, MALLOC_CAP_SPIRAM))) { n = fread(mf, 1, n, f); mf[n] = 0; }
+            fclose(f);
+        }
+    }
+    FILE *nm = fopen(MANIFEST ".part", "wb");
+    int trusted = 0;
     papp_sd_source_begin();
     int st = papp_get("/sd/index", &idx, &len);
-    if (st != 200 || !idx) { ESP_LOGW(TAG, "sd sync: index HTTP %d", st); free(idx); papp_sd_source_end(); if (prog) prog(0, 0, 0, ud); return; }
+    if (st != 200 || !idx) {
+        ESP_LOGW(TAG, "sd sync: index HTTP %d", st); free(idx); free(mf); if (nm) { fclose(nm); unlink(MANIFEST ".part"); }
+        papp_sd_source_end(); if (prog) prog(0, 0, 0, ud); return;
+    }
     int total = 0;
     for (const char *p = (char *)idx; (p = strstr(p, "\"path\"")); p++) total++;
     int i = 0, got = 0, kept = 0, bad = 0, changed = 0; int64_t t0 = esp_timer_get_time(); size_t bytes = 0;
@@ -61,7 +94,10 @@ static void sd_sync(svc_progress_t prog, void *ud)
         // Same size is not "same file": 12 of the 16 voice clips re-taken on 11-11 kept their byte size and were
         // skipped by the old size-only test. Equal size -> compare the content hash with the index.
         bool same = stat(dst, &stt) == 0 && stt.st_size == size;
-        if (same && want[0]) { char have[65]; same = papp_sha256_file(dst, have) && !strcmp(have, want); if (!same) changed++; }
+        if (same && want[0]) {
+            if (manifest_has(mf, &mhint, want, size, rel)) trusted++;
+            else { char have[65]; same = papp_sha256_file(dst, have) && !strcmp(have, want); if (!same) changed++; }
+        }
         if (same) { kept++; ok = 2; }
         else {
             mkdirs(dst);
@@ -75,13 +111,15 @@ static void sd_sync(svc_progress_t prog, void *ud)
                 unlink(dst); rename(tmp, dst); got++; bytes += size; ok = 1;
             } else { unlink(tmp); bad++; ok = 0; ESP_LOGW(TAG, "sd sync: %s HTTP %d", rel, r); }
         }
+        if (ok && want[0] && nm) fprintf(nm, "%s %ld %s\n", want, size, rel);    // what is on the card now
         if (prog && (i % 10 == 0 || i == total)) prog(i, total, ok, ud);
     }
-    free(idx);
+    free(idx); free(mf);
+    if (nm) { fclose(nm); unlink(MANIFEST); rename(MANIFEST ".part", MANIFEST); }
     papp_sd_source_end();
     int ms = (int)((esp_timer_get_time() - t0) / 1000);
-    char ln[200]; snprintf(ln, sizeof ln, "sd sync: %d files, %d new (%u kB; %d of them same size, other content), %d kept, %d failed, %d ms",
-                           total, got, (unsigned)(bytes / 1024), changed, kept, bad, ms);
+    char ln[240]; snprintf(ln, sizeof ln, "sd sync: %d files, %d new (%u kB; %d of them same size, other content), %d kept (%d by manifest, %d hashed), %d failed, %d ms%s",
+                           total, got, (unsigned)(bytes / 1024), changed, kept, trusted, kept - trusted, bad, ms, full ? " [full]" : "");
     ESP_LOGI(TAG, "%s", ln); sd_log("sync.log", ln);
     if (prog) prog(total, total, bad == 0, ud);
 }
