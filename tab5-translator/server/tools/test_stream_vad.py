@@ -184,6 +184,12 @@ def main():
     same = stream.levelled(d1.tobytes()) == d1.tobytes() or abs(rms(array.array("h", stream.levelled(d1.tobytes()))) - 2000) < 200
     check("8 quiet segments are levelled", 1700 <= lv <= 2100 and same, f"RMS 150 -> {lv:.0f}")
 
+    # 9. what a recogniser makes of non-speech is not a caption (all four were on the Tab5's screen on 11 Nov)
+    junk = ["-", "...", "*Gunshot*", "[Music]", "(risas)", "  "]
+    real = ["Hola.", "你好", "Este sí.", "OK (creo)", "3"]
+    check("9 non-speech output is dropped, speech is kept", all(stream.spoken(t) == "" for t in junk) and all(stream.spoken(t) == t for t in real),
+          f"dropped {[t for t in junk if stream.spoken(t) == '']} · kept {[t for t in real if stream.spoken(t)]}")
+
     print("\n" + ("ALL OK" if not fails else f"{len(fails)} FAILED: " + ", ".join(fails)))
     return 1 if fails else 0
 

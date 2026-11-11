@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import array
 import math
+import re
 import secrets
 import threading
 import time
@@ -52,6 +53,18 @@ K_OFF = 2.0
 ABS_MIN = 40.0
 ASR_TARGET_RMS = 2000.0     # level a segment is raised to before recognition
 ASR_MAX_GAIN = 30.0
+
+
+_SOUND_TAG = re.compile(r"^[\*\[\(（【].{0,40}[\*\]\)）】]$")
+
+
+def spoken(text: str) -> str:
+    """'' for what a recogniser makes of sound that is not speech: a lone dash, dots, or a sound tag such as
+    *Gunshot*, [Music], (risas). Seen on 2026-11-11 as captions while a television ran in the room."""
+    t = (text or "").strip()
+    if not any(ch.isalnum() for ch in t) or _SOUND_TAG.match(t):
+        return ""
+    return t
 
 
 def _rms(pcm: bytes) -> float:
@@ -162,10 +175,14 @@ def feed(s: Session, pcm: bytes, recognise, translate, flush: bool = False) -> d
                 s.dropped += 1
         if flush and s.voiced_s >= MIN_SEG_S:
             finals.append(_finalise(s, recognise, translate))
-        elif s.seg and s.since_partial_s >= PARTIAL_EVERY_S and s.voiced_s >= MIN_SEG_S:
+        # a long open segment (continuous talk, a television) is re-recognised every 2 s instead of every second:
+        # each partial is a full recognition of everything open so far
+        elif (s.seg and s.voiced_s >= MIN_SEG_S
+              and s.since_partial_s >= (PARTIAL_EVERY_S if len(s.seg) / 2 / RATE < 6.0 else 2 * PARTIAL_EVERY_S)):
             s.since_partial_s = 0.0
             try:
-                s.partial, lang = recognise(levelled(bytes(s.seg)), s.lang)
+                text, lang = recognise(levelled(bytes(s.seg)), s.lang)
+                s.partial = spoken(text)
                 s.detected = s.detected or (lang if s.lang == "auto" else "")
             except Exception:  # noqa: BLE001 — keep the last partial
                 pass
@@ -185,7 +202,8 @@ def _finalise(s: Session, recognise, translate) -> dict:
         text, lang = recognise(levelled(pcm), s.lang)
     except Exception as e:  # noqa: BLE001
         return {"text": "", "error": type(e).__name__, "dur_s": round(len(pcm) / 2 / RATE, 2)}
-    if s.lang == "auto" and lang:
+    text = spoken(text)
+    if s.lang == "auto" and lang and text:
         s.detected = lang
     out = {"text": text, "lang": lang, "dur_s": round(len(pcm) / 2 / RATE, 2)}
     if s.tgt and text and lang and s.tgt != lang:
