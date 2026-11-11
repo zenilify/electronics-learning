@@ -6,11 +6,11 @@ each session.
 
 ---
 
-## 2026-11-11 — Tab5 overnight PDCA: camera power, charging, ESP-NOW bridge (lane T5, Claude Code on cachy)
+## 2026-11-11 — Tab5 overnight PDCA: camera power, charging, ESP-NOW bridge, live subtitles (lane T5, Claude Code on cachy)
 
 Four unattended hours on the Tab5 translator (`tab5-translator/`). Full record with every measurement:
-`tab5-translator/docs/PDCA-2026-11-11.md`. Firmware 0.4.0 → **0.4.2** overnight and **0.4.3** by noon, merged to
-`main` (PR #3 and PR #4).
+`tab5-translator/docs/PDCA-2026-11-11.md`. Firmware 0.4.0 → **0.4.2** overnight, **0.4.3** by noon and **0.4.4** in the afternoon;
+0.4.3 is merged to `main` (PR #3, #4, #5).
 
 **Done and measured**
 
@@ -45,6 +45,10 @@ Four unattended hours on the Tab5 translator (`tab5-translator/`). Full record w
   triggered it is not known.
 - The MacBook can build the same firmware and flash the Tab5 (measured end to end), and PlatformIO on it builds both
   remotes and the bridge. The secrets (Wi-Fi list, remote key, full backups) stay on cachy — Erick's decision.
+- **Live subtitles showed nothing** (Erick's test that morning). Cause, measured: the Tab5's microphone delivers speech
+  at a level of 130–240 (on a scale where 32768 is the maximum) and the server's speech detector only reacted above
+  400. Fixed on both sides in the afternoon — firmware 0.4.4 raises the level while subtitles run, server 0.2.3 judges
+  loudness against the room's own noise — and checked without hands, using the Tab5's own loudspeaker as the voice.
 
 **Things worth understanding (lesson material)**
 
@@ -65,6 +69,13 @@ Four unattended hours on the Tab5 translator (`tab5-translator/`). Full record w
   checksums that cover it (about 70 bytes). `tools/same_firmware.py` compares everything else.
 - *A lock file only pins what is in it.* `dependencies.lock` had no entry for one component, so every fresh clone
   chose a version again. A fresh clone that builds without changing a tracked file is the test.
+- *A threshold in absolute units is a hidden assumption about the hardware.* "Speech is anything above 400" was
+  tuned on studio-loud test clips (level 1300–2500). A different microphone, and the feature is dead. Compare with the
+  room's own noise instead: "three times louder than the quiet moments".
+- *A test that feeds perfect input proves the plumbing, not the feature.* The built-in clip test passed the whole
+  time; it bypasses the microphone. The first real test was a person speaking.
+- *Every route should log one line.* The subtitle routes logged nothing, so "the Tab5 never called" and "the server
+  heard only silence" looked the same from the outside.
 
 **Open** — see §4 of the PDCA file (ESP-NOW cable, RainMaker login, camera-freeze follow-up, who receives the access
 token on a foreign Wi-Fi, internal RAM margin, cause of the restart fault).

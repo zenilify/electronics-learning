@@ -131,10 +131,12 @@ echo "status" >> ~/t5/watch/inbox.txt                        # ...so commands go
 
 | Command | What it does |
 |---|---|
-| `status` | Wi-Fi, server, battery, memory, version, uptime, USB-A; `status2` = camera address, dropped frames, UI restarts; `status3` = charger re-triggers; `status4` = internal RAM: worst-case low-water figure (a sum of per-region minimums, not a moment that happened) and largest free piece; reset reason of this boot (`0x9` = restarted by software, `0x17` = reset over USB, `0x3` = brownout handler or a crash with a digital reset), CPU-only resets caught; since 0.4.3 also `rst=` (ESP-IDF's name for the cause: BROWNOUT, PANIC, WDT, USB ...), `brownouts=` (counted in NVS) and `bod=`; `status3` adds `on_batt=` and `src_changes=` (battery / external power changes since boot). Ajustes shows the cause as "último arranque" |
+| `status` | Wi-Fi, server, battery, memory, version, uptime, USB-A; `status2` = camera address, dropped frames, UI restarts, speaker volume (`vol=`, 0.4.4); `status3` = charger re-triggers; `status4` = internal RAM: worst-case low-water figure (a sum of per-region minimums, not a moment that happened) and largest free piece; reset reason of this boot (`0x9` = restarted by software, `0x17` = reset over USB, `0x3` = brownout handler or a crash with a digital reset), CPU-only resets caught; since 0.4.3 also `rst=` (ESP-IDF's name for the cause: BROWNOUT, PANIC, WDT, USB ...), `brownouts=` (counted in NVS) and `bod=`; `status3` adds `on_batt=` and `src_changes=` (battery / external power changes since boot). Ajustes shows the cause as "último arranque" |
 | `reboot` | restart the Tab5 — a reset of the whole chip (`main/restart.c`). A plain `esp_restart()` can leave Wi-Fi dead on this board and loop forever; the firmware turns every restart into this one |
 | `reboot cpu` | test only: restart the way a crash does (CPU-only reset). The next boot must log "full chip reset" and come up normally |
 | `bod off` | test only: brownout detector off until the next boot (0.4.3) |
+| `mic [seconds [gain dB]]` | what the microphone hears right now, without opening an app: peak and RMS of the samples, two lines per second (full scale 32768). A quiet room reads RMS about 30 at the normal 30 dB; speech at arm's length 130–240. Refused while a recording runs (0.4.4) |
+| `subgain <dB> <max>` | test only: input level of live subtitles — analog gain (default 37.5) and largest digital gain (default 12); applies from the next start, not saved (0.4.4) |
 | `key <x>` | a key as from the keyboard: `t e f l c a p n d s o r` open the apps, `esc`, `enter` |
 | `shot [quality]` | the screen as a JPEG (use `tools/screenshot.py`) |
 | `usb on\|off`, `usb`, `usb host` | 5 V of the USB-A port (saved) · what is plugged in · start the USB host stack |
@@ -148,6 +150,28 @@ echo "status" >> ~/t5/watch/inbox.txt                        # ...so commands go
 | `t5b R …`, `t5buart <rx> <tx>\|off` | ESP-NOW bridge input: over this console (bench relay) / on a UART (untested) |
 | `uiwd reset` | clear the UI-restart counter |
 | `demo`, `say`, `convtest`, `substest`, `c6ver`, `ant`, `tz`, `voice`, `sd`, `camsrc` | as before |
+
+### Live subtitles: when nothing comes up
+
+While Subtítulos runs, the console prints one line per second:
+
+```
+subs: chunk 32000 B sent peak 8940 rms 1009 (room noise 45, gain x3.3) -> HTTP 200 in 653 ms, speech open 6.8 s, partial
+```
+
+| Part | Meaning | Healthy |
+|---|---|---|
+| `sent peak / rms` | level of the second of sound that went to the server (after the gain) | speech: RMS 400–3000 |
+| `room noise` | quietest 20 ms of the last three seconds, before the gain | 30–80 in a quiet room |
+| `gain` | digital gain of this chunk; it puts the room noise at about 150 | 1.5–4 |
+| `HTTP … in … ms` | the server's answer and the round trip | 200 in under 1000 ms |
+| `speech open` | seconds of speech the server is collecting; 0.0 = it hears no speech | grows while someone talks |
+| `partial`, `FINAL` | a grey preview line / a finished caption came back | |
+
+On the screen the same shows as "oyendo voz" (speech open) and, after 8 s without, "no oigo voz: acerca el Tab5 a
+quien habla". `mic` (above) tells whether the microphone itself is alive. `substest <1..5>` feeds a built-in clip past
+the microphone: if that gives a caption and speech does not, the level is the problem; if neither does, the server is.
+The server logs `stream start / final / stop` (`docker logs papp`). History: `docs/PDCA-2026-11-11.md` §7.
 
 ## From the MacBook (on the road)
 
