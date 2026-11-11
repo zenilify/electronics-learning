@@ -11,6 +11,7 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_heap_caps.h"
+#include "esp_timer.h"
 #include "bsp/m5stack_tab5.h"
 #include "papp.h"
 #include "ui.h"
@@ -28,6 +29,7 @@
 #include "notes.h"
 #include "remotes.h"
 #include "camera.h"
+#include "usbport.h"
 
 static const char *TAG = "papp";
 volatile papp_status_t g_status = { .endpoint = -1, .batt_v = -1 };
@@ -259,11 +261,20 @@ static void console_task(void *a)
             time_t t = time(NULL); struct tm lt; localtime_r(&t, &lt); char b[32]; strftime(b, sizeof b, "%Y-%m-%d %H:%M", &lt);
             ESP_LOGI(TAG, "local time %s", b);
         }
-        else if (!strcmp(line, "status"))
-            ESP_LOGI(TAG, "status wifi=%d rssi=%d ep=%d zfix=%d health=%d ms batt=%.2f V %.2f A free_int=%u kB psram=%u kB",
+        else if (!strcmp(line, "usb on") || !strcmp(line, "usb off")) usbport_power(line[5] == 'n', true);   // USB-A 5 V (saved)
+        else if (!strcmp(line, "usb host")) usbport_host_start(true);      // start the USB host stack (saved: on at boot)
+        else if (!strcmp(line, "usb host once")) usbport_host_start(false); // same, this boot only (first test of a build)
+        else if (!strcmp(line, "usb")) { char b[96]; usbport_describe(b, sizeof b); ESP_LOGI(TAG, "usb-a: %s", b); }
+        else if (!strcmp(line, "io")) usbport_io_dump();                   // I/O expander registers, read from the chips
+        else if (!strcmp(line, "status")) {
+            char ub[96]; usbport_describe(ub, sizeof ub);
+            // the leading fields keep their order (bench scripts and old logs grep "status wifi="); new ones go at the end
+            ESP_LOGI(TAG, "status wifi=%d rssi=%d ep=%d zfix=%d health=%d ms batt=%.2f V %.2f A free_int=%u kB psram=%u kB v=%s up=%lld s usb-a=[%s]",
                      g_status.wifi_up, g_status.rssi, g_status.endpoint, g_status.zombie_fixes, g_status.health_ms, g_status.batt_v, g_status.batt_a,
                      (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
-                     (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
+                     (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024),
+                     PAPP_VERSION, (long long)(esp_timer_get_time() / 1000000), ub);
+        }
     }
 }
 
@@ -307,6 +318,8 @@ void app_main(void)
     ui_init(disp);
     if (!audio_init()) ui_set_hint(LV_SYMBOL_WARNING " audio no disponible");
     battery_start();
+    usbport_start();                           // USB-A 5 V on (NVS usb5v): powers the XIAO back camera. Before net_start():
+                                               // the first use of expander 0x44 resets the chip, which also drops the C6's power
     xTaskCreatePinnedToCore(worker, "worker", 8192, NULL, 5, NULL, 0);
     net_start();
     svc_start();
