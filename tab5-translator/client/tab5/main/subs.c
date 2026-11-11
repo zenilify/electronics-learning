@@ -39,9 +39,14 @@ static volatile int64_t s_start_us, s_voice_us;   // session start · last time 
 
 static uint32_t lang_col(const char *l) { return !strcmp(l, "zh") ? C_AMBER : !strcmp(l, "en") ? C_BLUE : C_TEAL; }
 
+// Captions kept on the screen. Each one holds about 1 kB of internal RAM (measured 11 Nov: 34 captions, free internal
+// RAM 223 -> 192 kB), and internal RAM is what Wi-Fi and the USB host live on. Everything is also in subtitles.tsv
+// on the SD card, so the list only has to cover scrolling back a little.
+#define KEEP_SHOWN 20
+#define KEEP_AWAY 6            // after leaving the screen
 static void add_final(const char *lang, const char *src, const char *tgt)       // display lock held
 {
-    if (lv_obj_get_child_count(u_list) >= 40) lv_obj_delete(lv_obj_get_child(u_list, 0));
+    if (lv_obj_get_child_count(u_list) >= KEEP_SHOWN) lv_obj_delete(lv_obj_get_child(u_list, 0));
     lv_obj_t *b = lv_obj_create(u_list);
     plain(b, C_BG);
     lv_obj_set_size(b, LV_PCT(100), LV_SIZE_CONTENT);
@@ -193,6 +198,7 @@ static void tick(lv_timer_t *t)
 }
 
 void subs_leave(void) { if (s_on) sub_stop(); }
+static void on_unloaded(lv_event_t *e) { while (lv_obj_get_child_count(u_list) > KEEP_AWAY) lv_obj_delete(lv_obj_get_child(u_list, 0)); }
 
 void subs_app_open(void)
 {
@@ -233,6 +239,7 @@ void subs_app_open(void)
         lv_obj_set_width(u_part, LV_PCT(100)); lv_label_set_long_mode(u_part, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_max_height(u_part, 130, 0);
         set_tgt(0);
+        lv_obj_add_event_cb(s_scr, on_unloaded, LV_EVENT_SCREEN_UNLOADED, NULL);
         lv_timer_create(tick, 150, NULL);
     }
     open_scr(s_scr);
