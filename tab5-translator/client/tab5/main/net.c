@@ -17,6 +17,8 @@
 #include "esp_netif.h"
 #include "esp_event.h"
 #include "esp_log.h"
+#include "ping/ping_sock.h"
+#include "freertos/semphr.h"
 #include "bsp/m5stack_tab5.h"
 #include "settings.h"
 
@@ -155,6 +157,51 @@ static void brain_lookup(void)
     cam_set_back_url(ip, port);
 }
 
+// --- zombie link watchdog -------------------------------------------------------------------------------
+// Seen 11-09 after ~22 h: associated + IP, but no traffic at all (every probe -1). A link with no backend may
+// also be a real offline place, so only the gateway decides: no endpoint AND 3/3 pings to the gateway lost on
+// two probes in a row -> drop the link; the scan-first loop rejoins. Backoff 1, 2, 4 ... 16 probe cycles.
+static SemaphoreHandle_t s_ping_done;
+static volatile uint32_t s_ping_ok;
+static void ping_ok(esp_ping_handle_t h, void *a) { s_ping_ok++; }
+static void ping_end(esp_ping_handle_t h, void *a) { xSemaphoreGive(s_ping_done); }
+
+static int gw_ping(void)                                  // replies out of 3; -1 = could not run the test
+{
+    esp_netif_ip_info_t ii;
+    if (!s_netif || esp_netif_get_ip_info(s_netif, &ii) != ESP_OK || !ii.gw.addr) return -1;
+    if (!s_ping_done) s_ping_done = xSemaphoreCreateBinary();
+    esp_ping_config_t pc = ESP_PING_DEFAULT_CONFIG();
+    pc.target_addr.type = IPADDR_TYPE_V4;
+    pc.target_addr.u_addr.ip4.addr = ii.gw.addr;
+    pc.count = 3; pc.interval_ms = 300; pc.timeout_ms = 1000; pc.task_stack_size = 3072;
+    esp_ping_callbacks_t cb = { .on_ping_success = ping_ok, .on_ping_end = ping_end };
+    esp_ping_handle_t h;
+    s_ping_ok = 0;
+    if (esp_ping_new_session(&pc, &cb, &h) != ESP_OK) return -1;
+    xSemaphoreTake(s_ping_done, 0);
+    esp_ping_start(h);
+    bool done = xSemaphoreTake(s_ping_done, pdMS_TO_TICKS(5000)) == pdTRUE;
+    esp_ping_stop(h); esp_ping_delete_session(h);
+    return done ? (int)s_ping_ok : -1;
+}
+
+static void link_watch(int ep)
+{
+    static int strikes, skip, backoff = 1;
+    if (ep >= 0) { strikes = 0; backoff = 1; skip = 0; return; }
+    if (skip > 0) { skip--; return; }
+    int ok = gw_ping();
+    ESP_LOGW(TAG, "no endpoint; gateway ping %d/3", ok);
+    if (ok != 0) { strikes = 0; return; }                 // gateway answers (or test unavailable): real offline, stay
+    if (++strikes < 2) return;
+    strikes = 0;
+    ESP_LOGW(TAG, "link is a zombie (associated, gateway silent) - rejoining; next check after %d cycles", backoff);
+    skip = backoff; if (backoff < 16) backoff *= 2;
+    g_status.zombie_fixes++;
+    esp_wifi_disconnect();                                // -> STA_DISCONNECTED -> scan-first rejoin
+}
+
 static void net_task(void *arg)
 {
     int64_t last_probe = 0;
@@ -204,6 +251,7 @@ static void net_task(void *arg)
             brain_lookup();
             int ms = 0, ep = papp_probe(&ms);
             g_status.endpoint = ep; g_status.health_ms = ms; last_probe = now;
+            if (g_status.wifi_up) link_watch(ep);
         }
         xEventGroupWaitBits(s_ev, EV_PROBE | EV_FAIL | EV_SCAN | EV_JOIN, pdFALSE, pdFALSE, pdMS_TO_TICKS(5000));
     }

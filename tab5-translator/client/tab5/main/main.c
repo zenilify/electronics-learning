@@ -260,8 +260,8 @@ static void console_task(void *a)
             ESP_LOGI(TAG, "local time %s", b);
         }
         else if (!strcmp(line, "status"))
-            ESP_LOGI(TAG, "status wifi=%d rssi=%d ep=%d health=%d ms batt=%.2f V %.2f A free_int=%u kB psram=%u kB",
-                     g_status.wifi_up, g_status.rssi, g_status.endpoint, g_status.health_ms, g_status.batt_v, g_status.batt_a,
+            ESP_LOGI(TAG, "status wifi=%d rssi=%d ep=%d zfix=%d health=%d ms batt=%.2f V %.2f A free_int=%u kB psram=%u kB",
+                     g_status.wifi_up, g_status.rssi, g_status.endpoint, g_status.zombie_fixes, g_status.health_ms, g_status.batt_v, g_status.batt_a,
                      (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
                      (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
     }

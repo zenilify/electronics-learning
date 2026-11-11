@@ -61,6 +61,7 @@ typedef struct {
     float batt_v;            // <0 unknown
     float batt_a;
     uint32_t c6v[3];         // C6 esp-hosted fw, read once by the net task (RPCs only from that task: landmine, see net.c)
+    int zombie_fixes;        // net.c link watchdog: times a silent link was dropped + rejoined
     bool c6v_ok;            // + = into the battery (charging) by INA226 sign convention, see battery.c
 } papp_status_t;
 extern volatile papp_status_t g_status;
