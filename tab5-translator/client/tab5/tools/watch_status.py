@@ -4,9 +4,13 @@
   watch_status.py [--every 600] [--hours 24] [--out ~/t5/watch] [--port PORT]
 
 One row per reading: local time, uptime, Wi-Fi, server, zfix (Wi-Fi watchdog), battery V / A, free RAM, firmware,
-camera address, UI restarts, charger kicks. A reading whose uptime is smaller than the previous one is marked REBOOT.
+camera address, UI restarts, charger kicks, and from `status4` (firmware c17 and later) the largest free piece of internal
+RAM, the reset reason of the current boot (0x9 = restarted by software, 0x17 = reset over USB, 0x1 = power-on) and the
+number of CPU-only resets the firmware caught. A reading whose uptime is smaller than the previous one is marked REBOOT.
 The port is open for about 3 s per reading; if something else uses the console at that moment the row says NO-ANSWER.
-Stop it: touch <out>/STOP (or kill the process). Meant for the "watch it for 24 h" jobs: zfix, charging, UI restarts.
+Stop it: kill the process, or touch <out>/STOP (then take that file away before the next start: with it in place the
+tool refuses to start, exit code 3). Stop it before flashing: a reading in the middle of a flash can break the flash.
+Meant for the "watch it for 24 h" jobs: zfix, charging, UI restarts.
 """
 import argparse, csv, os, re, select, sys, termios, time
 
@@ -47,8 +51,11 @@ def main():
     ap.add_argument("--out", default="~/t5/watch"); ap.add_argument("--port", default=PORT)
     a = ap.parse_args()
     out = os.path.expanduser(a.out); os.makedirs(out, exist_ok=True)
+    if os.path.exists(os.path.join(out, "STOP")):
+        print(f"{out}/STOP exists (left from the last stop) - not starting; move it away first", file=sys.stderr); return 3
     path = os.path.join(out, time.strftime("status-%Y%m%d-%H%M.csv"))
-    cols = ["time", "note", "up_s", "wifi", "rssi", "ep", "zfix", "health_ms", "batt_v", "batt_a", "free_int_kb", "fw", "cam", "ui_restarts", "chg_kicks"]
+    cols = ["time", "note", "up_s", "wifi", "rssi", "ep", "zfix", "health_ms", "batt_v", "batt_a", "free_int_kb", "fw", "cam", "ui_restarts", "chg_kicks",
+            "int_largest_kb", "boot_reason", "cpu_resets_fixed"]
     with open(path, "w", newline="") as f: csv.writer(f).writerow(cols)
     t_end, last_up = time.time() + a.hours * 3600, None
     print("logging to", path, flush=True)
@@ -61,7 +68,8 @@ def main():
         row = [time.strftime("%Y-%m-%d %H:%M:%S"), note, up, field(txt, r"status wifi=(\d)"), field(txt, r" rssi=(-?\d+)"), field(txt, r" ep=(-?\d+)"),
                field(txt, r" zfix=(\d+)"), field(txt, r" health=(\d+) ms"), field(txt, r" batt=([0-9.]+) V"), field(txt, r" V (-?[0-9.]+) A"),
                field(txt, r" free_int=(\d+) kB"), field(txt, r" v=([0-9.]+)"), field(txt, r"status2 cam=(\S+)"), field(txt, r"ui_restarts=(\d+)"),
-               field(txt, r"chg_kicks=(\d+)")]
+               field(txt, r"chg_kicks=(\d+)"), field(txt, r"int_largest=(\d+) kB"), field(txt, r"boot_reason=(0x[0-9a-f]+)"),
+               field(txt, r"cpu_resets_fixed=(\d+)")]
         with open(path, "a", newline="") as f: csv.writer(f).writerow(row)
         for _ in range(a.every):
             if os.path.exists(os.path.join(out, "STOP")): break
