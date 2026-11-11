@@ -6,6 +6,7 @@
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "ui_priv.h"
+#include "remotes.h"
 #include "papp.h"
 #include "papp_http.h"
 #include "battery.h"
@@ -534,6 +535,27 @@ static void build_settings(void)
     lv_timer_create(set_refresh, 1000, NULL);
 }
 
+// ---------- Controles: remotes status (remotes.c) ----------
+static lv_obj_t *s_rem, *rem_l;
+static void rem_tick(lv_timer_t *t)
+{
+    if (lv_screen_active() != s_rem) return;
+    char b[400]; int n = remotes_list(b, sizeof b);
+    lv_label_set_text(rem_l, n ? b : "Ningún control visto todavía.\nEnciende el StickS3 o el Dial en la misma red Wi-Fi.\n"
+                                      "No remote seen yet — switch on the StickS3 or the Dial on the same Wi-Fi.");
+}
+static void build_remotes(void)
+{
+    lv_obj_t *body = app_frame(&s_rem, "Controles  ·  遥控", C_BLUE);
+    lv_obj_t *h = label(body, f24, C_DIM, "StickS3: KEY1 = hablar (tú) · KEY2 = hablar (la otra persona) / par\n"
+                                           "Dial: girar = idioma · presionar = hablar · toque largo + girar = volumen");
+    lv_obj_set_width(h, 1180); lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
+    rem_l = label(body, f30, C_TEXT, "");
+    lv_obj_align(rem_l, LV_ALIGN_TOP_LEFT, 0, 110);
+    lv_obj_set_width(rem_l, 1180); lv_label_set_long_mode(rem_l, LV_LABEL_LONG_WRAP);
+    lv_timer_create(rem_tick, 1000, NULL);
+}
+
 // ---------- "next" placeholder apps ----------
 typedef struct { const char *title, *what; uint32_t col; lv_obj_t *scr; } soon_t;
 static soon_t SOON[] = {
@@ -561,7 +583,7 @@ static void open_soon(int i)
 }
 
 // ---------- home ----------
-typedef enum { A_TRANSLATE, A_TYPE, A_PHRASE, A_PLACES, A_CONV, A_SETTINGS, A_CAM, A_NOTES, A_DIALOG, A_SUBS, A_LINE, A_SOON0 } app_id_t;
+typedef enum { A_TRANSLATE, A_TYPE, A_PHRASE, A_PLACES, A_CONV, A_SETTINGS, A_CAM, A_NOTES, A_DIALOG, A_SUBS, A_LINE, A_REMOTES, A_SOON0 } app_id_t;
 typedef struct { const char *icon, *name, *sub; uint32_t col; int id; } tile_t;
 static const tile_t TILES[] = {
     { LV_SYMBOL_AUDIO,     "Traductor",   "按住说话 · hold to talk",  C_TEAL,   A_TRANSLATE },
@@ -573,7 +595,7 @@ static const tile_t TILES[] = {
     { LV_SYMBOL_EDIT,      "Notas",       "语音笔记 · voice notes",   C_VIOLET, A_NOTES },
     { LV_SYMBOL_LOOP,      "Diálogo",     "对话 · hands-free",        C_TEAL,   A_DIALOG },
     { LV_SYMBOL_EYE_OPEN,  "Subtítulos",  "实时字幕 · captions",       C_TEAL,   A_SUBS },
-    { LV_SYMBOL_BLUETOOTH, "Controles",   "Dial · StickS3",          C_BLUE,   A_SOON0 + 4 },
+    { LV_SYMBOL_BLUETOOTH, "Controles",   "Dial · StickS3",          C_BLUE,   A_REMOTES },
     { LV_SYMBOL_CHARGE,    "Línea",       "产线 · OEE / Andon",       C_AMBER,  A_LINE },
     { LV_SYMBOL_HOME,      "Casa",        "Home Assistant",          C_GREEN,  A_SOON0 + 6 },
     { LV_SYMBOL_SETTINGS,  "Ajustes",     "设置 · settings",          C_DIM,    A_SETTINGS },
@@ -597,6 +619,7 @@ static void open_app(int id)
     case A_DIALOG:    conv_app_open(); break;
     case A_SUBS:      subs_app_open(); break;
     case A_LINE:      line_app_open(); break;
+    case A_REMOTES:   if (!s_rem) build_remotes(); open_scr(s_rem); rem_tick(NULL); break;
     case A_SETTINGS:  if (!s_set) build_settings(); open_scr(s_set); net_request_scan(); set_refresh(NULL); break;
     default:          open_soon(id - A_SOON0); break;
     }

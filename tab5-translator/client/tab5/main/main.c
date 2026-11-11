@@ -26,6 +26,7 @@
 #include "kbd.h"
 #include "ui_priv.h"
 #include "notes.h"
+#include "remotes.h"
 #include "camera.h"
 
 static const char *TAG = "papp";
@@ -219,6 +220,13 @@ static void console_task(void *a)
             int i = atoi(line + 9) - 1;
             if (i >= 0 && i < DEMO_COUNT) conv_inject(CLIPS[i].ss, CLIPS[i].se - CLIPS[i].ss);
         }
+        else if (!strncmp(line, "rkey ", 5)) {          // rkey <32 hex>: remotes HMAC key (from cachy t5-remote-key)
+            if (!remotes_set_key_hex(line + 5)) ESP_LOGW(TAG, "rkey: need 32 hex chars");
+            memset(line, 0, sizeof line);
+        }
+        else if (!strncmp(line, "remote accept ", 14)) remotes_accept(line + 14);
+        else if (!strcmp(line, "remote forget")) remotes_forget();
+        else if (!strcmp(line, "remote list")) { char b[400]; remotes_list(b, sizeof b); ESP_LOGI(TAG, "remotes:\n%s", b); }
         else if (!strncmp(line, "substest ", 9)) {     // substest <1..5>: demo clip through live subtitles
             int i = atoi(line + 9) - 1;
             if (i >= 0 && i < DEMO_COUNT) subs_inject(CLIPS[i].ss, CLIPS[i].se - CLIPS[i].ss);
@@ -302,6 +310,7 @@ void app_main(void)
     xTaskCreatePinnedToCore(worker, "worker", 8192, NULL, 5, NULL, 0);
     net_start();
     svc_start();
+    remotes_start();                           // StickS3 / Dial over UDP 47800 (protocol v1, T5-R)
     kbd_start();
     sd_mount();                       // after the C6 (slot 1) so both slots share one initialised host
     xTaskCreate(console_task, "console", 4096, NULL, 2, NULL);

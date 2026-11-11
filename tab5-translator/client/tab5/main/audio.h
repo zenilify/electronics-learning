@@ -33,3 +33,6 @@ int  audio_vad_state(void);       // 0 off, 1 listening, 2 hearing speech, 3 pau
 bool audio_stream_start(int chunk_ms, audio_wav_cb_t cb, void *ud);
 void audio_stream_stop(void);
 bool audio_streaming(void);
+// speaker volume 0..100, persisted (NVS vol); the Dial changes it
+int audio_get_volume(void);
+void audio_set_volume(int v);

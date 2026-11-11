@@ -1,6 +1,7 @@
 // PAPP Tab5 UI — dark split screen (D1, Erick 2026-11-07): left PTT = ES/EN speaker (teal),
 // right PTT = 中文 speaker (amber), conversation in the middle, status bar on top.
 #include "ui.h"
+#include "remotes.h"
 #include "audio.h"
 #include "papp_http.h"
 #include "battery.h"
@@ -76,17 +77,17 @@ static void on_pair(lv_event_t *e)
 }
 
 // ---------- push-to-talk ----------
-static void on_ptt(lv_event_t *e)
+static int s_rside;                       // side of the last PTT (remotes ack state)
+static void ptt_set(int side, bool down)
 {
-    int side = (int)(intptr_t)lv_event_get_user_data(e);
-    lv_event_code_t c = lv_event_get_code(e);
-    if (c == LV_EVENT_PRESSED) {
+    if (down) {
         if (s_busy || papp_demo_running()) { ui_set_hint("Espera · 请稍候"); return; }
+        s_rside = side;
         audio_rec_start(side);
         lv_obj_set_style_bg_color(ptt[side], lv_color_hex(side_color(side)), 0);
         lv_obj_set_style_text_color(ptt_lang[side], lv_color_hex(C_BG), 0);
         lv_obj_set_style_text_color(ptt_hint[side], lv_color_hex(C_BG), 0);
-    } else if (c == LV_EVENT_RELEASED || c == LV_EVENT_PRESS_LOST) {
+    } else {
         audio_rec_stop();
         lv_obj_set_style_bg_color(ptt[side], lv_color_hex(C_PANEL), 0);
         lv_obj_set_style_text_color(ptt_lang[side], lv_color_hex(side_color(side)), 0);
@@ -94,6 +95,13 @@ static void on_ptt(lv_event_t *e)
         lv_bar_set_value(ptt_bar[side], 0, LV_ANIM_OFF);
         refresh_ptt_labels();
     }
+}
+static void on_ptt(lv_event_t *e)
+{
+    int side = (int)(intptr_t)lv_event_get_user_data(e);
+    lv_event_code_t c = lv_event_get_code(e);
+    if (c == LV_EVENT_PRESSED) ptt_set(side, true);
+    else if (c == LV_EVENT_RELEASED || c == LV_EVENT_PRESS_LOST) ptt_set(side, false);
 }
 
 static lv_obj_t *mk_ptt(lv_obj_t *p, int side)
@@ -128,11 +136,13 @@ static lv_obj_t *mk_ptt(lv_obj_t *p, int side)
 
 // ---------- bubbles ----------
 typedef struct { int16_t *pcm; size_t n; int rate; papp_job_t *retry; } bubble_t;
+static bubble_t *s_last;                  // newest playable bubble (remote 'replay')
 
 static void on_bubble_del(lv_event_t *e)
 {
     bubble_t *b = lv_event_get_user_data(e);
     if (!b) return;
+    if (s_last == b) s_last = NULL;
     free(b->pcm);
     if (b->retry) { if (b->retry->wav_owned) free(b->retry->wav); free(b->retry); }
     free(b);
@@ -187,6 +197,7 @@ void ui_add_turn(const papp_job_t *job, papp_result_t *r, bool offline)
     bubble_t *bd = calloc(1, sizeof *bd);
     bd->pcm = r->pcm; bd->n = r->samples; bd->rate = r->rate;
     r->pcm = NULL;                        // ownership moved to the bubble
+    if (bd->pcm) s_last = bd;
     lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(b, on_bubble_tap, LV_EVENT_CLICKED, bd);
     lv_obj_add_event_cb(b, on_bubble_del, LV_EVENT_DELETE, bd);
@@ -467,3 +478,27 @@ void ui_init(lv_display_t *disp)
     splash();
     unlock();
 }
+
+// ---------- remotes (remotes.c; display lock held) ----------
+void ui_remote_ptt(int side, bool down)
+{
+    if (down && lv_screen_active() != scr) open_scr(scr);         // a remote press always lands on the translator
+    ptt_set(side & 1, down);
+}
+void ui_remote_pair(int dir)
+{
+    if (audio_recording() || s_busy) return;
+    papp_set_pair((pair_t)((papp_get_pair() + PAIR_COUNT + dir) % PAIR_COUNT));
+    refresh_ptt_labels();
+    lang_t l, r; pair_langs(papp_get_pair(), &l, &r);
+    char b[48]; snprintf(b, sizeof b, "%s ⇄ %s", lang_label(l), lang_label(r)); ui_set_hint(b);
+}
+void ui_remote_replay(void)
+{
+    if (s_last && s_last->pcm && !s_busy && !audio_recording()) papp_replay(s_last->pcm, s_last->n, s_last->rate);
+}
+const char *ui_remote_state(void)
+{
+    return audio_recording() ? "listen" : s_busy ? "busy" : audio_playing() ? "speak" : "idle";
+}
+int ui_remote_side(void) { return s_rside; }

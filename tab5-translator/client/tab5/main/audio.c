@@ -1,4 +1,5 @@
 #include "audio.h"
+#include "settings.h"
 #include "papp.h"
 #include <string.h>
 #include <stdlib.h>
@@ -12,6 +13,7 @@
 #include "esp_codec_dev.h"
 
 static const char *TAG = "audio";
+static int s_vol = 80;
 static esp_codec_dev_handle_t s_mic, s_spk;
 static TaskHandle_t s_rec_task;
 static volatile bool s_rec, s_stop_play, s_playing;
@@ -214,7 +216,8 @@ bool audio_init(void)
     esp_codec_dev_sample_info_t fs = { .bits_per_sample = 16, .channel = 1, .sample_rate = PAPP_RATE };
     if (esp_codec_dev_open(s_spk, &fs) != ESP_CODEC_DEV_OK) ESP_LOGE(TAG, "speaker open failed");
     if (esp_codec_dev_open(s_mic, &fs) != ESP_CODEC_DEV_OK) ESP_LOGE(TAG, "mic open failed");
-    esp_codec_dev_set_out_vol(s_spk, 80);
+    s_vol = settings_get_u8("vol", 80); if (s_vol > 100) s_vol = 80;
+    esp_codec_dev_set_out_vol(s_spk, s_vol);
     esp_codec_dev_set_in_gain(s_mic, 30.0f);
     s_buf = heap_caps_malloc(BUF_MAX, MALLOC_CAP_SPIRAM);
     if (!s_buf) return false;
@@ -296,3 +299,11 @@ bool audio_stream_start(int chunk_ms, audio_wav_cb_t cb, void *ud)
 }
 void audio_stream_stop(void) { s_stream_on = false; }
 bool audio_streaming(void) { return s_stream_on; }
+
+int audio_get_volume(void) { return s_vol; }
+void audio_set_volume(int v)
+{
+    s_vol = v < 0 ? 0 : v > 100 ? 100 : v;
+    if (s_spk) esp_codec_dev_set_out_vol(s_spk, s_vol);
+    settings_set_u8("vol", (uint8_t)s_vol);
+}
