@@ -28,7 +28,9 @@ room's noise floor (2× keeps an open segment going); the floor is the 8th perce
 after 0.6 s of silence or at 12 s, needs 0.35 s of speech, and is raised to a normal level before recognition.
 A lone dash, dots or a sound tag (`*Gunshot*`, `[Music]`) is not returned as text. A long open segment gets a partial
 every 2 s instead of every second. Offline check with no network: `python3 tools/test_stream_vad.py`.
-Not on Cloud Run yet (still 0.2.2 there); the offline brain has no `/stream` route at all.
+End to end with quiet speech, real recogniser, against cachy and Cloud Run: `python3 tools/probe_stream_quiet.py`.
+On Cloud Run since 11 Nov 16:48 (revision `papp-00005-5p9`, image `papp:20261111-1648`; the revision before it,
+`papp-00004-qkz`, is 0.2.2). The offline brain has no `/stream` route at all.
 
 Phrasebook SD pack: copy the pack's `papp/` folder onto the TF card root (merges with `/sdcard/papp`).
 `papp/tts/%08x.wav` are named `fnv32("<lang>|<text>")` — the firmware's own speech-cache key — so v0.2.0
