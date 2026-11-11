@@ -1,0 +1,18 @@
+dependencies:
+  # RMNG SDK
+  esp_rmaker_neo:
+    path: ../../vendor/esp-rainmaker-neo-firmware/components/esp_rmaker_neo
+  esp_rmaker_neo_ota:
+    path: ../../vendor/esp-rainmaker-neo-firmware/components/esp_rmaker_neo_ota
+
+  # Common example components
+  app_event_loop:
+    path: ../../vendor/esp-rainmaker-neo-firmware/examples/common/app_event_loop
+  app_entry:
+    path: ../../vendor/esp-rainmaker-neo-firmware/examples/common/app_entry
+  app_network:
+    path: ../../vendor/esp-rainmaker-neo-firmware/examples/common/app_network
+  app_led:
+    path: ../../vendor/esp-rainmaker-neo-firmware/examples/common/app_led
+  app_button:
+    path: ../../vendor/esp-rainmaker-neo-firmware/examples/common/app_button

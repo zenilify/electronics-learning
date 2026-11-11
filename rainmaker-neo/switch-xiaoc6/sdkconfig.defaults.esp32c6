@@ -1,0 +1,16 @@
+# Seeed Studio XIAO ESP32C6 (4 MB flash) overrides — lane RM-1 addendum, 2026-11-11.
+# Pins from wiki.seeedstudio.com/xiao_esp32c6_getting_started: user LED = GPIO15, BOOT = GPIO9,
+# D0 = GPIO0, D1 = GPIO1, D2 = GPIO2, D3 = GPIO21, D4/SDA = GPIO22, D5/SCL = GPIO23.
+# The board has no RGB LED: the switch state drives the yellow user LED through SWITCH_USER_LED_GPIO.
+# LED polarity is a HYPOTHESIS (active-low, as on the XIAO ESP32S3); verified only when the LED follows
+# the switch state. If it is inverted, set CONFIG_SWITCH_USER_LED_ACTIVE_LOW=n and app-flash.
+CONFIG_SWITCH_USER_LED_GPIO=15
+CONFIG_SWITCH_USER_LED_ACTIVE_LOW=y
+# app_led stays enabled for an optional Grove WS2812 stick on the D0 Grove port (GPIO0); harmless when absent.
+CONFIG_APP_LED_TYPE_WS2812=y
+CONFIG_APP_LED_WS2812_GPIO_NUM=0
+CONFIG_APP_BUTTON_GPIO_NUM=9
+
+# Same reasoning as the StampS3 build: Wi-Fi/BLE coexistence shortens the connect scan; one failure leaves a
+# claimed node the app cannot re-provision (landmine 347). Retry longer.
+CONFIG_APP_NETWORK_PROV_MAX_RETRY_CNT=10

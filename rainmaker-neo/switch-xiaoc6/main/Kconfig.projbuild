@@ -1,0 +1,21 @@
+menu "Switch Example Configuration"
+
+    config SWITCH_NOTIFY_ON_PUSH_BTN_CB
+        bool "Notify on button press"
+        default n
+        help
+            Send a notification every time the button is pressed.
+
+    config SWITCH_USER_LED_GPIO
+        int "User LED GPIO (-1 = none)"
+        range -1 48
+        default -1
+        help
+            Plain GPIO LED that follows the switch power state, in addition to the
+            app_led indicator. Seeed XIAO ESP32C6: 15. -1 disables it.
+
+    config SWITCH_USER_LED_ACTIVE_LOW
+        bool "User LED is active-low"
+        default y
+        depends on SWITCH_USER_LED_GPIO >= 0
+endmenu
