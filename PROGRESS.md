@@ -27,8 +27,8 @@ Four unattended hours on the Tab5 translator (`tab5-translator/`). Full record w
   files through a manifest (41 s → 9 s).
 - **Most important, found late (03:48):** a software restart put the Tab5 into an endless boot loop — the Wi-Fi chip
   never answered again and the firmware restarted itself every 18 s. The screen-freeze watchdog added earlier the same
-  night restarts that way, and so does a crash. Fixed in the final build (c17): every restart is now a reset of the
-  whole chip, tested both ways. Why the plain restart stopped working during the night is not found yet.
+  night restarts that way, and so does a crash. The final build (c17) turns every restart into a reset of the whole
+  chip, tested both ways. It happened once; seven later attempts to provoke it all recovered, so the trigger is unknown.
 - Internal RAM measured per app (`tools/ram_walk.py`): no leak, but the screens stay built. Frases gives its phrase
   cards back when you leave it (+20 kB).
 
@@ -42,8 +42,9 @@ Four unattended hours on the Tab5 translator (`tab5-translator/`). Full record w
 - *There is more than one kind of reset.* `esp_restart()` on the ESP32-P4 restarts only the CPU; the SD/SDIO and USB
   controllers keep whatever state they were in. A watchdog reset of the whole chip starts them clean. The boot log
   names the kind in its first line (`rst:0xc` CPU only, `rst:0x9` whole chip by watchdog, `rst:0x17` over USB).
-- *"It restarted fine once" is not a property of the code.* The same restart worked at 02:29 and looped at 03:48
-  after other changes. A recovery path has to be re-tested after the things around it change.
+- *One good run proves little about an intermittent fault.* The same restart worked at 02:29, looped at 03:48 and
+  worked seven more times after 04:15. So the fix must not depend on knowing the trigger: never continue a boot that
+  follows a CPU-only reset.
 
 **Open** — see §4 of the PDCA file (merge, charger test, ESP-NOW cable, RainMaker login, camera-freeze follow-up,
 internal RAM margin, cause of the restart regression).
