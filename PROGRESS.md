@@ -49,6 +49,9 @@ Four unattended hours on the Tab5 translator (`tab5-translator/`). Full record w
   at a level of 130–240 (on a scale where 32768 is the maximum) and the server's speech detector only reacted above
   400. Fixed on both sides in the afternoon — firmware 0.4.4 raises the level while subtitles run, server 0.2.3 judges
   loudness against the room's own noise — and checked without hands, using the Tab5's own loudspeaker as the voice.
+- **The font caches were eating the internal memory.** Measured while checking the subtitles: 537 different Chinese
+  characters cost 103 kB that never came back. The caches are now sized per font (the same test costs 15 kB), and with
+  every app opened 172 kB are free instead of 137 kB.
 
 **Things worth understanding (lesson material)**
 
@@ -76,6 +79,10 @@ Four unattended hours on the Tab5 translator (`tab5-translator/`). Full record w
   time; it bypasses the microphone. The first real test was a person speaking.
 - *Every route should log one line.* The subtitle routes logged nothing, so "the Tab5 never called" and "the server
   heard only silence" looked the same from the outside.
+- *A cache is memory you have decided not to get back.* Each font size kept up to 512 drawn characters, about 0.2 kB
+  of scarce internal RAM each — invisible with Spanish text (about 100 different characters), 100 kB per font size
+  with Chinese. Found by typing 537 different characters and watching the free memory fall, then stop at 512. Give a
+  cache a size you chose, and measure what one entry costs.
 
 **Open** — see §4 of the PDCA file (ESP-NOW cable, RainMaker login, camera-freeze follow-up, who receives the access
 token on a foreign Wi-Fi, internal RAM margin, cause of the restart fault).
