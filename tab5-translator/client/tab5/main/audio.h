@@ -37,6 +37,7 @@ bool audio_streaming(void);
 // server's speech detector (audio.c). stats: noise floor (RMS, before the gain) and the gain of the last chunk x10.
 void audio_stream_tune(float analog_db, int max_gain);
 void audio_stream_stats(int *noise_rms, int *gain_x10);
+int audio_stream_mic_db_x10(void);       // analog gain in use right now x10 (steps down when the converter is overdriven)
 // Console test: log peak / RMS of the microphone for `seconds` (2 lines per second), at `gain_db` of analog gain when
 // that is >= 0 (the normal gain is restored afterwards). Refused while recording.
 void audio_mic_probe(int seconds, float gain_db);

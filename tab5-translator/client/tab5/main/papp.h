@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define PAPP_VERSION   "0.4.4"
+#define PAPP_VERSION   "0.4.5"
 #define PAPP_RATE      16000          // mic + speaker + requested reply rate
 #define PAPP_MAX_SEC   30             // server rejects > 30 s (413)
 #define PAPP_MIN_MS    450            // shorter presses are treated as accidental taps

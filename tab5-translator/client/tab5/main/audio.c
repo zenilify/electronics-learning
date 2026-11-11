@@ -152,12 +152,21 @@ static int s_stream_bytes;
 //      detector's fixed floor. "3 x the noise" is then the only condition left - the best this detector can do.
 // The noise floor is the quietest 20 ms frame of the last three chunks (speech always has such gaps, a steady fan
 // does not hide in them). Gain moves 30 % of the way per chunk and is cut back for a chunk that would clip.
+//   3. The analog gain steps DOWN when the converter itself is driven to its limit. Erick's first test (11 Nov
+//      16:50): a loud source close to the microphone at 37.5 dB arrived with peaks of 32767 at digital gain 1.0 -
+//      clipped before any software saw it - and ten seconds of it were recognised as "so". A chunk that reaches
+//      STREAM_HOT takes 6 dB off (down to STREAM_ADB_MIN) from the next chunk on; 8 calm chunks in a row give
+//      3 dB back, but for the rest of the session never closer than 3 dB to a gain that overdrove. The noise
+//      bookkeeping is scaled with each step so the digital gain does not jump.
 // Push-to-talk, notes and the conversation mode keep MIC_GAIN_DB: they are spoken into from close up.
 #define MIC_GAIN_DB 30.0f
 #define STREAM_NOISE_TARGET 150
+#define STREAM_HOT 30000                        // a raw sample this large: the converter is at its limit
+#define STREAM_CALM 8000                        // loudest raw sample of a chunk that counts as "plenty of room"
+#define STREAM_ADB_MIN 18.0f
 static float s_stream_adb = 37.5f;              // ES7210 maximum
 static int s_stream_gmax = 12;
-static volatile int s_stream_noise, s_stream_gain_x10 = 10;
+static volatile int s_stream_noise, s_stream_gain_x10 = 10, s_stream_adb_x10 = 375;
 void audio_stream_tune(float analog_db, int max_gain)
 {
     s_stream_adb = analog_db < 0 ? 0 : analog_db > 37.5f ? 37.5f : analog_db;
@@ -165,6 +174,7 @@ void audio_stream_tune(float analog_db, int max_gain)
     ESP_LOGI(TAG, "stream tuning: mic gain %.1f dB, digital gain up to x%d (applies from the next start)", s_stream_adb, s_stream_gmax);
 }
 void audio_stream_stats(int *noise_rms, int *gain_x10) { if (noise_rms) *noise_rms = s_stream_noise; if (gain_x10) *gain_x10 = s_stream_gain_x10; }
+int audio_stream_mic_db_x10(void) { return s_stream_adb_x10; }
 
 static float stream_gain_chunk(int16_t *p, size_t ns, float g)      // amplify in place, never clip; returns the gain used
 {
@@ -179,16 +189,19 @@ static void rec_stream(void)
 {
     const size_t CH = PAPP_RATE / 50 * 2;
     uint8_t junk[640];
-    esp_codec_dev_set_in_gain(s_mic, s_stream_adb);
+    float adb = s_stream_adb;                    // analog gain in use; steps down when the converter is overdriven
+    esp_codec_dev_set_in_gain(s_mic, adb); s_stream_adb_x10 = (int)(adb * 10);
     for (int i = 0; i < 10; i++) esp_codec_dev_read(s_mic, junk, sizeof junk);    // 200 ms: stale data + gain change
     ESP_LOGI(TAG, "stream: on (%d B chunks, mic gain %.1f dB, digital gain up to x%d)", s_stream_bytes, s_stream_adb, s_stream_gmax);
     uint8_t *buf = NULL; size_t n = 0;
-    int mins[3] = { -1, -1, -1 }, mi = 0, cmin = -1; float g = 0;
+    int mins[3] = { -1, -1, -1 }, mi = 0, cmin = -1, cpk = 0, calm = 0; float g = 0;
+    float top = s_stream_adb;                    // highest gain this session goes back to: 3 dB under one that overdrove
     while (s_stream_on) {
         if (!buf) { buf = heap_caps_malloc(s_stream_bytes, MALLOC_CAP_SPIRAM); n = 0; if (!buf) { vTaskDelay(pdMS_TO_TICKS(20)); continue; } }
         if (esp_codec_dev_read(s_mic, buf + n, CH) != ESP_CODEC_DEV_OK) { vTaskDelay(1); continue; }
         int rms; int pk = chunk_peak_rms((int16_t *)(buf + n), CH / 2, &rms);
         if (cmin < 0 || rms < cmin) cmin = rms;
+        if (pk > cpk) cpk = pk;
         // level bar: what is sent, on a dB scale (-42 dB = empty, -6 dB = full) so that quiet speech moves it too
         float db = 20.0f * log10f((pk * (g > 1 ? g : 1) + 1) / 32768.0f);
         int lv = (int)((db + 42.0f) * 100.0f / 36.0f); s_level = lv < 0 ? 0 : lv > 100 ? 100 : lv;
@@ -203,6 +216,22 @@ static void rec_stream(void)
             s_stream_noise = noise; s_stream_gain_x10 = (int)(used * 10 + 0.5f);
             if (s_cb) s_cb(buf, n, s_cb_ud); else free(buf);
             buf = NULL;
+            // analog gain for the NEXT chunk (this one is already recorded)
+            float step = 0;
+            if (cpk >= STREAM_HOT && adb > STREAM_ADB_MIN) {
+                top = adb - 3 > STREAM_ADB_MIN ? adb - 3 : STREAM_ADB_MIN;
+                step = adb - 6 < STREAM_ADB_MIN ? STREAM_ADB_MIN - adb : -6; calm = 0;
+            }
+            else if (cpk < STREAM_CALM) { if (++calm >= 8 && adb < top) { step = adb + 3 > top ? top - adb : 3; calm = 0; } }
+            else calm = 0;
+            if (step != 0) {
+                adb += step; esp_codec_dev_set_in_gain(s_mic, adb); s_stream_adb_x10 = (int)(adb * 10);
+                float k = powf(10.0f, step / 20.0f);                 // what the raw levels do with this step
+                for (int j = 0; j < 3; j++) if (mins[j] > 0) mins[j] = (int)(mins[j] * k) > 0 ? (int)(mins[j] * k) : 1;
+                g = g / k; if (g > s_stream_gmax) g = s_stream_gmax; if (g < 1) g = 1;
+                ESP_LOGI(TAG, "stream: mic gain %.1f dB (%s, loudest raw sample of the last chunk %d)", adb, step < 0 ? "overdriven" : "calm again", cpk);
+            }
+            cpk = 0;
         }
     }
     if (buf && n >= CH * 10 && s_cb) { stream_gain_chunk((int16_t *)buf, n / 2, g > 1 ? g : 1); s_cb(buf, n, s_cb_ud); }   // flush the tail (>= 200 ms)

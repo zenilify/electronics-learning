@@ -111,8 +111,9 @@ static void stream_post(const char *verb, uint8_t *pcm, size_t n)
         bool fin = r.tgt_text && strstr(r.tgt_text, "\"final\":[{");
         if (open_s > 0 || part || fin) s_voice_us = esp_timer_get_time();
         audio_stream_stats(&noise, &gx10);
-        ESP_LOGI(TAG, "%s %u B sent peak %d rms %d (room noise %d, gain x%d.%d) -> HTTP %d in %d ms, speech open %.1f s%s%s",
-                 verb, (unsigned)n, pk, (int)sqrt(acc / (ns ? ns : 1)), noise, gx10 / 10, gx10 % 10, r.http_status, s_lat_ms,
+        int adb = audio_stream_mic_db_x10();
+        ESP_LOGI(TAG, "%s %u B sent peak %d rms %d (room noise %d, gain x%d.%d, mic %d.%d dB) -> HTTP %d in %d ms, speech open %.1f s%s%s",
+                 verb, (unsigned)n, pk, (int)sqrt(acc / (ns ? ns : 1)), noise, gx10 / 10, gx10 % 10, adb / 10, adb % 10, r.http_status, s_lat_ms,
                  open_s, part ? ", partial" : "", fin ? ", FINAL" : "");
     }
     if (r.http_status == 200 && r.tgt_text) { handle_reply(r.tgt_text); s_err = 0; }
