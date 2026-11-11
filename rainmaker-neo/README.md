@@ -11,7 +11,7 @@ open-source, AWS-serverless successor to RainMaker Classic) on an **M5Stamp S3**
 |---|---|
 | `vendor/esp-rainmaker-neo-firmware/` | the SDK, **gitignored**, pinned clone — run `tools/fetch-vendor.sh` |
 | `switch-stamps3/` | the SDK's `examples/switch` copied out (per the docs' *Start your own project*), paths re-pointed at `vendor/`, `project(switch_stamps3)`, `sdkconfig.defaults.esp32s3` for the Stamp |
-| `switch-xiaoc6/` | the SDK's `examples/switch` copied out (per the docs' *Start your own project*), paths re-pointed at `vendor/`, `project(switch_stamps3)`, `sdkconfig.defaults.esp32s3` for the Stamp | — the same switch retargeted to the Seeed XIAO ESP32C6 (user LED GPIO15, BOOT GPIO9); RM-1 addendum 2026-11-11
+| `switch-xiaoc6/` | the same switch retargeted to the Seeed XIAO ESP32C6: `project(switch_xiaoc6)`, `sdkconfig.defaults.esp32c6`, user LED GPIO15 (active-low) mirrored by `main/app_driver.c`, BOOT GPIO9 — RM-1 addendum 2026-11-11 |
 | `tools/fetch-vendor.sh` | clones/checks out the pin below |
 
 ## Vendor pin
