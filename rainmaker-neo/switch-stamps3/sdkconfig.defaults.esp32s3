@@ -4,3 +4,8 @@
 CONFIG_APP_LED_TYPE_WS2812=y
 CONFIG_APP_LED_WS2812_GPIO_NUM=21
 CONFIG_APP_BUTTON_GPIO_NUM=0
+
+# 2026-11-11 12:45: the first join attempt on Mega_2.4G_7E28 ended in "AP not found" (reason 201) while BLE
+# provisioning was active (Wi-Fi/BLE coexistence shortens the connect scan) and the default 3 retries were not
+# enough; one failure leaves a claimed node that the app cannot re-provision (landmine 347). Retry longer.
+CONFIG_APP_NETWORK_PROV_MAX_RETRY_CNT=10
