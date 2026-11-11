@@ -13,3 +13,4 @@ void net_request_scan(void);
 int  net_known(net_known_t *out, int max, unsigned *gen);   // provisioned networks + last scan; gen bumps per scan
 void net_join(int slot);                                   // slot >= 0: switch now + remember; -1 = automatic
 int  net_pref(void);                                       // remembered slot or -1
+void net_follow(const char *ssid);                           // join this provisioned SSID once (does not change the pick)

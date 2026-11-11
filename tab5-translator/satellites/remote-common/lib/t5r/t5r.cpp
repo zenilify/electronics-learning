@@ -7,11 +7,19 @@
 #include <esp_mac.h>
 #include "mbedtls/md.h"
 #include "mbedtls/sha256.h"
+#ifdef T5R_ESPNOW
+#include <esp_now.h>
+#include <esp_wifi.h>
+#endif
 
 namespace t5r {
 
 static const uint16_t PORT = 47800;
+#ifdef T5R_ESPNOW
+static const char *FW = "0.2.0-espnow";
+#else
 static const char *FW = "0.1.2";
+#endif
 static const int SLOTS = 4;
 static const uint32_t RETRY_MS = 60;
 
@@ -33,7 +41,25 @@ static bool batChg = false;
 static char extra[160] = "";
 
 // ---------- Wi-Fi ----------
-enum { W_SCAN_START, W_SCANNING, W_JOINING, W_UP, W_WAIT };
+enum { W_SCAN_START, W_SCANNING, W_JOINING, W_UP, W_WAIT, W_NOW };
+
+#ifdef T5R_ESPNOW
+// ---------- transport B: ESP-NOW through a bridge next to the Tab5 (PROTOCOL.md §6) ----------
+// No access point needed. The bridge (satellites/espnow-bridge) forwards our datagrams to the Tab5 untouched, so the
+// HMAC, nonce, seq and acks are exactly the ones used over UDP. Finding the bridge: ping on every channel (~0.4 s).
+static bool nowUp = false;            // esp_now_init done
+static bool viaNow = false;           // talking through the bridge instead of Wi-Fi/UDP
+static uint8_t nowPeer[6];            // the bridge's MAC
+static uint8_t nowCh = 0;
+static int nowRssi = 0;
+static volatile bool pongSeen = false;
+static uint8_t pongMac[6];
+static volatile uint8_t pongCh = 0;
+struct NowRx { uint16_t len; int8_t rssi; char d[512]; };
+static QueueHandle_t nowQ = nullptr;
+static uint8_t nowMode = 1;           // prefs "now": 0 = never, 1 = try the bridge first, then Wi-Fi
+static uint32_t nowSweeps = 0, nowT = 0, nowSkipUntil = 0;
+#endif
 static uint8_t wst = W_SCAN_START;
 static uint32_t wT = 0, wDownSince = 0;
 static int lastScanN = -1, lastScanKnown = 0;
@@ -147,7 +173,10 @@ static void unlink(const char *why) {
   helloPending = false;
   helloMiss = 0;
   pHeld = false;
-  if (wst == W_UP) lnk = haveKey ? L_DISCOVER : L_NOKEY;
+  if (wst == W_UP || wst == W_NOW) lnk = haveKey ? L_DISCOVER : L_NOKEY;
+#ifdef T5R_ESPNOW
+  nowT = millis();
+#endif
 }
 
 static void tx(const IPAddress &to, const char *ev, uint32_t seq, const char *arg, uint8_t tryN) {
@@ -159,6 +188,9 @@ static void tx(const IPAddress &to, const char *ev, uint32_t seq, const char *ar
   char tag[17];
   hmacTag((const uint8_t *)b, n, tag);
   n += snprintf(b + n, sizeof b - n, ",\"m\":\"%s\"}", tag);
+#ifdef T5R_ESPNOW
+  if (viaNow) { esp_now_send(nowPeer, (const uint8_t *)b, n); return; }   // unicast to the bridge: MAC-level ack + retries
+#endif
   udp.beginPacket(to, PORT);
   udp.write((const uint8_t *)b, n);
   udp.endPacket();
@@ -168,6 +200,9 @@ static void sendHello() {
   char arg[120];
   snprintf(arg, sizeof arg, "{\"kind\":\"%s\",\"name\":\"%s\",\"fw\":\"%s\",\"boot\":%u}", kind, devName, FW, (unsigned)bootId);
   helloSeq = ++seqCtr;
+#ifdef T5R_ESPNOW
+  if (viaNow) { tx(peer, "hello", helloSeq, arg, 0); helloTx = millis(); helloPending = true; return; }
+#endif
   if (lnk == L_LINKED && havePeer) {
     tx(peer, "hello", helloSeq, arg, 0);
   } else {
@@ -189,6 +224,8 @@ static void parseState(const char *s) {
   if (jnum(s, "side", &x)) stt.side = (int)x;
 }
 
+static void handle(char *b, int n, const IPAddress &from);
+
 static void rx() {
   int len = udp.parsePacket();
   if (len <= 0) return;
@@ -197,6 +234,82 @@ static void rx() {
   int n = udp.read((uint8_t *)b, sizeof b - 1);
   if (n <= 0) return;
   b[n] = 0;
+  handle(b, n, from);
+}
+
+#ifdef T5R_ESPNOW
+static void nowRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {   // Wi-Fi task: queue only
+  if (len >= 14 && !memcmp(data, "{\"t5b\":\"pong\"", 13)) {
+    char t[48];
+    int k = len < (int)sizeof t - 1 ? len : (int)sizeof t - 1;
+    memcpy(t, data, k);
+    t[k] = 0;
+    const char *c = strstr(t, "\"ch\":");
+    memcpy(pongMac, info->src_addr, 6);
+    pongCh = c ? (uint8_t)atoi(c + 5) : 0;
+    pongSeen = true;
+    return;
+  }
+  if (!nowQ || len <= 0 || len >= 512) return;
+  NowRx r;
+  r.len = len;
+  r.rssi = info->rx_ctrl ? info->rx_ctrl->rssi : 0;
+  memcpy(r.d, data, len);
+  r.d[len] = 0;
+  xQueueSend(nowQ, &r, 0);
+}
+
+static void rxNow() {
+  static NowRx r;
+  while (nowQ && xQueueReceive(nowQ, &r, 0) == pdTRUE) {
+    nowRssi = r.rssi;
+    handle(r.d, r.len, IPAddress(0, 0, 0, 0));
+  }
+}
+
+// Ping on every channel; lock on the first bridge that answers. Blocks ~0.4 s; only called while not linked.
+static bool nowSweep() {
+  if (!nowUp) {
+    if (!WiFi.STA.started()) return false;
+    if (!nowQ) nowQ = xQueueCreate(4, sizeof(NowRx));
+    if (!nowQ || esp_now_init() != ESP_OK) return false;
+    esp_now_register_recv_cb(nowRecv);
+    esp_now_peer_info_t p = {};
+    memset(p.peer_addr, 0xFF, 6);
+    p.channel = 0;
+    p.ifidx = WIFI_IF_STA;
+    esp_now_add_peer(&p);
+    nowUp = true;
+  }
+  static const char PING[] = "{\"t5b\":\"ping\"}";
+  uint8_t bc[6];
+  memset(bc, 0xFF, 6);
+  nowSweeps++;
+  for (uint8_t ch = 1; ch <= 13; ch++) {
+    if (esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE) != ESP_OK) continue;
+    pongSeen = false;
+    esp_now_send(bc, (const uint8_t *)PING, sizeof PING - 1);
+    uint32_t t0 = millis();
+    while (millis() - t0 < 28 && !pongSeen) delay(1);
+    if (!pongSeen) continue;
+    uint8_t c = (pongCh >= 1 && pongCh <= 13) ? pongCh : ch;   // the bridge says which channel it really sits on
+    esp_wifi_set_channel(c, WIFI_SECOND_CHAN_NONE);
+    memcpy(nowPeer, pongMac, 6);
+    nowCh = c;
+    if (!esp_now_is_peer_exist(nowPeer)) {
+      esp_now_peer_info_t p = {};
+      memcpy(p.peer_addr, nowPeer, 6);
+      p.channel = 0;
+      p.ifidx = WIFI_IF_STA;
+      esp_now_add_peer(&p);
+    }
+    return true;
+  }
+  return false;
+}
+#endif
+
+static void handle(char *b, int n, const IPAddress &from) {
   uint32_t nowUs = micros();
   // tag: ...,"m":"<16 hex>"}  must be the tail
   if (n < 30 || strcmp(b + n - 2, "\"}")) return;
@@ -231,6 +344,10 @@ static void rx() {
       helloMiss = 0;
       lnk = L_LINKED;
       parseState(b);
+#ifdef T5R_ESPNOW
+      if (fresh && viaNow) say("log linked via espnow ch=%u", nowCh);
+      else
+#endif
       if (fresh) say("log linked peer=%s", from.toString().c_str());
     } else if (!strcmp(err, "pair")) {
       if (lnk != L_PAIR) say("log pairing: accept %s on the Tab5", dev);
@@ -328,7 +445,12 @@ const State &state() { return stt; }
 const Stats &stats() { return st; }
 const char *devId() { return dev; }
 const char *ssid() { return curSsid; }
-int rssi() { return wst == W_UP ? WiFi.RSSI() : 0; }
+int rssi() {
+#ifdef T5R_ESPNOW
+  if (wst == W_NOW) return nowRssi;
+#endif
+  return wst == W_UP ? WiFi.RSSI() : 0;
+}
 void setBattery(int pct, int mv, bool chg) { batPct = pct; batMv = mv; batChg = chg; }
 void setExtraInfo(const char *json) { strlcpy(extra, json, sizeof extra); }
 
@@ -337,6 +459,19 @@ static void wifiLoop() {
   uint32_t now = millis();
   switch (wst) {
     case W_SCAN_START:
+#ifdef T5R_ESPNOW
+      viaNow = false;
+      if (nowMode && haveKey && (int32_t)(now - nowSkipUntil) >= 0 && nowSweep()) {
+        viaNow = true;
+        wst = W_NOW;
+        lnk = L_DISCOVER;
+        helloTx = 0;
+        nowT = millis();
+        snprintf(curSsid, sizeof curSsid, "ESP-NOW ch%u", nowCh);
+        say("log espnow bridge found ch=%u mac=%02x%02x%02x%02x%02x%02x", nowCh, nowPeer[0], nowPeer[1], nowPeer[2], nowPeer[3], nowPeer[4], nowPeer[5]);
+        break;
+      }
+#endif
       if (!slotCount()) { lnk = haveKey ? L_NOWIFI : L_NOKEY; wst = W_WAIT; wT = now; break; }
       WiFi.scanDelete();
       WiFi.scanNetworks(true, false);
@@ -401,6 +536,18 @@ static void wifiLoop() {
     case W_WAIT:
       if (now - wT > 4000) wst = W_SCAN_START;
       break;
+#ifdef T5R_ESPNOW
+    case W_NOW:
+      // A bridge answered the ping but the Tab5 behind it stays silent for 6 s (bridge not wired, Tab5 off):
+      // give Wi-Fi/UDP its turn and do not look for a bridge again for a minute.
+      if (lnk == L_DISCOVER && now - nowT > 6000) {
+        say("log espnow: bridge answers, Tab5 does not - trying Wi-Fi");
+        viaNow = false;
+        nowSkipUntil = now + 60000;
+        wst = W_SCAN_START;
+      }
+      break;
+#endif
   }
 }
 
@@ -421,6 +568,12 @@ static void info() {
       (unsigned)st.sent, (unsigned)st.acked, (unsigned)st.lost, (unsigned)st.rejected, (unsigned)st.dropped,
       (unsigned)st.rttLastUs, st.acked ? (unsigned)st.rttMinUs : 0, st.acked ? (unsigned)(st.rttSumUs / st.acked) : 0, (unsigned)st.rttMaxUs,
       stt.st, stt.pair, stt.vol, batPct, (unsigned)(millis() / 1000), extra[0] ? "," : "", extra);
+#ifdef T5R_ESPNOW
+  // its own short line: the info line above already fills the console buffer, and a line that does not fit is dropped
+  say("now {\"via\":\"%s\",\"mode\":%u,\"ch\":%u,\"sweeps\":%u,\"rssi\":%d,\"sent\":%u,\"acked\":%u,\"lost\":%u,\"rtt_us\":{\"min\":%u,\"avg\":%u,\"max\":%u}}",
+      viaNow ? "espnow" : "udp", nowMode, nowCh, (unsigned)nowSweeps, nowRssi, (unsigned)st.sent, (unsigned)st.acked, (unsigned)st.lost,
+      st.acked ? (unsigned)st.rttMinUs : 0, st.acked ? (unsigned)(st.rttSumUs / st.acked) : 0, (unsigned)st.rttMaxUs);
+#endif
 }
 
 static void cmd(char *l) {
@@ -475,7 +628,16 @@ static void cmd(char *l) {
     prefs.putInt(l + 4, atoi(sp + 1));
     say("ok set %s=%d (reboot to apply)", l + 4, atoi(sp + 1));
   } else if (!strcmp(l, "info")) info();
-  else if (!strcmp(l, "rejoin")) { unlink("rejoin"); udp.stop(); WiFi.disconnect(); wst = W_WAIT; wT = millis() - 3500; say("ok rejoin"); }
+#ifdef T5R_ESPNOW
+  else if (!strcmp(l, "now 0") || !strcmp(l, "now 1")) { nowMode = l[4] - '0'; prefs.putUChar("now", nowMode); nowSkipUntil = 0; say("ok now %u", nowMode); }
+#endif
+  else if (!strcmp(l, "rejoin")) {
+    unlink("rejoin"); udp.stop(); WiFi.disconnect(); wst = W_WAIT; wT = millis() - 3500;
+#ifdef T5R_ESPNOW
+    viaNow = false; nowSkipUntil = 0;
+#endif
+    say("ok rejoin");
+  }
   else if (!strncmp(l, "bench ", 6)) { benchLeft = constrain(atoi(l + 6), 0, 200); benchDown = false; benchT = millis(); say("ok bench %d", benchLeft); }
   else if (!strcmp(l, "reboot")) { say("ok reboot"); delay(100); ESP.restart(); }
   else say("err unknown command");
@@ -502,6 +664,9 @@ void begin(const char *k, const char *nm) {
   prefs.begin("t5r", false);
   strlcpy(devName, prefs.getString("name", nm).c_str(), sizeof devName);
   loadKey();
+#ifdef T5R_ESPNOW
+  nowMode = prefs.getUChar("now", 1);
+#endif
   String h = prefs.getString("host", "");
   haveHint = h.length() && hint.fromString(h);
   bootId = esp_random() | 1;
@@ -515,8 +680,11 @@ void begin(const char *k, const char *nm) {
 void loop() {
   consoleLoop();
   wifiLoop();
-  if (wst != W_UP) return;
+  if (wst != W_UP && wst != W_NOW) return;
   if (!haveKey) { lnk = L_NOKEY; return; }
+#ifdef T5R_ESPNOW
+  if (wst == W_NOW) rxNow(); else
+#endif
   rx();
   uint32_t now = millis();
   uint32_t every = lnk == L_LINKED ? 5000 : (lnk == L_PAIR ? 2000 : 1000);

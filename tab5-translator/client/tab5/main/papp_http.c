@@ -182,6 +182,7 @@ static int one_req(int ep, const char *path, const char *ctype, const uint8_t *b
     }
     esp_http_client_close(c);
     esp_http_client_cleanup(c);
+    if (!r->rtt_ms) r->rtt_ms = (int)((esp_timer_get_time() - t0) / 1000);   // also on a timeout: "after 0 ms" in the log was a lie
     r->http_status = status; r->endpoint = ep;
     if (h.src) r->src_text = url_decode(h.src);
     if (h.tgt) { free(r->tgt_text); r->tgt_text = url_decode(h.tgt); }
@@ -448,6 +449,7 @@ int papp_get_url(const char *url, uint8_t **buf, size_t *len, int tmo)   // any 
             if (r <= 0) break;
             n += r;
         }
+        if (st == 200 && cl > 0 && (int64_t)n != cl) st = -3;      // short read: never hand a cut-off body to the caller
         if (st == 200 && b && n) { *buf = b; *len = n; } else free(b);
     }
     esp_http_client_close(c); esp_http_client_cleanup(c);

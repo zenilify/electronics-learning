@@ -11,6 +11,7 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_heap_caps.h"
+#include "esp_timer.h"
 #include "bsp/m5stack_tab5.h"
 #include "papp.h"
 #include "ui.h"
@@ -27,9 +28,12 @@
 #include "ui_priv.h"
 #include "notes.h"
 #include "remotes.h"
+#include "restart.h"
 #include "camera.h"
+#include "usbport.h"
 
 static const char *TAG = "papp";
+void shot_console(int quality);              // shot.c
 volatile papp_status_t g_status = { .endpoint = -1, .batt_v = -1 };
 
 // ---------- languages ----------
@@ -191,10 +195,10 @@ bool papp_demo_running(void) { return s_demo; }
 // ---------- serial console (bench tests over the USB-C port) ----------
 static void console_task(void *a)
 {
-    char line[160]; size_t n = 0;
+    static char line[720]; size_t n = 0;       // long enough for a relayed remote datagram (`t5b R ...`, <= 512 B)
     for (;;) {
         int c = fgetc(stdin);
-        if (c == EOF) { vTaskDelay(pdMS_TO_TICKS(50)); continue; }
+        if (c == EOF) { vTaskDelay(pdMS_TO_TICKS(5)); continue; }   // 5 ms: a relayed ESP-NOW frame should not wait 50 ms here
         if (c != '\n' && c != '\r') { if (n < sizeof line - 1) line[n++] = (char)c; continue; }
         line[n] = 0; n = 0;
         if (!strcmp(line, "demo")) papp_demo_toggle(false);
@@ -224,6 +228,13 @@ static void console_task(void *a)
             if (!remotes_set_key_hex(line + 5)) ESP_LOGW(TAG, "rkey: need 32 hex chars");
             memset(line, 0, sizeof line);
         }
+        else if (!strncmp(line, "t5b ", 4)) remotes_bridge_line(line + 4, 1);   // ESP-NOW bridge frame relayed over this console
+        else if (!strcmp(line, "t5buart off")) { remotes_bridge_uart(-1, -1, true); ESP_LOGI(TAG, "bridge UART off after the next boot"); }
+        else if (!strncmp(line, "t5buart ", 8)) {       // t5buart <rx gpio> <tx gpio>: ESP-NOW bridge on the Grove port (53 54)
+            int rx = -1, tx = -1;
+            if (sscanf(line + 8, "%d %d", &rx, &tx) == 2 && rx >= 0 && tx >= 0 && rx < 55 && tx < 55) remotes_bridge_uart(rx, tx, true);
+            else ESP_LOGW(TAG, "t5buart <rx gpio> <tx gpio> | t5buart off");
+        }
         else if (!strncmp(line, "remote accept ", 14)) remotes_accept(line + 14);
         else if (!strcmp(line, "remote forget")) remotes_forget();
         else if (!strcmp(line, "remote list")) { char b[400]; remotes_list(b, sizeof b); ESP_LOGI(TAG, "remotes:\n%s", b); }
@@ -232,7 +243,10 @@ static void console_task(void *a)
             if (i >= 0 && i < DEMO_COUNT) subs_inject(CLIPS[i].ss, CLIPS[i].se - CLIPS[i].ss);
         }
         else if (!strcmp(line, "camsrc")) { lock(); cam_toggle_source(); unlock(); }
-        else if (!strcmp(line, "sdsync")) { if (!svc_sd_sync(NULL, NULL)) ESP_LOGW(TAG, "svc busy"); }
+        else if (!strcmp(line, "sdsync") || !strcmp(line, "sdsync full")) {   // full: hash every file, ignore the manifest
+            extern volatile bool g_sd_sync_full; g_sd_sync_full = line[6] != 0;
+            if (!svc_sd_sync(NULL, NULL)) ESP_LOGW(TAG, "svc busy");
+        }
         else if (!strcmp(line, "nets")) {
             net_known_t k[NET_SLOTS]; int n = net_known(k, NET_SLOTS, NULL);
             for (int i = 0; i < n; i++) ESP_LOGI(TAG, "wifi%d %-20s %4d dBm%s%s", k[i].slot, k[i].ssid, k[i].rssi,
@@ -259,11 +273,70 @@ static void console_task(void *a)
             time_t t = time(NULL); struct tm lt; localtime_r(&t, &lt); char b[32]; strftime(b, sizeof b, "%Y-%m-%d %H:%M", &lt);
             ESP_LOGI(TAG, "local time %s", b);
         }
-        else if (!strcmp(line, "status"))
-            ESP_LOGI(TAG, "status wifi=%d rssi=%d ep=%d zfix=%d health=%d ms batt=%.2f V %.2f A free_int=%u kB psram=%u kB",
+        else if (!strcmp(line, "usb on") || !strcmp(line, "usb off")) usbport_power(line[5] == 'n', true);   // USB-A 5 V (saved)
+        else if (!strcmp(line, "usb host")) usbport_host_start(true);      // start the USB host stack (saved: on at boot)
+        else if (!strcmp(line, "usb host once")) usbport_host_start(false); // same, this boot only (first test of a build)
+        else if (!strcmp(line, "usb")) { char b[200]; usbport_describe(b, sizeof b, false); ESP_LOGI(TAG, "usb-a: %s", b); }
+        else if (!strcmp(line, "io")) usbport_io_dump();                   // I/O expander registers, read from the chips
+        else if (!strcmp(line, "ext5v on") || !strcmp(line, "ext5v off")) usbport_ext5v(line[7] == 'n', true);   // Grove / M5-Bus 5 V (saved)
+        else if (!strcmp(line, "chg on") || !strcmp(line, "chg off")) usbport_charge(line[5] == 'n', true);       // battery charger (saved)
+        else if (!strcmp(line, "chg once")) usbport_charge(true, false);                                           // this boot only
+        else if (!strcmp(line, "uiwd reset")) { settings_set_u8("uistall", 0); ESP_LOGI(TAG, "ui restart counter cleared"); }
+        else if (!strncmp(line, "bcam ", 5)) cam_set_back_usb(!strcmp(line + 5, "auto") ? "" : line + 5);          // bcam <ip> | bcam auto
+#ifdef PAPP_CAMTEST
+        else if (!strncmp(line, "camtest ", 8)) { void cam_test_bad_jpeg(int); cam_test_bad_jpeg(atoi(line + 8)); }
+        else if (!strcmp(line, "uistall")) { ESP_LOGW(TAG, "uistall: holding the display lock for 25 s"); lock(); vTaskDelay(pdMS_TO_TICKS(25000)); unlock(); }
+#endif
+        else if (!strncmp(line, "shot", 4) && (line[4] == 0 || line[4] == ' ')) {   // shot [quality]: screen -> JPEG -> base64 (tools/screenshot.py)
+            int q = line[4] ? atoi(line + 5) : 90;
+            shot_console(q >= 10 && q <= 100 ? q : 90);
+        }
+        else if (!strcmp(line, "reboot")) {                      // a clean restart from the no-reset console (tools/console_nr.py)
+            ESP_LOGW(TAG, "reboot: asked on the console");
+            vTaskDelay(pdMS_TO_TICKS(300)); esp_restart();          // -> papp_full_reset() through the shutdown handler
+        }
+        else if (!strcmp(line, "reboot cpu")) {                  // test: restart the way a crash does (CPU-only reset);
+            extern void esp_restart_noos(void);                  // the next boot must notice and do the full reset itself
+            ESP_LOGW(TAG, "reboot cpu: CPU-only reset, as after a panic");
+            vTaskDelay(pdMS_TO_TICKS(300)); esp_restart_noos();
+        }
+        else if (!strcmp(line, "status")) {
+            char ub[200]; usbport_describe(ub, sizeof ub, false);
+            // the leading fields keep their order (bench scripts and old logs grep "status wifi="); new ones go at the end
+            ESP_LOGI(TAG, "status wifi=%d rssi=%d ep=%d zfix=%d health=%d ms batt=%.2f V %.2f A free_int=%u kB psram=%u kB v=%s up=%lld s usb-a=[%s]",
                      g_status.wifi_up, g_status.rssi, g_status.endpoint, g_status.zombie_fixes, g_status.health_ms, g_status.batt_v, g_status.batt_a,
                      (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
-                     (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
+                     (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024),
+                     PAPP_VERSION, (long long)(esp_timer_get_time() / 1000000), ub);
+            ESP_LOGI(TAG, "status2 cam=%s cam_bad_frames=%d ui_restarts=%d", cam_back_url()[0] ? cam_back_url() : "-", cam_bad_frames(), settings_get_u8("uistall", 0));
+            ESP_LOGI(TAG, "status3 chg_kicks=%d", battery_chg_kicks());
+            // internal RAM: int_min = sum of per-region low-water marks (a worst-case bound, not a moment that happened); int_largest = biggest piece left
+            ESP_LOGI(TAG, "status4 int_min=%u kB int_largest=%u kB boot_reason=0x%x cpu_resets_fixed=%d",
+                     (unsigned)(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL) / 1024),
+                     (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024),
+                     papp_boot_reason(), papp_cpu_resets_fixed());
+        }
+    }
+}
+
+// ---------- UI heartbeat watchdog ----------
+// The LVGL task has frozen in lv_refr.c wait_for_flushing() (display flush never reported done) on 11-08 and again on
+// 11-11, both times with the camera app open; cause not found (30 deliberately broken JPEG frames did not reproduce it).
+// A frozen screen in front of people is the worst outcome, so: if the 100 ms UI timer has been silent for 15 s the
+// app restarts by itself (~14 s to the home screen) and counts it in NVS "uistall" (console `status`).
+extern volatile int64_t g_ui_beat_us;      // ui.c
+static void uiwd_task(void *a)
+{
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        int64_t now = esp_timer_get_time(), beat = g_ui_beat_us;
+        if (!beat || now - beat < 15000000) continue;
+        uint8_t n = settings_get_u8("uistall", 0);
+        settings_set_u8("uistall", n < 255 ? n + 1 : 255);
+        ESP_LOGE(TAG, "UI silent for %d s (display flush stuck?) - restarting. UI restarts so far: %d",
+                 (int)((now - beat) / 1000000), n + 1);
+        vTaskDelay(pdMS_TO_TICKS(300));
+        esp_restart();
     }
 }
 
@@ -282,6 +355,7 @@ void app_main(void)
 {
     ESP_LOGI(TAG, "PAPP Tab5 v%s", PAPP_VERSION);
     settings_init();
+    papp_restart_guard();                      // a CPU-only reset leaves Wi-Fi dead on this board: see restart.h
     papp_tz_apply();                           // Ajustes: México (CST6) / China (CST-8), NVS "tz"
     s_pair = (pair_t)settings_get_u8("pair", PAIR_ES_ZH);
     if (s_pair >= PAIR_COUNT) s_pair = PAIR_ES_ZH;
@@ -307,13 +381,16 @@ void app_main(void)
     ui_init(disp);
     if (!audio_init()) ui_set_hint(LV_SYMBOL_WARNING " audio no disponible");
     battery_start();
+    usbport_start();                           // USB-A 5 V on (NVS usb5v): powers the XIAO back camera. Before net_start():
+                                               // the first use of expander 0x44 resets the chip, which also drops the C6's power
     xTaskCreatePinnedToCore(worker, "worker", 8192, NULL, 5, NULL, 0);
     net_start();
     svc_start();
     remotes_start();                           // StickS3 / Dial over UDP 47800 (protocol v1, T5-R)
     kbd_start();
     sd_mount();                       // after the C6 (slot 1) so both slots share one initialised host
-    xTaskCreate(console_task, "console", 4096, NULL, 2, NULL);
+    xTaskCreate(console_task, "console", 6144, NULL, 2, NULL);
+    xTaskCreate(uiwd_task, "uiwd", 3072, NULL, 6, NULL);
     ESP_LOGI(TAG, "up: free internal %u kB, PSRAM %u kB",
              (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
              (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));

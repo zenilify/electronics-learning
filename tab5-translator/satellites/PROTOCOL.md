@@ -8,8 +8,10 @@ The Tab5 is the receiver (lane T5 implements it in `client/tab5/**`); `tools/udp
 **Primary: UDP on the Wi-Fi the Tab5 is already on, port 47800.** One JSON object per datagram, ≤ 512 bytes, UTF-8.
 
 - The Tab5's radio is an ESP32-C6 behind esp-hosted 2.12.13 (SDIO). Plain UDP sockets through lwIP are what the Tab5 already uses
-  (HTTP, mDNS); nothing new has to work on the hosted link. **ESP-NOW through esp_wifi_remote was not tested** (by instruction —
-  no time spent on it), so it is not claimed to work or to fail.
+  (HTTP, mDNS); nothing new has to work on the hosted link. ESP-NOW through esp_wifi_remote: **not supported by Espressif**
+  (checked 2026-11-11: esp-hosted's coverage manifest says "ESP-NOW is not implemented in hosted", issue #19 open; the header
+  is shipped without an implementation). Details in `../docs/PDCA-2026-11-11.md` §3.1.
+- **Transport B — built and verified on the radio side 2026-11-11, see §6.** The text below is the original plan:
 - **Plan B (documented, not built): ESP-NOW ↔ UART bridge.** A StampS3 on the Tab5 Port A receives ESP-NOW frames from the
   remotes and forwards the same JSON lines over UART (115200 8N1, one object per line). Same payload, same HMAC, same acks.
   Channel handling for plan B: ESP-NOW only works on the channel the bridge's radio sits on, so the bridge stays un-associated on a
@@ -104,3 +106,54 @@ Controls as built (fw 0.1.0):
 ## 5 · Timing targets
 
 Ack round trip on the same AP < 50 ms (remotes run with Wi-Fi modem sleep off while linked). Measured values: see the bench in the lane handoff.
+
+## 6 · Transport B: ESP-NOW through a bridge (2026-11-11)
+
+Why: no access point, no hotspot, no client-isolation problem — the remotes talk straight to a small ESP32-S3 that sits on
+the Tab5. The Tab5's own radio cannot do ESP-NOW (§1), an S3 can.
+
+```
+StickS3 / Dial ──ESP-NOW (≤ 250 B frames)──► bridge (any ESP32-S3) ──text lines──► Tab5 (remotes.c)
+                 ◄── acks, same path ────────
+```
+
+- **Payload is unchanged**: the same JSON datagram, HMAC tag, nonce, seq and ack as §2–§4. The bridge forwards bytes and
+  knows no key. A frame the Tab5 does not accept is dropped by the Tab5, exactly as over UDP.
+- **Finding the bridge** (remote side, `-DT5R_ESPNOW`): before looking for Wi-Fi the remote sends `{"t5b":"ping"}` as an
+  ESP-NOW broadcast on channels 1…13 (28 ms each, about 0.4 s in total). A bridge answers `{"t5b":"pong","ch":<n>}`; the
+  remote stays on that channel and sends everything unicast to the bridge's MAC (MAC-level ack and retries come for free;
+  the protocol's own ack still decides). No bridge → normal Wi-Fi/UDP as before. A bridge that answers but no Tab5 behind
+  it for 6 s → Wi-Fi/UDP, and no new ping for a minute.
+- **Bridge ↔ Tab5 lines** (`\n` terminated, UTF-8):
+  - bridge → Tab5: `R <src mac, 12 hex> <rssi> <datagram>`
+  - Tab5 → bridge: `T <dst mac, 12 hex | *> <datagram>`
+  - bridge console: `T5B info`, `T5B ch <1-13>` (default 1, stored), `T5B uart <rx> <tx>` / `T5B uart off`, `T5B reboot`
+- **Channel**: the bridge is not associated to any AP and sits on a fixed channel. ESP-NOW cannot follow an AP's channel
+  changes, which is why the bridge must not be a Wi-Fi station at the same time.
+- **Tab5 side**: one handler for both transports (`remotes.c handle()`); each remote remembers where its last datagram
+  came from and the ack goes back the same way. The "Controles" screen shows `Wi-Fi` or `ESP-NOW` per remote.
+
+### What was measured (bench, 2026-11-11 02:3x)
+
+StickS3 (`0.2.0-espnow`) ↔ StampS3 with `espnow-bridge` 0.1.0 on channel 1 ↔ Tab5 0.4.2. On the bench the "cable" between
+bridge and Tab5 was `tools/bridge_relay.py` on cachy (both on USB): it copies `R …` lines into the Tab5 console as
+`t5b R …` and the Tab5's `@@T5B T …` answers back.
+
+| Check | Result |
+|---|---|
+| bridge found | 1 sweep, channel 1 |
+| link | `stick-353c (Stick PTT) linked over ESP-NOW` on the Tab5 |
+| `T5R bench 40` (80 events) | 80 sent, 80 acked, 0 lost, 80 on the first try |
+| ack round trip at the remote | min 21.0 · median 24.0 · p95 28.0 · max 29.0 ms |
+| of which Tab5 + relay | min 13.0 · median 15.8 · max 18.9 ms (console polling; a UART will be shorter — not measured) |
+| both transports at once | Dial over Wi-Fi and StickS3 over ESP-NOW listed together |
+| M5Dial (`dial-espnow`, 03:19) | 80 sent, 80 acked, 0 lost, 79 on the first try (one retransmission); round trip min 22.0 · median 25.0 · p95 30.0 · max 82.0 ms; listed as `ESP-NOW` next to the StickS3 on `Wi-Fi` |
+
+### Not built yet
+
+- The real cable: a UART reader on the Tab5 (Grove port; needs `ext5v on` for the 5 V) or USB. Until then transport B is a
+  bench result, not something to demo.
+- Only the transport was tested (synthetic presses from `T5R bench`): nobody pressed a key or turned the knob over ESP-NOW.
+- After the tests all three boards were restored from their full flash backups (StickS3 and Dial → 0.1.2, StampS3 → line
+  sensor) and checked: both remotes linked over Wi-Fi again, the sensor posting `-> 200`.
+

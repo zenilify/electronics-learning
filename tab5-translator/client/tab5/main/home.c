@@ -6,6 +6,7 @@
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "ui_priv.h"
+#include "usbport.h"
 #include "remotes.h"
 #include "papp.h"
 #include "papp_http.h"
@@ -112,38 +113,135 @@ void show_card(const char *zh, const char *py, const char *sub, const char *addr
 }
 
 // ---------- Phrasebook ----------
-static lv_obj_t *s_phr, *phr_list, *phr_cats[PHRASE_CAT_COUNT], *phr_status;
+// Two sources. Built in: 40 phrases in 7 groups (content.h), always there. SD card: the server's pack
+// (papp/phrasebook/index.json — 340 phrases in 16 groups, zh + es audio already on the card), used when present.
+#define PHR_MAXCAT 24
+#define PHR_SD 10000                      // event user data >= PHR_SD: index into the SD list
+typedef struct { const char *zh, *py, *es, *en; uint8_t cat; } sdphr_t;
+static struct { const char *id, *es, *en; } s_sdcat[PHR_MAXCAT];
+static sdphr_t *s_sdp;
+static int s_sdn, s_sdncat;
+static char *s_sdjson;                    // index.json in PSRAM; the strings above point into it
+
+// Value of "key" inside the object [o, oe): start and closing quote. The file has no escapes (checked 11-11).
+static bool jfield(char *o, char *oe, const char *key, char **v, char **ve)
+{
+    char pat[20]; snprintf(pat, sizeof pat, "\"%s\"", key);
+    for (char *p = o; (p = strstr(p, pat)) && p < oe; p += strlen(pat)) {
+        char *q = p + strlen(pat);
+        while (*q == ' ') q++;
+        if (*q != ':') continue;                               // that was a value, not a key
+        q++; while (*q == ' ') q++;
+        if (*q != '"') return false;
+        char *e = strchr(q + 1, '"');
+        if (!e || e > oe) return false;
+        *v = q + 1; *ve = e; return true;
+    }
+    return false;
+}
+
+static void phr_sd_load(void)
+{
+    if (s_sdjson || !sd_ok()) return;
+    FILE *f = fopen(SD_ROOT "/phrasebook/index.json", "rb");
+    if (!f) return;
+    fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
+    char *j = n > 100 && n < 2 * 1024 * 1024 ? heap_caps_malloc(n + 1, MALLOC_CAP_SPIRAM) : NULL;
+    if (j) { n = fread(j, 1, n, f); j[n] = 0; }
+    fclose(f);
+    sdphr_t *arr = j ? heap_caps_calloc(1000, sizeof *arr, MALLOC_CAP_SPIRAM) : NULL;
+    int nc = 0, ne = 0;
+    char *p = arr ? strstr(j, "\"categories\"") : NULL, *v[5], *ve[5];
+    if (p && (p = strchr(p, '['))) {
+        for (char *o = strchr(p, '{'); o && nc < PHR_MAXCAT; ) {
+            char *oe = strchr(o, '}'); if (!oe) break;
+            char *nx = strchr(oe + 1, '{'), *cl = strchr(oe + 1, ']');      // look ahead before we cut strings
+            if (jfield(o, oe, "id", &v[0], &ve[0]) && jfield(o, oe, "es", &v[1], &ve[1]) && jfield(o, oe, "en", &v[2], &ve[2])) {
+                *ve[0] = 0; *ve[1] = 0; *ve[2] = 0;
+                s_sdcat[nc].id = v[0]; s_sdcat[nc].es = v[1]; s_sdcat[nc].en = v[2]; nc++;
+            }
+            p = cl ? cl : oe + 1;
+            if (!nx || (cl && cl < nx)) break;
+            o = nx;
+        }
+        p = strstr(p, "\"entries\"");
+        if (p && (p = strchr(p, '['))) for (char *o = strchr(p, '{'); o && ne < 1000; ) {
+            char *oe = strchr(o, '}'); if (!oe) break;
+            char *nx = strchr(oe + 1, '{'), *cl = strchr(oe + 1, ']');
+            if (jfield(o, oe, "cat", &v[0], &ve[0]) && jfield(o, oe, "zh", &v[1], &ve[1]) && jfield(o, oe, "py", &v[2], &ve[2]) &&
+                jfield(o, oe, "es", &v[3], &ve[3]) && jfield(o, oe, "en", &v[4], &ve[4])) {
+                for (int k = 0; k < 5; k++) *ve[k] = 0;
+                int c = -1; for (int k = 0; k < nc; k++) if (!strcmp(s_sdcat[k].id, v[0])) c = k;
+                if (c >= 0) { arr[ne].cat = (uint8_t)c; arr[ne].zh = v[1]; arr[ne].py = v[2]; arr[ne].es = v[3]; arr[ne].en = v[4]; ne++; }
+            }
+            if (!nx || (cl && cl < nx)) break;
+            o = nx;
+        }
+    }
+    if (nc && ne) { s_sdjson = j; s_sdp = arr; s_sdn = ne; s_sdncat = nc; ESP_LOGI(TAG, "phrasebook: %d phrases in %d groups from the SD card", ne, nc); }
+    else { free(j); free(arr); ESP_LOGW(TAG, "phrasebook: SD index not usable, built-in list"); }
+}
+
+static lv_obj_t *s_phr, *phr_list, *phr_cats[PHR_MAXCAT], *phr_status;
+static int phr_ncat(void) { return s_sdn ? s_sdncat : PHRASE_CAT_COUNT; }
 static void phr_fill(int cat);
 static void on_cat(lv_event_t *e) { phr_fill((int)(intptr_t)lv_event_get_user_data(e)); }
 static void on_phrase(lv_event_t *e)
 {
-    const phrase_t *p = &PHRASES[(int)(intptr_t)lv_event_get_user_data(e)];
-    char sub[160]; snprintf(sub, sizeof sub, "%s  ·  %s", p->es, p->en);
-    show_card(p->zh, p->py, sub, NULL);
-    if (!svc_say(LANG_ZH, p->zh, NULL, NULL)) ESP_LOGW(TAG, "speaker busy");
+    int i = (int)(intptr_t)lv_event_get_user_data(e);
+    const char *zh, *py, *es, *en;
+    if (i >= PHR_SD) { const sdphr_t *q = &s_sdp[i - PHR_SD]; zh = q->zh; py = q->py; es = q->es; en = q->en; }
+    else { const phrase_t *q = &PHRASES[i]; zh = q->zh; py = q->py; es = q->es; en = q->en; }
+    char sub[200]; snprintf(sub, sizeof sub, "%s  ·  %s", es, en);
+    show_card(zh, py, sub, NULL);
+    if (!svc_say(LANG_ZH, zh, NULL, NULL)) ESP_LOGW(TAG, "speaker busy");
 }
+static void phr_card(const char *zh, const char *py, const char *es, const char *en, int ud)
+{
+    lv_obj_t *b = lv_obj_create(phr_list);
+    plain(b, C_PANEL);
+    lv_obj_set_size(b, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(b, 16, 0);
+    lv_obj_set_style_radius(b, 14, 0);
+    lv_obj_set_style_bg_color(b, lv_color_hex(C_LINE), LV_STATE_PRESSED);
+    lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_flex_flow(b, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(b, 4, 0);
+    lv_obj_t *z = label(b, f40, C_TEXT, zh);
+    lv_obj_set_width(z, LV_PCT(100)); lv_label_set_long_mode(z, LV_LABEL_LONG_WRAP);
+    char t[320]; snprintf(t, sizeof t, "%s   ·   %s / %s", py, es, en);
+    lv_obj_t *l = label(b, f18, C_DIM, t);
+    lv_obj_set_width(l, LV_PCT(100)); lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_add_event_cb(b, on_phrase, LV_EVENT_CLICKED, (void *)(intptr_t)ud);
+}
+static int phr_cur, phr_scroll;           // group on show; scroll position to come back to
 static void phr_fill(int cat)
 {
-    for (int i = 0; i < PHRASE_CAT_COUNT; i++)
+    phr_cur = cat;
+    for (int i = 0; i < phr_ncat(); i++)
         lv_obj_set_style_bg_color(phr_cats[i], lv_color_hex(i == cat ? C_AMBER : C_PANEL), 0);
     lv_obj_clean(phr_list);
-    const phrase_cat_t *c = &PHRASE_CATS[cat];
-    for (int i = c->first; i < c->first + c->count; i++) {
-        lv_obj_t *b = lv_obj_create(phr_list);
-        plain(b, C_PANEL);
-        lv_obj_set_size(b, LV_PCT(100), LV_SIZE_CONTENT);
-        lv_obj_set_style_pad_all(b, 16, 0);
-        lv_obj_set_style_radius(b, 14, 0);
-        lv_obj_set_style_bg_color(b, lv_color_hex(C_LINE), LV_STATE_PRESSED);
-        lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_flex_flow(b, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_style_pad_row(b, 4, 0);
-        label(b, f40, C_TEXT, PHRASES[i].zh);
-        char t[200]; snprintf(t, sizeof t, "%s   ·   %s / %s", PHRASES[i].py, PHRASES[i].es, PHRASES[i].en);
-        label(b, f18, C_DIM, t);
-        lv_obj_add_event_cb(b, on_phrase, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+    lv_obj_scroll_to_y(phr_list, 0, LV_ANIM_OFF);
+    if (s_sdn) {
+        for (int i = 0; i < s_sdn; i++) if (s_sdp[i].cat == cat) phr_card(s_sdp[i].zh, s_sdp[i].py, s_sdp[i].es, s_sdp[i].en, PHR_SD + i);
+        return;
     }
+    const phrase_cat_t *c = &PHRASE_CATS[cat];
+    for (int i = c->first; i < c->first + c->count; i++) phr_card(PHRASES[i].zh, PHRASES[i].py, PHRASES[i].es, PHRASES[i].en, i);
+}
+// The phrase cards are many tiny LVGL allocations, and malloc() of 64 bytes or less stays in INTERNAL RAM on this build
+// (sdkconfig SPIRAM_MALLOC_ALWAYSINTERNAL=64). Measured 11-11 with tools/ram_walk.py: this screen kept 55 kB of the
+// ~300 kB that are free after boot - the most of any app, and the screen object lives on for the next visit.
+// So the list is emptied once the screen is really off the display (LVGL's "screen unloaded" event, after the fade)
+// and filled again when the app is opened: same group, same scroll position. The group buttons on the left stay.
+static void on_phr_unloaded(lv_event_t *e) { phr_scroll = lv_obj_get_scroll_y(phr_list); lv_obj_clean(phr_list); }
+static void phr_reopen(void)
+{
+    if (!phr_list || lv_obj_get_child_count(phr_list)) return;   // still filled (e.g. left and re-opened within the fade)
+    phr_fill(phr_cur);
+    lv_obj_update_layout(phr_list);                              // the scroll range is only known after a layout pass
+    lv_obj_scroll_to_y(phr_list, phr_scroll, LV_ANIM_OFF);
 }
 static const char *s_prefetch_list[PHRASE_COUNT + PLACE_COUNT];
 static void prefetch_prog(int i, int n, int ok, void *ud)
@@ -161,22 +259,34 @@ static void on_prefetch(lv_event_t *e)
 }
 static void build_phrasebook(void)
 {
+    phr_sd_load();
     lv_obj_t *body = app_frame(&s_phr, "Frases  ·  常用语", C_AMBER);
     lv_obj_t *cats = lv_obj_create(body);
     plain(cats, C_BG);
     lv_obj_set_size(cats, 280, LV_PCT(100));
     lv_obj_set_flex_flow(cats, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(cats, 10, 0);
-    for (int i = 0; i < PHRASE_CAT_COUNT; i++) {
-        char t[64]; snprintf(t, sizeof t, "%s · %s", PHRASE_CATS[i].cat_es, PHRASE_CATS[i].cat_en);
-        phr_cats[i] = pill(cats, t, C_PANEL, f24);
-        lv_obj_set_width(phr_cats[i], LV_PCT(100));
+    lv_obj_set_scroll_dir(cats, LV_DIR_VER);                    // 16 groups from the card do not fit: the column scrolls
+    for (int i = 0; i < phr_ncat(); i++) {
+        char t[64];
+        if (s_sdn) snprintf(t, sizeof t, "%s · %s", s_sdcat[i].es, s_sdcat[i].en);
+        else snprintf(t, sizeof t, "%s · %s", PHRASE_CATS[i].cat_es, PHRASE_CATS[i].cat_en);
+        phr_cats[i] = pill(cats, t, C_PANEL, f18);         // f24 clipped "Transporte · Getting around" on both sides
+        lv_obj_set_size(phr_cats[i], LV_PCT(100), 52);
+        lv_obj_t *cl = lv_obj_get_child(phr_cats[i], 0);
+        lv_obj_set_width(cl, 256); lv_label_set_long_mode(cl, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_align(cl, LV_TEXT_ALIGN_CENTER, 0); lv_obj_center(cl);
         lv_obj_add_event_cb(phr_cats[i], on_cat, LV_EVENT_CLICKED, (void *)(intptr_t)i);
     }
-    lv_obj_t *pf = pill(cats, LV_SYMBOL_DOWNLOAD " Offline", C_LINE, f24);
-    lv_obj_set_width(pf, LV_PCT(100));
-    lv_obj_add_event_cb(pf, on_prefetch, LV_EVENT_CLICKED, NULL);
-    phr_status = label(cats, f18, C_DIM, "audio → SD para usar sin internet");
+    if (s_sdn) {                                                // everything is on the card already
+        char t[96]; snprintf(t, sizeof t, LV_SYMBOL_SD_CARD " %d frases · audio en la SD, sin internet", s_sdn);
+        phr_status = label(cats, f18, C_DIM, t);
+    } else {
+        lv_obj_t *pf = pill(cats, LV_SYMBOL_DOWNLOAD " Offline", C_LINE, f24);
+        lv_obj_set_width(pf, LV_PCT(100));
+        lv_obj_add_event_cb(pf, on_prefetch, LV_EVENT_CLICKED, NULL);
+        phr_status = label(cats, f18, C_DIM, "audio → SD para usar sin internet");
+    }
     lv_obj_set_width(phr_status, 270);
     lv_label_set_long_mode(phr_status, LV_LABEL_LONG_WRAP);
     phr_list = lv_obj_create(body);
@@ -187,6 +297,7 @@ static void build_phrasebook(void)
     lv_obj_set_style_pad_row(phr_list, 10, 0);
     lv_obj_set_scroll_dir(phr_list, LV_DIR_VER);
     phr_fill(0);
+    lv_obj_add_event_cb(s_phr, on_phr_unloaded, LV_EVENT_SCREEN_UNLOADED, NULL);
 }
 
 // ---------- Take me to ----------
@@ -315,7 +426,7 @@ static void cv_update(void)
 {
     double v = atof(lv_textarea_get_text(cv_ta));
     int from = lv_dropdown_get_selected(cv_dd);
-    char b[96];
+    char b[200];                                  // the units line is ~110 bytes ("·" and "°" are 2 bytes each): 96 cut it
     for (int i = 0; i < FX_N; i++) {
         if (fx_rate[from] > 0 && fx_rate[i] > 0) snprintf(b, sizeof b, "%s  %.2f", FX_CODE[i], v / fx_rate[from] * fx_rate[i]);
         else snprintf(b, sizeof b, "%s  —", FX_CODE[i]);
@@ -339,6 +450,9 @@ static void fx_done(const papp_result_t *r, void *ud)
         return;
     }
     for (int i = 0; i < FX_N; i++) fx_rate[i] = jnum(r->tgt_text, FX_CODE[i]);
+    // rates are "units per 1 USD": the base itself has no usable entry in the reply, so USD showed "—" (seen 11-11)
+    bool any = false; for (int i = 0; i < FX_N; i++) any |= fx_rate[i] > 0;
+    for (int i = 0; i < FX_N; i++) if (any && !strcmp(FX_CODE[i], "USD") && fx_rate[i] <= 0) fx_rate[i] = 1.0;
     const char *d = strstr(r->tgt_text, "\"date\"");
     fx_date[0] = 0;
     if (d && (d = strchr(d + 6, '"'))) { snprintf(fx_date, sizeof fx_date, "%.*s", (int)strcspn(d + 1, "\""), d + 1); }
@@ -437,21 +551,26 @@ static void set_refresh(lv_timer_t *t)
     if (lv_screen_active() != s_set) return;
     uint32_t tot, fr; sd_info(&tot, &fr);
     uint32_t a = g_status.c6v[0], b = g_status.c6v[1], c = g_status.c6v[2]; bool c6 = g_status.c6v_ok;
-    char s[700];
+    char s[800], ub[200];
+    usbport_describe(ub, sizeof ub, true);
+    float amps = g_status.batt_a > -0.005f && g_status.batt_a < 0.005f ? 0.0f : g_status.batt_a;   // no "-0.00"
+    // six lines: the Wi-Fi row starts right below (a seventh line is cut off — seen on the 11-11 screenshot)
     snprintf(s, sizeof s,
              "PAPP OS v%s  ·  ESP32-P4 rev1.3 + ESP32-C6 (esp-hosted %s%lu.%lu.%lu)\n"
              "Wi-Fi: %s  %s  %d dBm  ·  IP %s\n"
              "Servidor: %s  ·  %d ms\n"
-             "Batería: %.2f V  %.2f A\n"
-             "Tarjeta SD: %s  %s  ·  %lu / %lu GB libres\n"
-             "RAM interna libre: %u kB  ·  PSRAM libre: %u kB",
+             "Batería: %.2f V  %.2f A  ·  %s\n"
+             "Tarjeta SD: %s  %s  ·  %lu / %lu GB libres  ·  RAM %u kB  ·  PSRAM %u MB\n"
+             "USB-A: %s",
              PAPP_VERSION, c6 ? "" : "?", (unsigned long)a, (unsigned long)b, (unsigned long)c,
              g_status.wifi_up ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE, g_status.ssid, g_status.rssi, g_status.ip,
              papp_endpoint_name(g_status.endpoint), g_status.health_ms,
-             g_status.batt_v, g_status.batt_a,
+             g_status.batt_v, amps,
+             amps > 0.05f ? LV_SYMBOL_CHARGE " cargando" : amps < -0.05f ? "usando la batería" : usbport_charge_is_on() ? "con corriente externa, sin cargar" : "cargador apagado",
              sd_ok() ? LV_SYMBOL_OK : LV_SYMBOL_CLOSE, sd_card_name(), (unsigned long)(fr / 1024), (unsigned long)(tot / 1024),
              (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
-             (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
+             (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / (1024 * 1024)),
+             ub);
     lv_label_set_text(set_info, s);
     nets_redraw();
 }
@@ -494,7 +613,8 @@ static void build_settings(void)
 {
     lv_obj_t *body = app_frame(&s_set, "Ajustes  ·  设置", C_DIM);
     set_info = label(body, f24, C_TEXT, "…");
-    lv_obj_set_style_text_line_space(set_info, 10, 0);
+    lv_obj_set_style_text_line_space(set_info, 4, 0);
+    lv_obj_set_width(set_info, 1240); lv_label_set_long_mode(set_info, LV_LABEL_LONG_DOT);
     set_nets = lv_obj_create(body);
     plain(set_nets, C_BG);
     lv_obj_set_size(set_nets, LV_PCT(100), 130);
@@ -529,7 +649,7 @@ static void build_settings(void)
     tz_label(tz);
     lv_obj_add_event_cb(tz, on_tz, LV_EVENT_CLICKED, NULL);
     lv_obj_t *vo = pill(body, "", C_PANEL, f24);
-    lv_obj_align(vo, LV_ALIGN_BOTTOM_RIGHT, -330, -30);
+    lv_obj_align(vo, LV_ALIGN_BOTTOM_RIGHT, -350, -30);
     voice_label(vo);
     lv_obj_add_event_cb(vo, on_voice, LV_EVENT_CLICKED, NULL);
     lv_timer_create(set_refresh, 1000, NULL);
@@ -607,7 +727,7 @@ static void open_app(int id)
     switch (id) {
     case A_TRANSLATE: open_scr(ui_translator_screen()); break;
     case A_TYPE:      if (!s_type) build_type(); open_scr(s_type); break;
-    case A_PHRASE:    if (!s_phr) build_phrasebook(); open_scr(s_phr); break;
+    case A_PHRASE:    if (!s_phr) build_phrasebook(); else phr_reopen(); open_scr(s_phr); break;
     case A_PLACES:    if (!s_places) build_places(); open_scr(s_places); break;
     case A_CONV:
         if (!s_conv) build_conv();
@@ -745,7 +865,7 @@ void home_kbd(const char *text, int sp)
     if (cam_key(ent) || notes_key(ent, text) || conv_key(ent) || subs_key(ent, text)) { if (sp == KBD_ESC) home_show(); return; }
     if (a == s_home && text) {          // shortcuts: t e f l c a p
         static const struct { char k; int id; } K[] = { {'t', A_TRANSLATE}, {'e', A_TYPE}, {'f', A_PHRASE},
-                                                        {'l', A_PLACES}, {'c', A_CONV}, {'a', A_SETTINGS}, {'p', A_CAM}, {'n', A_NOTES}, {'d', A_DIALOG}, {'s', A_SUBS}, {'o', A_LINE} };
+                                                        {'l', A_PLACES}, {'c', A_CONV}, {'a', A_SETTINGS}, {'p', A_CAM}, {'n', A_NOTES}, {'d', A_DIALOG}, {'s', A_SUBS}, {'o', A_LINE}, {'r', A_REMOTES} };
         for (int i = 0; i < (int)(sizeof K / sizeof K[0]); i++)
             if (text[0] == K[i].k) open_app(K[i].id);
         return;

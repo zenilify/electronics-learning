@@ -28,7 +28,7 @@ M5Stack schematic p.4, Tab5 docs. **[M]** = read from the photo/schematic/measur
 - **M5-BUS:** M5 Modules. Your **Module ASR** (Chipintelli, offline *command words*, UART via DIP switches for Core/Core2/CoreS3 pins) [M photo] — the DIP options don't match the Tab5's UART pins (G37/G38), so wire it with 4 jumpers from its PA header to Port A instead. Module LLM would sit here too (UART) [H fit].
 - **ExtPort2:** Modbus-RTU sensors/PLCs/energy meters (RS-485), or a 12/24 V supply (car, bench, DIN rail — fits your DIN Base story).
 - **USB-A:** USB keyboard/mouse, flash drive, UVC webcam, a 4G/5G dongle (RNDIS) or the S26 Ultra via USB tethering [H].
-- **ESP-NOW (no cable):** your M5Dial, StickS3, AtomS3R, CoreS3 as wireless remotes/displays (works over the hosted C6; ESPHome proved it on a Tab5).
+- **ESP-NOW (no cable):** your M5Dial, StickS3, AtomS3R, CoreS3 as wireless remotes/displays. Corrected 2026-11-11: on the Tab5's own radio this works **only with ESPHome's C6 firmware** (their ESP-NOW overlay); Espressif's esp-hosted, which PAPP uses, has no ESP-NOW. PAPP's route is a small S3 bridge next to the Tab5 — built and measured, see `../../satellites/PROTOCOL.md` §6.
 
 ## 3 · Phones as the network (S26 Ultra + iPhone)
 

@@ -280,6 +280,17 @@ void net_join(int slot)
     s_join = slot;
     if (s_ev) xEventGroupSetBits(s_ev, EV_JOIN);
 }
+// Join a provisioned network by name, once, without changing what the user picked in Ajustes (usbport.c: the back
+// camera told us over USB that it sits on another network we cannot reach).
+void net_follow(const char *ssid)
+{
+    for (int i = 0; i < NET_SLOTS; i++) {
+        char s[33], pw[65];
+        if (!settings_get_wifi(i, s, sizeof s, pw, sizeof pw)) continue;
+        memset(pw, 0, sizeof pw);
+        if (!strcmp(s, ssid)) { s_join = i; if (s_ev) xEventGroupSetBits(s_ev, EV_JOIN); return; }
+    }
+}
 int net_known(net_known_t *out, int max, unsigned *gen)
 {
     portENTER_CRITICAL(&s_mux);
@@ -306,6 +317,10 @@ void net_start(void)
     if (ex) {
         esp_io_expander_set_dir(ex, IO_EXPANDER_PIN_NUM_0, IO_EXPANDER_OUTPUT);
         esp_io_expander_set_level(ex, IO_EXPANDER_PIN_NUM_0, ant ? 1 : 0);
+        // Push-pull is what makes the pin drive: the PI4IOE5V6408 driver leaves every pin high-Z with a pull-down after
+        // its reset, so without this line the switch input stayed low and `ant ext` never selected the external
+        // antenna (read back 11-11: 0x43 hiz=dd, bit 0 still set).
+        esp_io_expander_set_output_mode(ex, IO_EXPANDER_PIN_NUM_0, IO_EXPANDER_OUTPUT_MODE_PUSH_PULL);
         ESP_LOGI(TAG, "antenna: %s", ant ? "EXTERNAL (MMCX J15)" : "internal");
     }
     bsp_feature_enable(BSP_FEATURE_WIFI, false);

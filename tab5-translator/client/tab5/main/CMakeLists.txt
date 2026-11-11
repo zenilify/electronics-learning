@@ -1,7 +1,7 @@
 idf_component_register(
-    SRCS "main.c" "ui.c" "audio.c" "papp_http.c" "net.c" "battery.c" "settings.c" "p4_rev1_ledc.c" "c6ota.c" "sdcard.c" "svc.c" "home.c" "kbd.c" "camera.c" "notes.c" "conv.c" "subs.c" "line.c" "remotes.c"
+    SRCS "main.c" "ui.c" "audio.c" "papp_http.c" "net.c" "battery.c" "settings.c" "p4_rev1_ledc.c" "c6ota.c" "sdcard.c" "svc.c" "home.c" "kbd.c" "camera.c" "notes.c" "conv.c" "subs.c" "line.c" "remotes.c" "usbport.c" "shot.c" "restart.c"
     INCLUDE_DIRS "."
-    REQUIRES esp_driver_ledc esp_driver_gpio esp_http_client esp_wifi esp_netif nvs_flash esp_timer mbedtls esp_driver_i2c fatfs sdmmc mdns esp_driver_jpeg esp_driver_ppa
+    REQUIRES esp_driver_ledc esp_driver_gpio esp_http_client esp_wifi esp_netif nvs_flash esp_timer mbedtls esp_driver_i2c fatfs sdmmc mdns esp_driver_jpeg esp_driver_ppa usb esp_driver_uart esp_hal_wdt
     EMBED_FILES
         "assets/papp_cjk.ttf"
         "assets/demo/d1_src.wav" "assets/demo/d1_tgt.wav"

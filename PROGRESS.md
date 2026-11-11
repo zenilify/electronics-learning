@@ -6,6 +6,52 @@ each session.
 
 ---
 
+## 2026-11-11 — Tab5 overnight PDCA: camera power, charging, ESP-NOW bridge (lane T5, Claude Code on cachy)
+
+Four unattended hours on the Tab5 translator (`tab5-translator/`). Full record with every measurement:
+`tab5-translator/docs/PDCA-2026-11-11.md`. Firmware 0.4.0 → **0.4.2** (branch `claude/t5-overnight-1111`, draft PR).
+
+**Done and measured**
+
+- The XIAO back camera had no power: the Tab5 never switched on the 5 V of its USB-A port. On at boot now.
+- The camera was also often on a different Wi-Fi than the Tab5. The Tab5 now reads the camera's address from the
+  camera's own log over the USB cable and, if needed, joins the camera's network.
+- The battery was never charged while PAPP ran (charger enable pin low). Enabled; charging at 0.32 A measured — but
+  on cachy's USB port it only starts on some boots. Needs a look with the wall charger.
+- New tools: console without reset, screenshots of the Tab5 screen over USB, a full flash backup that really is one.
+- ESP-NOW: not possible on the Tab5's own radio (Espressif's esp-hosted has none). Built a small S3 bridge instead and
+  measured it with the StickS3: 80/80 events acknowledged, median 24 ms. The cable from bridge to Tab5 is not built.
+- SD sync now compares file contents (12 re-taken voice clips had been skipped because their size was unchanged).
+- RainMaker command-line tools installed on cachy (`rmaker`, `rmaker-neo`); logging in is Erick's step.
+- Frases now shows the 340 phrases of the SD card (16 groups) instead of 40 built-in ones; the sync skips unchanged
+  files through a manifest (41 s → 9 s).
+- **Most important, found late (03:48):** a software restart put the Tab5 into an endless boot loop — the Wi-Fi chip
+  never answered again and the firmware restarted itself every 18 s. The screen-freeze watchdog added earlier the same
+  night restarts that way, and so does a crash. The final build (c17) turns every restart into a reset of the whole
+  chip. A 15-minute soak then showed how common the fault is: 20 of 57 CPU-only resets failed, and all 20 were
+  recovered by the new whole-chip reset on the next boot.
+- Internal RAM measured per app (`tools/ram_walk.py`): no leak, but the screens stay built. Frases gives its phrase
+  cards back when you leave it (+20 kB).
+
+**Things worth understanding (lesson material)**
+
+- *High-Z output*: an I/O-expander pin can be "set high" and still drive nothing until it is switched to push-pull.
+  That one detail explained both the dead USB port and the antenna switch that never switched.
+- *snprintf returns what it wanted to write*, not what it wrote — `w += snprintf(...)` walks off the buffer on truncation.
+- *A test that cannot fail proves nothing*: the local-model code review found 0 of 2 planted bugs, so its "0 findings"
+  on the real files meant nothing.
+- *There is more than one kind of reset.* `esp_restart()` on the ESP32-P4 restarts only the CPU; the SD/SDIO and USB
+  controllers keep whatever state they were in. A watchdog reset of the whole chip starts them clean. The boot log
+  names the kind in its first line (`rst:0xc` CPU only, `rst:0x9` whole chip by watchdog, `rst:0x17` over USB).
+- *A handful of good runs proves little about an intermittent fault.* The same restart worked at 02:29, looped at
+  03:48 and worked seven times in a row after 04:15 — I wrote "not reproducible". A soak of 57 resets found 20
+  failures. Count before you conclude, and let the fix not depend on knowing the trigger.
+
+**Open** — see §4 of the PDCA file (merge, charger test, ESP-NOW cable, RainMaker login, camera-freeze follow-up,
+internal RAM margin, cause of the restart regression).
+
+---
+
 ## 2026-11-06 — Kaizen Firmware Foundry: whole fleet builds in Cloud Build (GCP sprint lane C, macbook)
 
 New `foundry/`: four pinned builder images in Artifact Registry (ESP-IDF 6.0.3 +
