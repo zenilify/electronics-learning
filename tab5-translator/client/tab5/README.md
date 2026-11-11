@@ -149,6 +149,47 @@ echo "status" >> ~/t5/watch/inbox.txt                        # ...so commands go
 | `uiwd reset` | clear the UI-restart counter |
 | `demo`, `say`, `convtest`, `substest`, `c6ver`, `ant`, `tz`, `voice`, `sd`, `camsrc` | as before |
 
+## From the MacBook (on the road)
+
+Set up on 2026-11-11 from cachy and checked against it: the MacBook builds **the same firmware** (every byte except the
+compile time and the checksums that follow from it — `tools/same_firmware.py`). Everything lives in `~/t5/` on the
+MacBook; nothing else on it was changed.
+
+| On the MacBook | What it is |
+|---|---|
+| `~/t5/electronics-learning/` | its own clone of this repo (separate from `~/PARA/…`) |
+| colima VM `default` + image `espressif/idf:v6.0.3` (arm64) | the same pinned ESP-IDF as on cachy, for building |
+| `~/t5/venv/` | Python with `esptool` and `pyserial`, for flashing (Docker on macOS cannot reach a USB port) |
+| `~/t5/docker-config/` | docker settings used only by these scripts (the Mac's own default still points at cachy) |
+| `~/t5/1128-c18-artifacts-v0.4.3/` | the tested firmware files (no secrets), ready to flash |
+
+**Build**
+
+```sh
+colima start                                   # the Docker engine on the Mac; once after each restart of the Mac (~20 s)
+cd ~/t5/electronics-learning/tab5-translator/client/tab5
+git pull
+bash tools/build-local.sh                      # ~2.5 min the first time, ~15 s after a small change
+python3 tools/same_firmware.py build/papp_tab5.bin ~/t5/1128-c18-artifacts-v0.4.3/papp_tab5.bin   # same as the tested one?
+```
+
+**Flash** (Tab5 plugged into the MacBook; plugging it in restarts it once if it runs from its battery)
+
+```sh
+bash tools/flash.sh port                       # must show:  30:ED:A0:E2:EF:41 ... <- the Tab5
+bash tools/flash.sh backup before-change       # optional: full read-back first (~2 min), into ~/t5/backup/
+bash tools/flash.sh app                        # the build you just made (refuses a build that failed)
+bash tools/flash.sh app ~/t5/1128-c18-artifacts-v0.4.3   # or: back to the tested firmware
+```
+
+**Before a trip**, at home with internet: after a `git pull` that brings new work, run one build. The image and the
+components are then on the MacBook and a build needs no network.
+
+What is **not** on the MacBook yet (2026-11-11): the Wi-Fi list and the remotes key (`~/.config/zenilify/t5-wifi`,
+`t5-remote-key` — needed only to provision a board from scratch, not to flash the app); PlatformIO for the remotes and
+the line kit; and the console tools (`console_nr.py`, `screenshot.py`, `console_log.py`) have not been run on macOS —
+pass them the port from `~/t5/venv/bin/python tools/t5port.py`.
+
 ## Demo script — M5Stack, Shenzhen (Thu 26 Nov), ~3 minutes
 
 1. **Before the room** (hotel): Tab5 charged; travel router up; check the status bar shows
