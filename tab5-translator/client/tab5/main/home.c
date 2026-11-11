@@ -215,8 +215,10 @@ static void phr_card(const char *zh, const char *py, const char *es, const char 
     lv_obj_set_width(l, LV_PCT(100)); lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
     lv_obj_add_event_cb(b, on_phrase, LV_EVENT_CLICKED, (void *)(intptr_t)ud);
 }
+static int phr_cur, phr_scroll;           // group on show; scroll position to come back to
 static void phr_fill(int cat)
 {
+    phr_cur = cat;
     for (int i = 0; i < phr_ncat(); i++)
         lv_obj_set_style_bg_color(phr_cats[i], lv_color_hex(i == cat ? C_AMBER : C_PANEL), 0);
     lv_obj_clean(phr_list);
@@ -227,6 +229,19 @@ static void phr_fill(int cat)
     }
     const phrase_cat_t *c = &PHRASE_CATS[cat];
     for (int i = c->first; i < c->first + c->count; i++) phr_card(PHRASES[i].zh, PHRASES[i].py, PHRASES[i].es, PHRASES[i].en, i);
+}
+// The phrase cards are many tiny LVGL allocations, and malloc() of 64 bytes or less stays in INTERNAL RAM on this build
+// (sdkconfig SPIRAM_MALLOC_ALWAYSINTERNAL=64). Measured 11-11 with tools/ram_walk.py: this screen kept 55 kB of the
+// ~300 kB that are free after boot - the most of any app, and the screen object lives on for the next visit.
+// So the list is emptied once the screen is really off the display (LVGL's "screen unloaded" event, after the fade)
+// and filled again when the app is opened: same group, same scroll position. The group buttons on the left stay.
+static void on_phr_unloaded(lv_event_t *e) { phr_scroll = lv_obj_get_scroll_y(phr_list); lv_obj_clean(phr_list); }
+static void phr_reopen(void)
+{
+    if (!phr_list || lv_obj_get_child_count(phr_list)) return;   // still filled (e.g. left and re-opened within the fade)
+    phr_fill(phr_cur);
+    lv_obj_update_layout(phr_list);                              // the scroll range is only known after a layout pass
+    lv_obj_scroll_to_y(phr_list, phr_scroll, LV_ANIM_OFF);
 }
 static const char *s_prefetch_list[PHRASE_COUNT + PLACE_COUNT];
 static void prefetch_prog(int i, int n, int ok, void *ud)
@@ -282,6 +297,7 @@ static void build_phrasebook(void)
     lv_obj_set_style_pad_row(phr_list, 10, 0);
     lv_obj_set_scroll_dir(phr_list, LV_DIR_VER);
     phr_fill(0);
+    lv_obj_add_event_cb(s_phr, on_phr_unloaded, LV_EVENT_SCREEN_UNLOADED, NULL);
 }
 
 // ---------- Take me to ----------
@@ -711,7 +727,7 @@ static void open_app(int id)
     switch (id) {
     case A_TRANSLATE: open_scr(ui_translator_screen()); break;
     case A_TYPE:      if (!s_type) build_type(); open_scr(s_type); break;
-    case A_PHRASE:    if (!s_phr) build_phrasebook(); open_scr(s_phr); break;
+    case A_PHRASE:    if (!s_phr) build_phrasebook(); else phr_reopen(); open_scr(s_phr); break;
     case A_PLACES:    if (!s_places) build_places(); open_scr(s_places); break;
     case A_CONV:
         if (!s_conv) build_conv();

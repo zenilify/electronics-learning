@@ -182,6 +182,7 @@ static int one_req(int ep, const char *path, const char *ctype, const uint8_t *b
     }
     esp_http_client_close(c);
     esp_http_client_cleanup(c);
+    if (!r->rtt_ms) r->rtt_ms = (int)((esp_timer_get_time() - t0) / 1000);   // also on a timeout: "after 0 ms" in the log was a lie
     r->http_status = status; r->endpoint = ep;
     if (h.src) r->src_text = url_decode(h.src);
     if (h.tgt) { free(r->tgt_text); r->tgt_text = url_decode(h.tgt); }

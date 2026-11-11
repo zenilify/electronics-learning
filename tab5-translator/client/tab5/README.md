@@ -113,6 +113,39 @@ Wi-Fi networks provisioned: `wifi0` = home (from the ESPHome secrets), `wifi1` =
 2.4 GHz SSID). The C6 radio is **2.4 GHz only**. For China, add the travel router as `wifi2` in
 `provision.py` and re-run `provision.py` + `flash.sh nvs` — no rebuild.
 
+## Talking to the running Tab5 from cachy (fw 0.4.2)
+
+The Tab5's USB-C port is its console. `tools/console_nr.py` opens it **without** resetting the board
+(`tools/console.py` and `flash.sh monitor|console|bench` do reset it).
+
+```sh
+T5=/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_30:ED:A0:E2:EF:41-if00
+python3 tools/console_nr.py $T5 4 0.5:status                 # seconds to listen, then AT:command pairs
+python3 tools/screenshot.py /tmp/ajustes.jpg --pre "key a"   # open Ajustes (key a), save what the screen shows
+bash    tools/gallery.sh                                     # screenshots of all 13 screens into ~/t5/shots/
+python3 tools/ram_walk.py                                    # internal RAM each app costs (opens every app twice)
+python3 tools/watch_status.py --every 60                     # `status` into a CSV until `touch ~/t5/watch/STOP`
+```
+
+| Command | What it does |
+|---|---|
+| `status` | Wi-Fi, server, battery, memory, version, uptime, USB-A; `status2` = camera address, dropped frames, UI restarts; `status3` = charger re-triggers; `status4` = internal RAM: worst-case low-water figure (a sum of per-region minimums, not a moment that happened) and largest free piece; reset reason of this boot (`0x9` = restarted by software, `0x17` = reset over USB), CPU-only resets caught |
+| `reboot` | restart the Tab5 — a reset of the whole chip (`main/restart.c`). A plain `esp_restart()` can leave Wi-Fi dead on this board and loop forever; the firmware turns every restart into this one |
+| `reboot cpu` | test only: restart the way a crash does (CPU-only reset). The next boot must log "full chip reset" and come up normally |
+| `key <x>` | a key as from the keyboard: `t e f l c a p n d s o r` open the apps, `esc`, `enter` |
+| `shot [quality]` | the screen as a JPEG (use `tools/screenshot.py`) |
+| `usb on\|off`, `usb`, `usb host` | 5 V of the USB-A port (saved) · what is plugged in · start the USB host stack |
+| `chg on\|off` | battery charger (saved) |
+| `ext5v on\|off` | 5 V of the Grove port and the M5-Bus (saved, default off) |
+| `io` | registers of both I/O expanders, read back from the chips |
+| `bcam <ip>\|auto` | set the back camera's address by hand / forget it |
+| `wifi <slot>\|auto`, `nets`, `scan` | pick a network (saved) · list the provisioned ones · list what is on the air |
+| `sdsync`, `sdsync full` | mirror the server's SD pack; `full` re-hashes every file |
+| `remote list`, `remote accept <dev>`, `remote forget` | the remotes |
+| `t5b R …`, `t5buart <rx> <tx>\|off` | ESP-NOW bridge input: over this console (bench relay) / on a UART (untested) |
+| `uiwd reset` | clear the UI-restart counter |
+| `demo`, `say`, `convtest`, `substest`, `c6ver`, `ant`, `tz`, `voice`, `sd`, `camsrc` | as before |
+
 ## Demo script — M5Stack, Shenzhen (Thu 26 Nov), ~3 minutes
 
 1. **Before the room** (hotel): Tab5 charged; travel router up; check the status bar shows
