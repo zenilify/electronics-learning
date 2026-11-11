@@ -58,11 +58,29 @@ ASR_MAX_GAIN = 30.0
 _SOUND_TAG = re.compile(r"^[\*\[\(（【].{0,40}[\*\]\)）】]$")
 
 
+# What speech recognisers of the Whisper family write for music and silence: the credit lines of the subtitle files
+# they were trained on. Lower case, matched anywhere in the text.
+_CREDITS = ("amara.org", "dimatorzok", "thanks for watching", "thank you for watching", "gracias por ver",
+            "subtítulos realizados", "subtitulos realizados", "suscríbete", "字幕由", "谢谢观看", "請不吝", "请不吝")
+
+
+def _our_script(ch: str) -> bool:
+    """a letter of the three languages this service speaks: Latin (with accents) or a Chinese character"""
+    o = ord(ch)
+    return o < 0x250 or 0x3400 <= o <= 0x4DBF or 0x4E00 <= o <= 0x9FFF or 0xFF00 <= o <= 0xFFEF
+
+
 def spoken(text: str) -> str:
-    """'' for what a recogniser makes of sound that is not speech: a lone dash, dots, or a sound tag such as
-    *Gunshot*, [Music], (risas). Seen on 2026-11-11 as captions while a television ran in the room."""
+    """'' for what a recogniser makes of sound that is not speech in es / en / zh: a lone dash, dots, a sound tag
+    such as *Gunshot* or [Music], text in another script (Korean, Japanese and Russian came back for music), or a
+    subtitle credit line. All of these were captions on the Tab5 on 2026-11-11 while a television ran in the room."""
     t = (text or "").strip()
     if not any(ch.isalnum() for ch in t) or _SOUND_TAG.match(t):
+        return ""
+    if any(ch.isalpha() and not _our_script(ch) for ch in t):
+        return ""
+    low = t.lower()
+    if any(c in low for c in _CREDITS):
         return ""
     return t
 

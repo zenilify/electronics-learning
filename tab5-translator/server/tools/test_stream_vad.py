@@ -185,8 +185,9 @@ def main():
     check("8 quiet segments are levelled", 1700 <= lv <= 2100 and same, f"RMS 150 -> {lv:.0f}")
 
     # 9. what a recogniser makes of non-speech is not a caption (all four were on the Tab5's screen on 11 Nov)
-    junk = ["-", "...", "*Gunshot*", "[Music]", "(risas)", "  "]
-    real = ["Hola.", "你好", "Este sí.", "OK (creo)", "3"]
+    junk = ["-", "...", "*Gunshot*", "[Music]", "(risas)", "  ", "なお", "- 마리 마리.", "이렇게 해서", "Субтитры сделал DimaTorzok",
+            "Subtítulos realizados por la comunidad de Amara.org", "Thanks for watching!"]
+    real = ["Hola.", "你好", "Este sí.", "OK (creo)", "3", "¿Dónde está la estación de tren?", "你好,请问洗手间在哪里?", "USB-C 电缆的价格是多少？"]
     check("9 non-speech output is dropped, speech is kept", all(stream.spoken(t) == "" for t in junk) and all(stream.spoken(t) == t for t in real),
           f"dropped {[t for t in junk if stream.spoken(t) == '']} · kept {[t for t in real if stream.spoken(t)]}")
 
