@@ -40,11 +40,11 @@ Full wording: `claude/mail/t5*.md`, `n4.md`, handoffs.
 
 | Where | What | State | Notes |
 |---|---|---|---|
-| **cachy** (192.168.1.5 / 100.69.244.21) | Docker `papp` on :8787 (LAN + Tailscale only), systemd --user `papp.service` | ✅ up, `/health` = 0.2.1, **commit "dev"** | Image built 11-10 ~12:2x by T5 for /line (v0.2.2 per API.md, `35d5e3f`) without the commit build-arg → reports "dev" and still "0.2.1". Rollback tags `papp:prev-20261107` … `prev-20261110`, `v1-rollback` |
+| **cachy** (192.168.1.5 / 100.69.244.21) | Docker `papp` on :8787 (LAN + Tailscale only), systemd --user `papp.service` | ✅ up, `/health` = **0.2.2 / 9ecee58** (rebuilt 11-10 23:4x by T5-S; was 0.2.1/"dev") | Rollback tags `papp:prev-20261107` … `prev-20261111a`, `v1-rollback` |
 | cachy | `~/papp/cache` (TTS/NMT/fx, 51 MB) · `~/papp/phrasebook-pack-v2` (35 MB, mounted `/sdpack`) · `~/papp/voice-pack-erick` (39 MB, **personal voice**, mounted `/sdpack/voices`, never git) · `/cache/line.db` (Traceability Cell) | ✅ | Secrets `~/.config/zenilify/{papp_token,nvidia_build.env,t5-wifi}` 0600 |
 | cachy | `~/t5/` firmware build mirror, logs, device backups (`backup/`, `backup/line`, `backup/remotes`), test audio | files | `~/t5/wt-t5i` git worktree left by T5-I |
 | cachy firewall | 8788/tcp and 47800/udp were runtime-only openings | closed again | The reboot at 17:58 dropped them (current list has neither) |
-| **Cloud Run** `papp` (espbuilder, us-central1) | image `papp:20261108-1256`, min 0 / max 1 | ✅ `/health` 0.2.1 **commit 3e51ffe** | **No /scan, /line/*** (v0.2.2 only on cachy). Gemini `engine=best` via the service account. Also in espbuilder: `killswitch` service (cost guard, not PAPP) |
+| **Cloud Run** `papp` (espbuilder, us-central1) | image `papp:20261108-1256`, min 0 / max 1 | ✅ `/health` **0.2.2 / 9ecee58** (rev papp-00004-qkz, 11-10 23:4x) | `/scan` + `/line/*` deployed 11-10 (Erick) — line data demo-only (in-memory, resets after idle). Gemini `engine=best` via the service account. Also in espbuilder: `killswitch` service (cost guard, not PAPP) |
 | **MacBook** | offline brain on :8787 (pid 45239, listening on all interfaces) | ✅ running | electronics-learning `offline-brain/` v0.2.0; ~7 GB RAM; stop with `kill $(lsof -tiTCP:8787 -sTCP:LISTEN)` |
 | **Tab5** 30:ED:A0:E2:EF:41 | PAPP firmware v0.4.x (`36f76d8` tree), 1 TB TF "PAPP" with phrase pack + Erick-voice pack | in use | C6 esp-hosted 2.12.13 |
 | Satellites | StickS3 + M5Dial (remotes fw 0.1.2) · StampS3 sensor 50:78:7D:CD:64:8C · AtomS3 Lite + QRCode2 50:78:7D:CE:8B:10 · Cardputer ADV + RFID2 9C:CC:01:E0:EA:68 · XIAO ESP32S3 Sense back camera | flashed | Factory dumps of the three S3 boards in cachy `~/t5/backup/line/` (sha256 in the T5-I handoff) |
@@ -66,7 +66,7 @@ Full wording: `claude/mail/t5*.md`, `n4.md`, handoffs.
 | # | Item | Owner |
 |---|---|---|
 | P-1 | Licence inventory of third-party components and models before any publication | Erick / a lane |
-| P-2 | cachy reports commit "dev" and version 0.2.1 while running v0.2.2 (/line); Cloud Run has no /line → rebuild cachy with `--build-arg PAPP_COMMIT=…` and bump the version string; decide whether Cloud Run needs /line | T5 / T5-S |
+| P-2 | ✅ resolved 11-10 23:4x: cachy + Cloud Run both 0.2.2 / 9ecee58, /line on both (Cloud Run demo-only store) | T5-S |
 | P-3 | Phrase review: sheets A (Rain) and C (James) out; dialog-clip review (`Documents/PAPP-phrase-review/dialog/`) not yet recorded as sent | Erick |
 | P-4 | Leftovers kept (no deletions without Erick): `~/papp/phrasebook-pack/` (first run), `~/t5/wt-t5i`, `~/t5/line-mock.db` | Erick |
 | P-5 | Session logs in the vault exist for T5-S, T5 and T5-B; T5-I wrote none | tower |

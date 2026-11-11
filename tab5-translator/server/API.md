@@ -119,3 +119,13 @@ mid-shift is not penalised for the hours before) · P = ideal_cycle_s × total /
 12 default reason codes: S01–S05 (quality), D01–D05 (downtime), A01–A02 (help) — `GET /line/config`.
 Measured on cachy 11-10: 6 scans over 12 s → A 1.0 · P 1.0 · Q 0.833 · OEE 0.833; andon "falta tornillo M3" → zh 缺少螺丝 M3 /
 en missing screw M3; no bearer → 401; Tab5 Línea tile → `kpi HTTP 200`.
+
+## 2026-11-10 23:4x CST — parity: cachy and Cloud Run both v0.2.2 / commit 9ecee58 (lane T5-S, Erick: "deploy the board there too")
+
+- Cloud Run `papp` (espbuilder, rev papp-00004-qkz) now serves `/scan` and `/line/*` too. Verified: `GET /line/kpi` 200 (0.13 s),
+  3 × `POST /scan` 200 → total 3 / good 3, then `POST /line/reset {"confirm":"demo"}` → total 0 (test data removed).
+- **Cloud Run line data is demo-only:** SQLite in `/tmp` (in-memory), max 1 instance → consistent while the instance lives, gone
+  after ~15 min idle (scale to zero). cachy keeps the persistent line.db. For a show on Cloud Run: run the satellites against it for
+  the session, or set `--min-instances 1` for the demo hours (≈ cost of one always-on 1 vCPU / 1 GiB instance while set).
+- cachy rebuilt with the commit stamp (was reporting 0.2.1 / "dev" since T5's /line build); rollback `papp:prev-20261111a`.
+
