@@ -1,6 +1,6 @@
 # Tab5 — what to test, in order
 
-Written 11 Nov 2026 for Erick by the T5 session on cachy (`7f4fa96c`). Last updated: **16:14 CST, final version**.
+Written 11 Nov 2026 for Erick by the T5 session on cachy (`7f4fa96c`). Last updated: **16:14 CST, final version (soak result added 16:34)**.
 
 Total time: about 35 minutes. Tests 1 to 3 are the important ones (15 minutes); the rest can wait.
 
@@ -138,6 +138,7 @@ the time — with the console log running I can now see what the firmware was do
 
 - Two characters of the phrase pack are **not in the Tab5's font**: 茉 (as in jasmine tea) and 踝 (ankle). Phrases
   that use them show an empty box for that character. Needs the font file rebuilt with those two added.
+  The same goes for rarer characters in a translation, and for all **traditional** characters (Hong Kong signs).
 - At **14:50** the Tab5 restarted by itself. Cause: another session logged into cachy and probed the serial ports
   (two new boards had been plugged into cachy five minutes earlier). Not a Tab5 fault; I left that session a note.
 - cachy has no loudspeaker the Tab5 can hear, so my test voice was the Tab5's own loudspeaker. That is why your voice
@@ -155,6 +156,7 @@ the time — with the console log running I can now see what the firmware was do
 | Memory, every app opened twice (final build) | 172 kB free, the second round costs 1 kB (no leak). Last night: 137 kB |
 | Memory, 537 different Chinese characters typed into Escribe | costs 15 kB now; it cost 103 kB before, and never came back |
 | Memory, a 7-minute subtitles session with 16 captions | 46 kB used; the caption list is capped at 20 now |
+| 13 minutes walking through all twelve apps, 12 rounds (camera preview, subtitles on/off, demo translations) | 144 app opens, no freeze, no restart, no error line; memory settles at 156 kB free |
 | Full backup of the Tab5 after the last flash | taken at 16:13, verified against the build |
 
 What I could **not** do alone: speak with a human voice at a known distance, touch the screen, hear the loudspeaker.

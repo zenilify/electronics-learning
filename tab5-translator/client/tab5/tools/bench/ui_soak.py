@@ -53,6 +53,8 @@ while time.time() - t0 < MINUTES * 60:
 t = since(pos0)
 s1 = status()
 ok = s0["up"].isdigit() and s1["up"].isdigit() and int(s1["up"]) > int(s0["up"]) and s0["ui"] == s1["ui"] and "UI silent" not in t and "PAPP Tab5 v" not in t
+crashes = len(re.findall(r"Guru Meditation|abort\(\)|assert failed", t))
+errors = len(re.findall(r"^\S+ E \(", t, re.M))                 # console lines of level E, after the logger's time stamp
 say(f"END after {rounds} rounds, {opens} app opens, {(time.time() - t0) / 60:.1f} min: 'UI silent' {t.count('UI silent')} · boots {t.count('PAPP Tab5 v')} · "
-    f"panic/abort lines {len(re.findall(r'Guru Meditation|abort\\(\\)|assert failed', t))} · subtitle sessions {t.count('subs: start HTTP 200')} · "
-    f"E-level log lines {len(re.findall(r'^\\S+ E \\(', t, re.M))} · ui_restarts {s0['ui']} -> {s1['ui']} · uptime {s0['up']} -> {s1['up']} s · PASS {ok}")
+    f"crash lines {crashes} · subtitle sessions {t.count('subs: start HTTP 200')} · E-level log lines {errors} · "
+    f"ui_restarts {s0['ui']} -> {s1['ui']} · uptime {s0['up']} -> {s1['up']} s · PASS {ok}")
