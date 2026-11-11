@@ -163,6 +163,7 @@ MacBook; nothing else on it was changed.
 | `~/t5/venv/` | Python with `esptool` and `pyserial`, for flashing (Docker on macOS cannot reach a USB port) |
 | `~/t5/docker-config/` | docker settings used only by these scripts (the Mac's own default still points at cachy) |
 | `~/t5/1128-c18-artifacts-v0.4.3/` | the tested firmware files (no secrets), ready to flash |
+| PlatformIO (`~/.local/bin/pio`, packages in `~/.platformio/`, 5 GB) | builds the remotes and the ESP-NOW bridge. Installed with `uv tool install --python 3.14 platformio`: the ESP32 platform these projects use accepts Python 3.10–3.14 only, and with uv's default (3.15) every build stopped at once |
 
 **Build**
 
@@ -196,10 +197,23 @@ python3 tools/console_nr.py "$P" 4 0.8:status                  # checked on macO
 python3 tools/screenshot.py ~/t5/shot.jpg --port "$P" --pre "key a"
 ```
 
-What is **not** on the MacBook yet (2026-11-11): the Wi-Fi list and the remotes key (`~/.config/zenilify/t5-wifi`,
-`t5-remote-key` — needed only to provision a board from scratch, not to flash the app); and PlatformIO for the remotes
-and the line kit. Not run on macOS: `flash.sh backup` (a full read-back contains the Wi-Fi passwords and keys, and the
-MacBook's disk is not encrypted), `console_log.py`, `ram_walk.py`, `gallery.sh`.
+**Remotes and ESP-NOW bridge** (PlatformIO; all five targets built on the MacBook on 2026-11-11)
+
+```sh
+cd ~/t5/electronics-learning/tab5-translator/satellites/remote-sticks3 && pio run -e sticks3   # also: -e sticks3-espnow
+cd ../remote-dial   && pio run -e dial                                                           # also: -e dial-espnow
+cd ../espnow-bridge && pio run -e bridge
+```
+
+Flashing a remote from the MacBook has **not** been done. On cachy `satellites/tools/flash.sh` checks the MAC and refuses
+without a full backup of that remote; such a backup holds the remote's key and Wi-Fi, and those stay on cachy.
+
+What is **not** on the MacBook (Erick, 2026-11-11: secrets stay on cachy until further notice): the Wi-Fi list and the
+remotes key (`~/.config/zenilify/t5-wifi`, `t5-remote-key`). They are needed to provision a board from scratch, not to
+flash an app. For the same reason the **line kit** (`satellites/line/`) cannot be built there: it compiles in
+`line/common/secrets.h`, which is generated from those files. Not run on macOS: `flash.sh backup` (a full read-back
+contains the Wi-Fi passwords and keys, and the MacBook's disk is not encrypted), `console_log.py`, `ram_walk.py`,
+`gallery.sh`. Not tried on the MacBook: the camera firmware (`satellites/xiao-cam`, an ESP-IDF project).
 
 ## Demo script — M5Stack, Shenzhen (Thu 26 Nov), ~3 minutes
 

@@ -9,7 +9,8 @@ each session.
 ## 2026-11-11 — Tab5 overnight PDCA: camera power, charging, ESP-NOW bridge (lane T5, Claude Code on cachy)
 
 Four unattended hours on the Tab5 translator (`tab5-translator/`). Full record with every measurement:
-`tab5-translator/docs/PDCA-2026-11-11.md`. Firmware 0.4.0 → **0.4.2** (branch `claude/t5-overnight-1111`, draft PR).
+`tab5-translator/docs/PDCA-2026-11-11.md`. Firmware 0.4.0 → **0.4.2** overnight and **0.4.3** by noon, merged to
+`main` (PR #3 and PR #4).
 
 **Done and measured**
 
@@ -33,6 +34,18 @@ Four unattended hours on the Tab5 translator (`tab5-translator/`). Full record w
 - Internal RAM measured per app (`tools/ram_walk.py`): no leak, but the screens stay built. Frases gives its phrase
   cards back when you leave it (+20 kB).
 
+**Same day, with Erick at the bench**
+
+- The wall charger charges the pack (Ajustes: "cargando", +0.15 A at 8.38 V).
+- Plugging USB power in restarted the Tab5. Cause: the supply dips for a moment and the chip's brownout detector (a
+  guard that resets the chip when its voltage is too low) resets it; the Wi-Fi chip drops in the same dip. It depends
+  on the port: through a USB-C-to-A adapter on a USB-A socket 7 of 7 plug-ins restarted it, USB-C to USB-C into a USB-C
+  port 0 of 5. Firmware 0.4.3 shows in Ajustes why the Tab5 last started ("último arranque: …").
+- The screen watchdog fired twice in real use (about 09:15) and the Tab5 came back by itself both times. What
+  triggered it is not known.
+- The MacBook can build the same firmware and flash the Tab5 (measured end to end), and PlatformIO on it builds both
+  remotes and the bridge. The secrets (Wi-Fi list, remote key, full backups) stay on cachy — Erick's decision.
+
 **Things worth understanding (lesson material)**
 
 - *High-Z output*: an I/O-expander pin can be "set high" and still drive nothing until it is switched to push-pull.
@@ -46,9 +59,15 @@ Four unattended hours on the Tab5 translator (`tab5-translator/`). Full record w
 - *A handful of good runs proves little about an intermittent fault.* The same restart worked at 02:29, looped at
   03:48 and worked seven times in a row after 04:15 — I wrote "not reproducible". A soak of 57 resets found 20
   failures. Count before you conclude, and let the fix not depend on knowing the trigger.
+- *Check that the preparation took effect before a hands-on test.* One of Erick's plug-in tests tested nothing: the
+  console command that should have switched the brownout detector off had been lost, and I had not read the answer back.
+- *The same firmware is not the same bytes.* Two builds of the same source differ in the compile time and in the
+  checksums that cover it (about 70 bytes). `tools/same_firmware.py` compares everything else.
+- *A lock file only pins what is in it.* `dependencies.lock` had no entry for one component, so every fresh clone
+  chose a version again. A fresh clone that builds without changing a tracked file is the test.
 
-**Open** — see §4 of the PDCA file (merge, charger test, ESP-NOW cable, RainMaker login, camera-freeze follow-up,
-internal RAM margin, cause of the restart regression).
+**Open** — see §4 of the PDCA file (ESP-NOW cable, RainMaker login, camera-freeze follow-up, who receives the access
+token on a foreign Wi-Fi, internal RAM margin, cause of the restart fault).
 
 ---
 
