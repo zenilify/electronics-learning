@@ -175,8 +175,8 @@ python3 tools/same_firmware.py build/papp_tab5.bin ~/t5/1128-c18-artifacts-v0.4.
 ```
 
 **Flash** (Tab5 plugged into the MacBook. Use a USB-C to USB-C cable into a USB-C port: through a USB-A adapter the
-Tab5 restarts when power is plugged in while it runs from its battery — 7 of 7 on cachy's USB-A ports, 0 of 4 on a
-USB-C hub port, PDCA §5/§6)
+Tab5 restarts when power is plugged in while it runs from its battery — 7 of 7 on cachy's USB-A ports, 0 of 5 on
+USB-C ports, PDCA §5/§6)
 
 ```sh
 bash tools/flash.sh port                       # must show:  30:ED:A0:E2:EF:41 ... <- the Tab5
