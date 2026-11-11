@@ -163,7 +163,8 @@ def main():
     # 5. the desktop / injector case: a clean loud clip over digital silence
     sig = mix(array.array("h", bytes(2 * RATE * 8)), d1, 2.0)
     new, _ = run_new(sig); old = run_old(sig)
-    check("5 a clean loud clip still works", len(new) == 1 and new[0][1] >= 0.8 * (len1 - on1), f"new {new} · old {old}")
+    cov = covered(new, 2.0 + on1, 2.0 + len1)
+    check("5 a clean loud clip still works", 1 <= len(new) <= 2 and cov >= 0.9, f"new {new} cover {cov:.0%} · old {old}")
 
     # 6. two sentences with a 1.2 s pause, in 1 s chunks as the Tab5 sends them
     sig = noise(16, 70, rnd)
@@ -183,6 +184,42 @@ def main():
     lv = rms(array.array("h", stream.levelled(q)))
     same = stream.levelled(d1.tobytes()) == d1.tobytes() or abs(rms(array.array("h", stream.levelled(d1.tobytes()))) - 2000) < 200
     check("8 quiet segments are levelled", 1700 <= lv <= 2100 and same, f"RMS 150 -> {lv:.0f}")
+
+    # 10-12. The first test with a person (Erick, 11 Nov 16:48): the room was restless - 20 ms frames anywhere
+    # between 40 and 300 while its quiet end sat at 40 - and he spoke at arm's length (RMS about 1500).
+    # His sentence was captioned 12 s late and the room alone became a "segment" every 12 s.
+    def restless(seconds):
+        a = array.array("h")
+        for _ in range(int(seconds * 10)):                      # a new level every 100 ms, anywhere from 40 to 300
+            lv = math.exp(rnd.uniform(math.log(40), math.log(300)))
+            a.extend(int(rnd.gauss(0, lv)) for _ in range(RATE // 10))
+        return a
+
+    sig = mix(restless(20), scaled(d1, 1500), 3.0)
+    new, _ = run_new(sig)
+    end = max((st + d for st, d in new), default=0)
+    cov = covered(new, 3.0 + on1, 3.0 + len1)
+    check("10 a sentence in a restless room is captioned when it ends", 1 <= len(new) <= 2 and cov >= 0.9 and end <= 3.0 + len1 + 1.0,
+          f"new {new} cover {cov:.0%}, last segment ends at {end:.2f} s (the speech ends at {3.0 + len1:.2f} s)")
+
+    late, early = [], 0                                         # five different rooms of 40 s
+    for _ in range(5):
+        new, s = run_new(restless(40))
+        late += [x for x in new if x[0] >= 2.0]; early += sum(1 for x in new if x[0] < 2.0)
+    # In the first 2 s the estimates start from nothing, so a room that happens to begin quiet and then bumps can
+    # open one segment. Waiting 2 s before listening would cost the first sentence of somebody who taps and speaks.
+    # Measured with this model: one false segment in 200 s after the start-up (it was eight 12 s segments per
+    # 100 s before the second pass). The bound keeps it from getting worse; it is not "none".
+    check("11 a restless room alone gives (almost) nothing to recognise", len(late) <= 1 and early <= 5,
+          f"5 rooms x 40 s: segments after the first 2 s {late}; in the first 2 s {early}")
+
+    sig = restless(24)
+    mix(sig, scaled(d2, 1500), 2.0); mix(sig, scaled(d2, 1500), 12.0)
+    st = stream.Session(lang="es", tgt="")
+    got = []
+    for i in range(0, len(sig), RATE):                          # a recogniser that always answers the same words
+        got += stream.feed(st, sig[i:i + RATE].tobytes(), lambda pcm, lang: ("lo mismo", "es"), lambda t, a, b: t)["final"]
+    check("12 the same caption twice in a row is shown once", len(got) == 1 and st.repeats >= 1, f"captions {len(got)}, repeats dropped {st.repeats}")
 
     # 9. what a recogniser makes of non-speech is not a caption (all four were on the Tab5's screen on 11 Nov)
     junk = ["-", "...", "*Gunshot*", "[Music]", "(risas)", "  ", "なお", "- 마리 마리.", "이렇게 해서", "Субтитры сделал DimaTorzok",

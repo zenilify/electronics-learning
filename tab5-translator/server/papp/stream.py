@@ -25,6 +25,28 @@ How "speech" is decided (rewritten 2026-11-11, after "live subtitles show nothin
   * PRE_ROLL_S of audio from before the first loud frame is kept: soft onsets ("s", "h", "f")
     used to be cut off because a segment started at the first frame over the threshold.
   * A segment is brought to a normal level before it is recognised (quiet microphone, far speaker).
+
+Second pass, same day, after the first test with a person (Erick, 16:48): his sentence was captioned only when
+the segment hit MAX_SEG_S, 12 s later, and the room alone then produced a 12 s "segment" every 12 s, which the
+recogniser turned into invented English sentences. The room was restless (20 ms frames between 40 and 300 while
+the quiet end sat at 40): a floor taken from the quiet end is right for hearing quiet speech, and wrong as the
+only yardstick for "this is still speech". So:
+
+  * Two more yardsticks, both taken from ALL frame levels of the last BG_WIN_S: `bg`, their median, and `bg_hi`,
+    their 75th percentile. A segment opens above K_ON x floor AND K_HI_ON x bg_hi; inside a segment a frame is a
+    pause under K_BG_OFF x bg. In a steady room all three sit next to each other and the floor decides, as
+    before. In a restless room they spread, and the upper two keep the room's own bumps from opening a segment
+    and from holding one open. (Of everything, not of "what was not speech": a level that only learns from
+    frames it already called non-speech can never learn that the room got louder. Somebody talking without a
+    break raises them to the weak and middle part of their own speech; the strong syllables still open
+    segments and real pauses still close them.)
+  * Inside a segment a frame is also a pause when it is under REL_OFF of that segment's own speech level
+    (`ref`, the loudest recent frame, fading by half in 2.8 s): when a speaker at 1500 stops, the room at 115
+    ends the segment instead of extending it.
+  * The pause that ends a segment shrinks as the segment grows (0.6 s, 0.45 s past 5 s, 0.3 s past 8 s).
+  * A segment whose loud and quiet frames differ by less than FLAT_RATIO is a noise (a fan that started): it is
+    not recognised.
+  * The same caption twice in a row within 30 s is dropped (what a recogniser does with noise).
 """
 from __future__ import annotations
 
@@ -40,7 +62,9 @@ from dataclasses import dataclass, field
 RATE = 16000
 FRAME = 320                 # 20 ms
 FRAME_S = FRAME / RATE
-TAIL_SIL_S = 0.6
+TAIL_SIL_S = 0.6            # the pause that ends a segment ...
+TAIL_MID_S = 0.45           # ... once it is longer than 5 s
+TAIL_LONG_S = 0.3           # ... and longer than 8 s
 MAX_SEG_S = 12.0
 MIN_SEG_S = 0.35            # voiced time a segment needs (a click or a cough stays under it)
 PARTIAL_EVERY_S = 1.0
@@ -48,8 +72,15 @@ IDLE_S = 60.0
 PRE_ROLL_S = 0.3
 NOISE_WIN_S = 5.0
 NOISE_PCT = 0.08
-K_ON = 3.0
-K_OFF = 2.0
+K_ON = 3.0                  # a segment opens above this many times the floor (the room's quiet end) ...
+K_HI_ON = 2.0               # ... and this many times bg_hi (75th percentile of the last BG_WIN_S)
+K_OFF = 2.0                 # inside a segment a frame is a pause under K_OFF x floor,
+K_BG_OFF = 1.6              # under K_BG_OFF x bg (the median of the last BG_WIN_S),
+REL_OFF = 0.2               # or under this share of the segment's own speech level
+REF_DECAY = 0.995           # that level follows the loudest recent frame and halves in 2.8 s
+BG_WIN_S = 10.0
+FLAT_RATIO = 2.5            # 90th / 10th percentile of a segment's frame levels; under it = a noise, not speech
+REPEAT_S = 30.0
 ABS_MIN = 40.0
 ASR_TARGET_RMS = 2000.0     # level a segment is raised to before recognition
 ASR_MAX_GAIN = 30.0
@@ -123,6 +154,15 @@ class Session:
     frames: int = 0
     finals: int = 0             # how many segments were recognised with text (for the log)
     dropped: int = 0            # segments that opened and were discarded as too short
+    bg: float = 0.0             # median of all frame levels of the last BG_WIN_S; 0 = not known yet
+    bg_hi: float = 0.0          # their 75th percentile
+    bg_hist: deque = field(default_factory=lambda: deque(maxlen=int(BG_WIN_S / FRAME_S)))
+    ref: float = 0.0            # speech level of the open segment
+    seg_e: list = field(default_factory=list)   # frame levels of the open segment, from its first loud frame
+    flat: int = 0               # segments discarded as a steady noise
+    repeats: int = 0            # captions discarded as a repeat of the one before
+    last_text: str = ""
+    last_text_t: float = 0.0
 
 
 _sessions: dict[str, Session] = {}
@@ -162,23 +202,31 @@ def feed(s: Session, pcm: bytes, recognise, translate, flush: bool = False) -> d
             fr = pcm[i:i + FRAME * 2]
             e = _rms(fr)
             s.hist.append(e)
+            s.bg_hist.append(e)
             s.frames += 1
             if len(s.hist) >= 10 and (s.frames % 5 == 0 or s.noise <= 0):
                 h = sorted(s.hist)
                 s.noise = max(h[int(len(h) * NOISE_PCT)], 1.0)
+                b = sorted(s.bg_hist)
+                s.bg, s.bg_hi = b[len(b) // 2], b[len(b) * 3 // 4]
             if s.noise <= 0:                                  # no floor yet: only remember the audio
                 s.pre.append(fr)
                 continue
-            in_seg = bool(s.seg)
-            speech = e > max((K_OFF if in_seg else K_ON) * s.noise, ABS_MIN)
-            if not in_seg:
-                if not speech:
-                    s.pre.append(fr)                          # silence: keep the last PRE_ROLL_S
+            bg = s.bg or s.noise
+            if not s.seg:
+                if e <= max(K_ON * s.noise, K_HI_ON * (s.bg_hi or s.noise), ABS_MIN):
+                    s.pre.append(fr)                          # not speech: keep the last PRE_ROLL_S
                     continue
                 for p in s.pre:                               # first loud frame: open with the pre-roll
                     s.seg += p
                 s.pre.clear()
+                s.ref = e; s.seg_e = []
+                speech = True
+            else:
+                s.ref = max(s.ref * REF_DECAY, e)
+                speech = e > max(K_OFF * s.noise, K_BG_OFF * bg, REL_OFF * s.ref, ABS_MIN)
             s.seg += fr
+            s.seg_e.append(e)
             s.since_partial_s += FRAME_S
             if speech:
                 s.voiced_s += FRAME_S
@@ -186,9 +234,10 @@ def feed(s: Session, pcm: bytes, recognise, translate, flush: bool = False) -> d
             else:
                 s.silence_s += FRAME_S
             seg_s = len(s.seg) / 2 / RATE
-            if (s.silence_s >= TAIL_SIL_S and s.voiced_s >= MIN_SEG_S) or seg_s >= MAX_SEG_S:
+            tail = TAIL_SIL_S if seg_s < 5.0 else TAIL_MID_S if seg_s < 8.0 else TAIL_LONG_S
+            if (s.silence_s >= tail and s.voiced_s >= MIN_SEG_S) or seg_s >= MAX_SEG_S:
                 finals.append(_finalise(s, recognise, translate))
-            elif s.silence_s >= TAIL_SIL_S:                    # a click, not speech: reset
+            elif s.silence_s >= tail:                          # a click, not speech: reset
                 s.seg.clear(); s.voiced_s = s.silence_s = s.since_partial_s = 0.0
                 s.dropped += 1
         if flush and s.voiced_s >= MIN_SEG_S:
@@ -209,21 +258,32 @@ def feed(s: Session, pcm: bytes, recognise, translate, flush: bool = False) -> d
         return {"seq": s.seq, "partial": s.partial, "final": good,
                 "open_s": round(len(s.seg) / 2 / RATE, 2), "lang": s.detected or s.lang,
                 # what the detector saw, for whoever has to answer "why did nothing come up":
-                "level": round(level), "noise": round(s.noise), "empty": len(finals) - len(good)}
+                "level": round(level), "noise": round(s.noise), "bg": round(s.bg), "empty": len(finals) - len(good)}
 
 
 def _finalise(s: Session, recognise, translate) -> dict:
     pcm = bytes(s.seg)
+    lv = sorted(s.seg_e[:max(1, len(s.seg_e) - int(s.silence_s / FRAME_S))])       # without the closing pause
+    dur, voiced = round(len(pcm) / 2 / RATE, 2), round(s.voiced_s, 2)
     s.seg.clear(); s.voiced_s = s.silence_s = s.since_partial_s = 0.0; s.partial = ""
+    if len(lv) >= 25 and lv[int(len(lv) * 0.9)] < FLAT_RATIO * max(lv[int(len(lv) * 0.1)], 1.0):
+        s.flat += 1
+        return {"text": "", "flat": True, "dur_s": dur}
     t0 = time.perf_counter()
     try:
         text, lang = recognise(levelled(pcm), s.lang)
     except Exception as e:  # noqa: BLE001
-        return {"text": "", "error": type(e).__name__, "dur_s": round(len(pcm) / 2 / RATE, 2)}
+        return {"text": "", "error": type(e).__name__, "dur_s": dur}
     text = spoken(text)
+    now = time.monotonic()
+    if text and text == s.last_text and now - s.last_text_t < REPEAT_S:
+        s.repeats += 1
+        text = ""
+    elif text:
+        s.last_text, s.last_text_t = text, now
     if s.lang == "auto" and lang and text:
         s.detected = lang
-    out = {"text": text, "lang": lang, "dur_s": round(len(pcm) / 2 / RATE, 2)}
+    out = {"text": text, "lang": lang, "dur_s": dur, "voiced_s": voiced}
     if s.tgt and text and lang and s.tgt != lang:
         try:
             out["tgt_text"] = translate(text, lang, s.tgt)

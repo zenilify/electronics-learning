@@ -500,12 +500,14 @@ async def _stream_feed(request: Request, sid: str, flush: bool) -> dict:
     # One line per recognised segment (sizes and timings only, never the words). Until 2026-11-11 the stream
     # routes logged nothing, so "the Tab5 shows no subtitles" could not be told apart from "it never called".
     for f in out["final"]:
-        log.info("stream final lang=%s dur=%.1fs chars=%d tgt_chars=%d asr+mt=%d ms floor=%d",
-                 f.get("lang"), f.get("dur_s", 0), len(f.get("text", "")), len(f.get("tgt_text", "")), f.get("ms", 0), out["noise"])
+        log.info("stream final lang=%s dur=%.1fs voiced=%.1fs chars=%d tgt_chars=%d asr+mt=%d ms floor=%d bg=%d",
+                 f.get("lang"), f.get("dur_s", 0), f.get("voiced_s", 0), len(f.get("text", "")), len(f.get("tgt_text", "")),
+                 f.get("ms", 0), out["noise"], out["bg"])
     if out["empty"]:
-        log.info("stream segment without text x%d level=%d floor=%d", out["empty"], out["level"], out["noise"])
+        log.info("stream segment without text x%d level=%d floor=%d bg=%d", out["empty"], out["level"], out["noise"], out["bg"])
     if flush:
-        log.info("stream stop chunks=%d finals=%d dropped_short=%d floor=%d", s.seq, s.finals, s.dropped, out["noise"])
+        log.info("stream stop chunks=%d finals=%d dropped_short=%d flat=%d repeats=%d floor=%d bg=%d",
+                 s.seq, s.finals, s.dropped, s.flat, s.repeats, out["noise"], out["bg"])
     return out
 
 
