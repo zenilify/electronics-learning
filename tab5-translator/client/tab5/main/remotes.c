@@ -87,6 +87,19 @@ bool papp_sha256_file(const char *path, char hex[65])
     return true;
 }
 
+// HMAC-SHA256 with any key length (RFC 2104) — papp_http.c uses it for the offline brain's token proof (0.4.6).
+void papp_hmac_sha256(const uint8_t *key, size_t klen, const uint8_t *msg, size_t n, uint8_t out[32])
+{
+    uint8_t k[64] = {0}, ip[64], op[64], inner[32];
+    sha_t s;
+    if (klen > 64) { sha_init(&s); sha_upd(&s, key, klen); sha_fin(&s, k); }   // a key longer than a block is hashed first
+    else memcpy(k, key, klen);
+    for (int i = 0; i < 64; i++) { ip[i] = k[i] ^ 0x36; op[i] = k[i] ^ 0x5c; }
+    sha_init(&s); sha_upd(&s, ip, 64); sha_upd(&s, msg, n); sha_fin(&s, inner);
+    sha_init(&s); sha_upd(&s, op, 64); sha_upd(&s, inner, 32); sha_fin(&s, out);
+    memset(k, 0, sizeof k); memset(ip, 0, sizeof ip); memset(op, 0, sizeof op);
+}
+
 static uint8_t s_key[16];
 static bool s_have_key;
 static void tag16(const uint8_t *msg, size_t n, char out[17])        // first 8 bytes of HMAC-SHA256(key, msg), hex

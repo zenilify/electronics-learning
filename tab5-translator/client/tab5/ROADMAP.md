@@ -83,6 +83,7 @@ Also v0.4.0 (11-09 overnight): Ajustes **Voz: PAPP / Erick** (es/en phrases from
 | TTS 0.4–1.0 s cold (2–7 s not reproduced 11-07), cache hit 3–6 ms; phrasebook pre-rendered (T5-S) | SD sync of the 680-WAV pack |
 | Flash size (12 MB app) | font + clips to SD; keep a 1.1 MB CJK font in flash as fallback |
 | Demo-day network | layer 2 (MacBook offline brain) rehearsed with mobile data OFF |
+| Someone on the demo Wi-Fi poses as the offline brain and is sent the token and the audio | ✅ 0.4.6 (11-14): an address found by mDNS is used only after it proves the token (`/proof`, brain 0.2.1); tested with the real brain, a wrong proof and a forwarded proof. Still plain HTTP: a listener on an open network sees the bearer |
 
 ## 6 · Who builds what (helper lanes, tower 11-07 20:30; T5 = integrator, owns client/tab5/**)
 

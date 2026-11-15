@@ -13,6 +13,7 @@ Engines via env: PAPP_MT=qwen3|qwen25|nllb · PAPP_TTS=piper|say.
 from __future__ import annotations
 
 import base64
+import hashlib
 import hmac
 import json
 import logging
@@ -43,7 +44,7 @@ STATE = Path(os.environ.get("PAPP_STATE", os.path.expanduser("~/papp-brain")))
 MT_REPOS = {"qwen25": "mlx-community/Qwen2.5-7B-Instruct-4bit",
             "qwen3": "mlx-community/Qwen3-8B-4bit"}
 
-app = FastAPI(title="PAPP offline brain", version="0.2.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="PAPP offline brain", version="0.2.1", docs_url=None, redoc_url=None)
 _bearer = HTTPBearer(auto_error=False)
 E: dict = {}
 _TOKEN = open(os.environ.get("PAPP_TOKEN_FILE", os.path.expanduser("~/.config/zenilify/papp_token")),
@@ -87,6 +88,18 @@ def _stop() -> None:
     p = E.get("mdns")
     if p and p.poll() is None:
         p.terminate()
+
+
+@app.get("/proof")
+def proof(request: Request, nonce: str) -> dict:
+    """Show a Tab5 that this machine knows the PAPP token, without sending it (Tab5 firmware 0.4.6 asks before it
+    trusts an mDNS answer). No bearer needed: the caller does not send its token to an unproven address.
+    The proof covers the address this server was reached on, so it is useless to a machine that forwards the question."""
+    if len(nonce) != 32 or any(c not in "0123456789abcdef" for c in nonce):
+        raise HTTPException(400, "nonce = 32 lowercase hex characters")
+    host, port = (request.scope.get("server") or ("", PORT))[:2]
+    msg = f"papp-brain-proof:{nonce}:{host}:{port}"
+    return {"proof": hmac.new(_TOKEN.encode(), msg.encode(), hashlib.sha256).hexdigest()}
 
 
 @app.get("/health")

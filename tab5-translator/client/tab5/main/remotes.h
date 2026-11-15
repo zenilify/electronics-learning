@@ -17,3 +17,5 @@ const char *ui_remote_state(void);              // idle | listen | busy | speak
 int  ui_remote_side(void);
 bool papp_sha256_file(const char *path, char hex[65]);   // SHA-256 of a file, 64 hex chars + NUL
 bool remotes_bridge_uart(int rx, int tx, bool save);     // ESP-NOW bridge on a UART (Grove port); untested path, off by default
+#include <stdint.h>
+void papp_hmac_sha256(const uint8_t *key, size_t klen, const uint8_t *msg, size_t n, uint8_t out[32]);   // RFC 2104, any key length
