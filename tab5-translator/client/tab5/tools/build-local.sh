@@ -29,7 +29,18 @@ touch "$HERE"/main/*.c "$HERE"/main/*.h
 # build/.ok = "this binary came out of a build that succeeded". A failed build leaves the previous papp_tab5.bin in
 # place, and flash.sh would happily flash it again (it did, 2026-11-11) - so the marker is removed first.
 rm -f "$HERE/build/.ok"
+# sdkconfig is generated once from sdkconfig.defaults and then kept: a later change to sdkconfig.defaults does NOT
+# reach an existing sdkconfig. Measured 2026-11-14: the MacBook's sdkconfig of 11 Nov (0.4.3) still said
+# CONFIG_LV_TINY_TTF_CACHE_KERNING_CNT=256 after the defaults went to 64, and its "0.4.5" differed from the tested
+# firmware in one constant (same_firmware.py caught it). So: remember which defaults the sdkconfig was made from, and
+# when they change (or were never recorded) put the old sdkconfig aside and let the build generate a new one.
+DEFSHA="$(sha "$HERE/sdkconfig.defaults")"
+if [ -f "$HERE/sdkconfig" ] && [ "$(cat "$HERE/build/.defaults.sha" 2>/dev/null)" != "$DEFSHA" ]; then
+  mv "$HERE/sdkconfig" "$HERE/sdkconfig.before-$(date +%Y%m%d-%H%M%S)"
+  echo "sdkconfig.defaults changed since the sdkconfig was generated: old sdkconfig put aside, generating a new one"
+fi
 "${DOCKER[@]}" run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$HERE":/p -w /p "$IMG" \
   bash -c '[ -f build/CMakeCache.txt ] || idf.py set-target esp32p4 >/dev/null; idf.py build'
+echo "$DEFSHA" > "$HERE/build/.defaults.sha"
 echo "$(sha "$HERE/build/papp_tab5.bin")  build/papp_tab5.bin" > "$HERE/build/.ok"
 echo "built: sha256 $(cut -c1-16 "$HERE/build/.ok")...  $HERE/build/papp_tab5.bin"

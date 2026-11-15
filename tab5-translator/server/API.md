@@ -19,8 +19,18 @@ Errors: JSON `{"detail": "..."}` with 400 (bad input) · 401 · 404 (unknown str
 | `POST /summarize?lang=auto&out=es` | WAV ≤ 10 min, or `{"text"}` ≤ 20 000 chars | `{lang, out, audio_s, transcript, title, summary, bullets[], actions[], markdown, model, timings_ms}` | `markdown` is ready to write to `/sdcard/papp/notes/<ts>.md` |
 | `POST /ocr-translate?engine=vl[&tts=es]` | `image/jpeg` or `image/png` (raw or multipart `image`) ≤ 6 MB | `{engine, items:[{zh, pinyin, es, en}], summary_es, summary_en, fallbacks[], timings_ms[, audio_b64, audio_rate]}` | `engine`: `vl` (default, 2–5 s) · `ocr` (fast lines, printed simplified only) · `best` (Gemini; cachy forwards to Cloud Run). Falls back automatically; `engine` says what answered |
 | `POST /stream/start?lang=auto&tgt=es` | — | `{sid, rate:16000, chunk_ms:1000, idle_timeout_s:60}` | live subtitles |
-| `POST /stream/chunk?sid=…` | raw PCM16 mono 16 kHz (≈1 s = 32 000 bytes) or a WAV | `{seq, partial, final:[{text, lang, tgt_text, dur_s, ms}], open_s, lang, ms}` | show `partial` as the grey line, append each `final` |
+| `POST /stream/chunk?sid=…` | raw PCM16 mono 16 kHz (≈1 s = 32 000 bytes) or a WAV | `{seq, partial, final:[{text, lang, tgt_text, dur_s, ms}], open_s, lang, ms, level, noise, empty}` | show `partial` as the grey line, append each `final`. `open_s` > 0 = speech is being collected. Since 0.2.3: `level` = RMS of this chunk, `noise` = the room's floor the detector uses, `empty` = segments recognised without text |
 | `POST /stream/stop?sid=…` | optional last chunk | same, flushes the open segment, frees the sid | |
+
+Live subtitles, speech detection (0.2.3, `papp/stream.py`): a 20 ms frame is speech when it is 3× louder than the
+room's noise floor (2× keeps an open segment going); the floor is the 8th percentile of the frame levels of the last
+5 s. There is no fixed level: any microphone gain works. 0.3 s before the first loud frame is kept, a segment ends
+after 0.6 s of silence or at 12 s, needs 0.35 s of speech, and is raised to a normal level before recognition.
+A lone dash, dots or a sound tag (`*Gunshot*`, `[Music]`) is not returned as text. A long open segment gets a partial
+every 2 s instead of every second. Offline check with no network: `python3 tools/test_stream_vad.py`.
+End to end with quiet speech, real recogniser, against cachy and Cloud Run: `python3 tools/probe_stream_quiet.py`.
+On Cloud Run since 11 Nov 16:48 (revision `papp-00005-5p9`, image `papp:20261111-1648`; the revision before it,
+`papp-00004-qkz`, is 0.2.2). The offline brain has no `/stream` route at all.
 
 Phrasebook SD pack: copy the pack's `papp/` folder onto the TF card root (merges with `/sdcard/papp`).
 `papp/tts/%08x.wav` are named `fnv32("<lang>|<text>")` — the firmware's own speech-cache key — so v0.2.0

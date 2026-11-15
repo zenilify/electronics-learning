@@ -30,9 +30,18 @@ static char s_busy_msg[96];
 
 static uint32_t side_color(int side) { return side ? C_AMBER : C_TEAL; }
 
+// Glyph caches, sized on purpose. Every cached glyph holds about 0.2 kB of INTERNAL RAM (small bookkeeping blocks;
+// the bitmap itself goes to PSRAM) and a cache never shrinks. Measured 2026-11-11 by typing 537 different Chinese
+// characters into Escribe: free internal RAM 238 -> 135 kB, flat once the cache's 512 entries were full, and still
+// 135 kB back on the home screen. Six sizes x 512 entries is more than the 296 kB that are free after boot, and
+// internal RAM is what Wi-Fi and the USB host live on - a day of Chinese text would have used it up. A size now
+// gets about as many entries as one screen shows at once; past that the least recently used glyph is rasterised
+// again when it comes back (a few milliseconds).
+static int glyph_cache_for(int px) { return px >= 90 ? 12 : px >= 60 ? 48 : px >= 28 ? 96 : px >= 24 ? 128 : 96; }
+
 lv_font_t *mkfont(int px)
 {
-    lv_font_t *f = lv_tiny_ttf_create_data(cjk_start, cjk_end - cjk_start, px);
+    lv_font_t *f = lv_tiny_ttf_create_data_ex(cjk_start, cjk_end - cjk_start, px, LV_FONT_KERNING_NORMAL, glyph_cache_for(px));
     if (!f) return (lv_font_t *)&lv_font_montserrat_24;
     f->fallback = px >= 36 ? &lv_font_montserrat_40 : px >= 26 ? &lv_font_montserrat_28 : &lv_font_montserrat_20;
     return f;

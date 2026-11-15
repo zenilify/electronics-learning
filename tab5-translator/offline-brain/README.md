@@ -70,6 +70,7 @@ Same contract as cachy's `server/API.md` (v0.2.1). The logic is copied from `ser
 | `/summarize?lang=auto&out=es` (WAV ≤ 10 min or `{text}`) | ✅ | local Qwen3-8B; cachy's prompt, glossary, language check + one retry. Local deviation: no copyable "Owner: … before 5 December" example (Qwen3 copied it into every action); `clean_action()` strips leftovers |
 | `/sd/index`, `/sd/file` | ✅ | serves `~/papp-brain/sdpack` (start.sh rsyncs cachy's `phrasebook-pack-v2/papp/` while online; 682 files, 34.9 MB); path traversal → 404 |
 | `/ocr-translate`, `/stream/*` | 404 | Tab5 falls back to cachy / Cloud Run |
+| `GET /proof?nonce=<32 hex>` (brain 0.2.1, 2026-11-14) | ✅ no bearer | returns `{"proof": HMAC-SHA256(token, "papp-brain-proof:<nonce>:<ip>:<port>")}` with the address this server was reached on. Tab5 firmware 0.4.6 asks this before it trusts an mDNS answer: a brain older than 0.2.1 is ignored by a Tab5 on 0.4.6 or later |
 | tts-cache, asr-alt (canary) | — | not needed offline / no second ASR on the Mac |
 
 ### Measured 2026-11-09 (MacBook, airgapped, `eval/v2_smoke.py` + T5-S's own acceptance tools)

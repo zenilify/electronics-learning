@@ -10,6 +10,8 @@
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
 #include "esp_log.h"
+#include "esp_random.h"
+#include "remotes.h"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
 #include "settings.h"
@@ -25,16 +27,68 @@ static char EP_URL[PAPP_EP_COUNT][96] = {
 static const char *EP_NAME[PAPP_EP_COUNT] = { "MacBook", "Tailscale", "LAN", "Cloud Run" };
 
 static int s_active = -1;
-void papp_set_brain(const char *ipv4, int port)
+static char s_token[96];
+static esp_http_client_handle_t mk(const char *url, int timeout_ms, esp_http_client_method_t m, void *ud);
+
+// ---- offline brain: prove the token before we trust an mDNS answer (0.4.6, PDCA 2.6 / D-9) ------------------------
+// Any device on the same Wi-Fi can answer "_papp._tcp". Whoever we take for the brain gets the PAPP bearer and the
+// audio of every request. So a new address is only accepted after it shows that it knows the token, without the
+// token crossing the air: we send a random nonce, the brain answers HMAC-SHA256(token, "papp-brain-proof:<nonce>:
+// <ip>:<port>") where ip:port is the address the BRAIN sees itself answering on. A machine that merely forwards our
+// question to the real brain gets a proof for the brain's address, not for its own, and fails here.
+// Not covered: someone listening on an open network still sees the bearer in the plain-HTTP requests that follow.
+static bool brain_proof(const char *ip, int port)
 {
+    if (!s_token[0]) return false;
+    uint8_t rnd[16]; esp_fill_random(rnd, sizeof rnd);
+    char nonce[33]; for (int i = 0; i < 16; i++) sprintf(nonce + 2 * i, "%02x", rnd[i]);
+    char url[160]; snprintf(url, sizeof url, "http://%s:%d/proof?nonce=%s", ip, port, nonce);
+    esp_http_client_handle_t c = mk(url, 2000, HTTP_METHOD_GET, NULL);          // no Authorization header on purpose
+    if (!c) return false;
+    char body[256]; int n = 0, status = -1;
+    if (esp_http_client_open(c, 0) == ESP_OK) {
+        esp_http_client_fetch_headers(c);
+        status = esp_http_client_get_status_code(c);
+        while (n < (int)sizeof body - 1) { int r = esp_http_client_read(c, body + n, sizeof body - 1 - n); if (r <= 0) break; n += r; }
+    }
+    body[n] = 0;
+    esp_http_client_close(c); esp_http_client_cleanup(c);
+    bool ok = false;
+    char *got = status == 200 ? json_str(body, "proof") : NULL;
+    if (got && strlen(got) == 64) {
+        char msg[128]; int m = snprintf(msg, sizeof msg, "papp-brain-proof:%s:%s:%d", nonce, ip, port);
+        uint8_t mac[32]; char want[65];
+        papp_hmac_sha256((const uint8_t *)s_token, strlen(s_token), (const uint8_t *)msg, m, mac);
+        for (int i = 0; i < 32; i++) sprintf(want + 2 * i, "%02x", mac[i]);
+        unsigned diff = 0; for (int i = 0; i < 64; i++) diff |= (unsigned)(want[i] ^ tolower((unsigned char)got[i]));
+        ok = diff == 0;
+        memset(mac, 0, sizeof mac); memset(want, 0, sizeof want);
+    }
+    free(got);
+    ESP_LOGI(TAG, "offline brain proof %s:%d -> HTTP %d, %s", ip, port, status, ok ? "token proven" : "NOT proven");
+    return ok;
+}
+
+void papp_set_brain(const char *ipv4, int port)                 // net task only (it may block ~2 s on the proof)
+{
+    static char ok_url[96], bad_url[96]; static int64_t bad_t;
     char u[96] = "";
     if (ipv4 && ipv4[0]) snprintf(u, sizeof u, "http://%s:%d", ipv4, port);
+    if (u[0] && strcmp(u, ok_url)) {                            // an address that has not proven itself (yet)
+        int64_t now = esp_timer_get_time();
+        if (!strcmp(u, bad_url) && now - bad_t < 60 * 1000000LL) u[0] = 0;          // failed less than a minute ago
+        else if (brain_proof(ipv4, port)) { strlcpy(ok_url, u, sizeof ok_url); bad_url[0] = 0; }
+        else {
+            ESP_LOGW(TAG, "an offline brain answered at %s without proving the token - ignored", u);
+            strlcpy(bad_url, u, sizeof bad_url); bad_t = now; u[0] = 0;
+        }
+    }
+    if (!u[0]) ok_url[0] = 0;                                   // gone: the next one that appears proves itself again
     if (strcmp(u, EP_URL[0])) { ESP_LOGI(TAG, "offline brain: %s", u[0] ? u : "gone"); strlcpy(EP_URL[0], u, sizeof EP_URL[0]);
                                   // brain gone while it was the active endpoint: re-probe before the next request
                                   // (11-09: an empty URL reached esp_http_client_open -> store fault, landmine 329)
                                   if (!u[0] && s_active == 0) s_active = -1; }
 }
-static char s_token[96];
 
 const char *papp_endpoint_url(int i) { return i >= 0 && i < PAPP_EP_COUNT ? EP_URL[i] : ""; }
 const char *papp_endpoint_name(int i) { return i >= 0 && i < PAPP_EP_COUNT ? EP_NAME[i] : "offline"; }
