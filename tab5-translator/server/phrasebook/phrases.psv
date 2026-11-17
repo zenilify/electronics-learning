@@ -24,7 +24,7 @@ transporte | ¿Cuánto cuesta? | How much is it? | 多少钱？ | duōshao qián
 transporte | Pare aquí, por favor | Please stop here | 请在这里停车 | qǐng zài zhèlǐ tíngchē
 transporte | ¿Dónde está el baño? | Where is the restroom? | 洗手间在哪里？ | xǐshǒujiān zài nǎlǐ?
 hotel | Tengo una reservación | I have a reservation | 我有预订 | wǒ yǒu yùdìng
-hotel | La contraseña del Wi-Fi, por favor | The Wi-Fi password, please | 请给我无线网密码 | qǐng gěi wǒ wúxiànwǎng mìmǎ
+hotel | La contraseña del Wi-Fi, por favor | The Wi-Fi password, please | 请问Wi-Fi密码是多少？ | qǐng wèn Wi-Fi mìmǎ shì duōshao
 hotel | Pídame un taxi, por favor | Please call me a taxi | 请帮我叫一辆出租车 | qǐng bāng wǒ jiào yí liàng chūzūchē
 compras | Está muy caro | Too expensive | 太贵了 | tài guì le
 compras | ¿Me hace descuento? | Can you make it cheaper? | 可以便宜一点吗？ | kěyǐ piányi yìdiǎn ma?
@@ -43,7 +43,7 @@ negocios | ¿Podemos colaborar? | Can we work together? | 我们可以合作吗�
 negocios | ¿Nos agregamos en WeChat? | Shall we add each other on WeChat? | 可以加个微信吗？ | kěyǐ jiā ge wēixìn ma?
 negocios | ¡Salud! | Cheers! | 干杯！ | gānbēi!
 basico | Sí | Yes | 是的 |
-basico | No | No | 不是 |
+basico | No | No | 不用 |
 basico | Está bien / De acuerdo | OK | 好的 |
 basico | No entiendo | I don't understand | 我听不懂 |
 basico | Entiendo | I understand | 我明白了 |
