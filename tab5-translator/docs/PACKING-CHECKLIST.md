@@ -48,6 +48,13 @@ Device names and IDs are from the tracker's Gear sheet. Tick each line with the 
 - [ ] The offline brain starts: `cd ~/t5/electronics-learning/tab5-translator/offline-brain && bash start.sh`, then `curl http://127.0.0.1:8787/health`
 - [ ] Not on the MacBook by decision (D-13): the Wi-Fi and remote-key secrets. Setting a board up from scratch is only possible from the home machine
 
+## State on 17 Nov, before leaving
+
+- Full flash backups of the seven kit boards and the CoreS3: `BLADE:/China-trip-2026/firmware-backup-20261117/` (board list, checksums and the restore command in `STATUS.md` there) and `cachy:~/t5/backup/pretrip-20261117/`. They contain the boards' stored Wi-Fi passwords and the remote key
+- All eight boards are seen by the MacBook; flashing from the MacBook was tested on the M5Dial (its own backup written back, hash verified, linked again)
+- One USB hub on the desk dropped the CoreS3 and the Cardputer during reads; on the dock ports both worked. Flash through the dock
+- Cardputer: the RFID2 on the LoRa Cap port is found (bus G8/G9) and a card read worked
+
 ## Stays at home
 
 - The AtomS3R camera (98:88:E0:0E:C3:B0) — it is the house camera, not part of the kit
