@@ -232,7 +232,7 @@ tiempo | Esta tarde | This afternoon | 今天下午 |
 tiempo | Esta noche | Tonight | 今天晚上 |
 tiempo | A las nueve de la mañana | At nine in the morning | 上午九点 |
 tiempo | A las dos de la tarde | At two in the afternoon | 下午两点 |
-tiempo | En cinco minutos | In five minutes | 五分钟后 |
+tiempo | Dame cinco minutos | Give me five minutes | 给我五分钟 |
 tiempo | Lunes | Monday | 星期一 |
 tiempo | Martes | Tuesday | 星期二 |
 tiempo | Miércoles | Wednesday | 星期三 |
@@ -249,7 +249,7 @@ reuniones | Gracias por recibirnos | Thank you for having us | 感谢您的接�
 reuniones | Esta es mi tarjeta de presentación | Here is my business card | 这是我的名片 |
 reuniones | ¿Me da su tarjeta? | May I have your card? | 可以给我您的名片吗？ |
 reuniones | Soy fundador de Zenilify | I'm the founder of Zenilify | 我是Zenilify的创始人 |
-reuniones | Somos una consultora de manufactura esbelta e IA | We are a lean manufacturing and AI consultancy | 我们是一家精益制造和人工智能咨询公司 |
+reuniones | Somos una consultora de manufactura esbelta e IA | We are a lean manufacturing and AI consultancy | 我们是一家专注于精益生产与人工智能的咨询公司 |
 reuniones | Trabajo con fábricas en México | I work with factories in Mexico | 我和墨西哥的工厂合作 |
 reuniones | Empecemos | Let's begin | 我们开始吧 |
 reuniones | ¿Cuánto tiempo tenemos? | How much time do we have? | 我们有多少时间？ |
@@ -275,7 +275,7 @@ fabrica | ¿Cuál es su capacidad mensual? | What is your monthly capacity? | �
 fabrica | ¿Cuál es su OEE? | What is your OEE? | 你们的设备综合效率是多少？ |
 fabrica | ¿Cómo controlan la calidad? | How do you control quality? | 你们怎么控制质量？ |
 fabrica | ¿Cuál es su tasa de defectos? | What is your defect rate? | 你们的不良率是多少？ |
-fabrica | ¿Usan Lean o Kaizen? | Do you use Lean or Kaizen? | 你们用精益生产或者改善吗？ |
+fabrica | ¿Usan Lean o Kaizen? | Do you use Lean or Kaizen? | 你们有没有实行精益生产或持续改善的管理模式？ |
 fabrica | ¿Puedo tomar fotos? | May I take photos? | 可以拍照吗？ |
 fabrica | ¿Dónde me pongo el equipo de seguridad? | Where do I put on safety gear? | 在哪里穿戴安全装备？ |
 fabrica | ¿Cuántos turnos trabajan? | How many shifts do you run? | 你们有几个班次？ |
