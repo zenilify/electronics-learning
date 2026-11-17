@@ -14,7 +14,7 @@ Device names and IDs are from the tracker's Gear sheet. Tick each line with the 
 
 - [ ] **StickS3** push-to-talk clicker (14:C1:9F:D5:35:3C) and its USB-C cable
 - [ ] **M5Dial** (70:AF:09:DE:94:4C) and its USB-C cable
-- [ ] Both still point at the Tab5's home address (192.168.1.118). They must be re-pointed after the travel-router test (tracker Erick #1, Claude #1) — not done yet
+- [x] Re-pointed 17 Nov 13:20: both now store the Tab5's travel-router address (192.168.29.83, was the home address 192.168.1.118). Tested on `kaizen-tr`: both joined it and the Tab5 logged `stick-353c` and `dial-944c` as linked, also after a restart of each. The stored address is only a hint; they find the Tab5 by broadcast on whatever network they share, so a different address from the router does not break them. Not tested: a button press end to end
 
 ## Línea demo kit
 
