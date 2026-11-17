@@ -32,7 +32,7 @@ Device names and IDs are from the tracker's Gear sheet. Tick each line with the 
 
 ## Badge and paper
 
-- [ ] **PaperS3 badge**, charged. The refreshed page 6 is staged but not on the badge yet (see the handoff: `./flash-badge.sh m5`)
+- [ ] **PaperS3 badge**, charged. The refreshed page 6 image is on the badge: written from cachy on 16 Nov (hash verified in `cachy:~/paper-badge/flash-20261116.log`) and confirmed 17 Nov by reading the badge back (application part identical to `badge-m5stack-visit.factory.bin`, sha256 `71f5342c09e1`). Still to do by eye: tap to page 6 and check the five steps
 - [ ] Printed one-pager for the Seeed meeting (decided 10 Nov: printed, not on the badge)
 
 ## Spares and tools
