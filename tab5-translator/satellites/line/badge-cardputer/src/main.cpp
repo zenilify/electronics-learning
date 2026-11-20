@@ -7,12 +7,16 @@
 //   KEYS  1 S01 material defect   2 D01 no material   3 D02 changeover   4 D03 breakdown   -> andon + reason
 //         type any code (e.g. S04) + Enter -> andon with that reason code (the server owns the es/zh/en texts)
 //         c = andon_clear · r = run · s = stop · b = next card is the badge · Del = erase typed code
+//   BENCH serial console: `p` = battery + reset reason, `d` = microSD mount + root listing (on demand only).
 //   SCAN  serial console: a line of text is posted as a QR scan ("!code" = scrap) — the scanner fallback role.
 // The top bar says LIVE (N4's server) or MOCK (tools/mock_line.py) — never mistake one for the other.
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <HTTPClient.h>
 #include <Wire.h>
+#include <SPI.h>
+#include <SD.h>
+#include <esp_system.h>
 #include <M5Cardputer.h>
 #include <MFRC522_I2C.h>
 #include "line_net.h"
@@ -146,6 +150,35 @@ static void onKey(char k) {
   draw();
 }
 
+// Bench only (serial `p`): battery as M5Unified reads it (ADC on G10) and why the chip last restarted.
+static void powerReport() {
+  int mv = M5.Power.getBatteryVoltage();
+  int lvl = M5.Power.getBatteryLevel();
+  int chg = (int)M5.Power.isCharging();          // 0 discharging · 1 charging · 2 unknown
+  Serial.printf("[badge] power batt_mv=%d level=%d charging=%d reset_reason=%d up_ms=%lu\n", mv, lvl, chg,
+                (int)esp_reset_reason(), (unsigned long)millis());
+}
+
+// Bench only (serial `d`): mount the microSD (CS G12, MOSI G14, CLK G40, MISO G39 — vendor pin map), list the root, unmount.
+// G5 is the EXT cap's chip select on the same SPI lines: held high so a fitted cap stays off the bus.
+static void sdReport() {
+  pinMode(5, OUTPUT); digitalWrite(5, HIGH);
+  SPI.begin(40, 39, 14, 12);
+  if (!SD.begin(12, SPI, 25000000)) {
+    Serial.println("[badge] sd mount=0 (no card, unreadable, or not FAT)");
+  } else {
+    Serial.printf("[badge] sd mount=1 type=%d size_mb=%llu used_mb=%llu\n", (int)SD.cardType(),
+                  SD.cardSize() / (1024ULL * 1024ULL), SD.usedBytes() / (1024ULL * 1024ULL));
+    File root = SD.open("/");
+    int n = 0;
+    for (File f = root.openNextFile(); f && n < 20; f = root.openNextFile(), n++)
+      Serial.printf("[badge] sd  %s %s %llu\n", f.isDirectory() ? "d" : "-", f.name(), (unsigned long long)f.size());
+    Serial.printf("[badge] sd listed=%d (max 20)\n", n);
+    root.close();
+  }
+  SD.end(); SPI.end();
+}
+
 void setup() {
   auto cfg = M5.config();
   M5Cardputer.begin(cfg, true);
@@ -155,7 +188,7 @@ void setup() {
   M5Cardputer.Speaker.setVolume(90);
   lastMsg = "conectando · 连接中";
   draw();
-  Serial.println("\n[badge] T5-I badge-cardputer station=" LINE_STATION);
+  Serial.println("\n[badge] T5-I badge-cardputer station=" LINE_STATION " fw=2026-11-19-bench");
   Wire.begin(2, 1, 100000);
   rfidOk = rfidProbe();
   Serial.printf("[badge] rfid2 @0x28 ack=%d bus=%s board=%d\n", rfidOk, rfidBus, (int)M5.getBoard());
@@ -195,6 +228,8 @@ void loop() {
     if (s == "?") Serial.printf("[badge] status up=%d mock=%d rfid=%d(%s) op=%s andon=%ld\n", lineUp(), lineIsMock(), rfidOk, rfidBus,
                                 op.c_str(), andonOpen);
     else if (s == "w") lineWifiScan();
+    else if (s == "p") powerReport();
+    else if (s == "d") sdReport();
     else if (s == "i") {                       // bench: I2C scan of the Grove port, both pin orders
       for (int o = 0; o < 2; o++) {
         Wire.end(); Wire.begin(o ? 1 : 2, o ? 2 : 1, 100000);
